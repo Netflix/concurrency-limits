@@ -1,0 +1,9 @@
+plugins {
+    id 'java'
+}
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+
+dependencies {
+    testCompile 'junit:junit-dep:4.10'
+}
