@@ -2,42 +2,51 @@ package com.netflix.concurrency.limits.limit;
 
 import com.netflix.concurrency.limits.Limit;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
 /**
- * Dynamic limiter that does an additive increment as long as there are no errors
- * and a multiplicative decrement when there are error.
+ * Loss based dynamic {@link Limit} that does an additive increment as long as 
+ * there are no errors and a multiplicative decrement when there is an error.
  */
 public final class AIMDLimit implements Limit {
 
-    private AtomicReference<Double> limit = new AtomicReference<>();
-    private AtomicBoolean didDrop = new AtomicBoolean(false);
+    private static final double DEFAULT_BACKOFF_RATIO = 0.9;
+    
+    private volatile int limit;
+    private boolean didDrop = false;
+    private final double backoffRatio;
     
     public AIMDLimit(int initialLimit) {
-        this.limit.set(Integer.valueOf(initialLimit).doubleValue());
+        this(initialLimit, DEFAULT_BACKOFF_RATIO);
+    }
+    
+    public AIMDLimit(int initialLimit, double backoffRatio) {
+        this.limit = initialLimit;
+        this.backoffRatio = backoffRatio;
     }
     
     @Override
     public int getLimit() {
-        return limit.get().intValue();
+        return limit;
     }
 
     @Override
-    public int update(long rtt) {
-        final Double current = limit.get();
-        if (didDrop.compareAndSet(true, false)) {
-            limit.compareAndSet(current, Math.max(1, current * 0.75));
+    public synchronized void update(long rtt) {
+        if (didDrop) {
+            didDrop = false;
         } else {
-            limit.compareAndSet(current, current + 1);
+            limit = limit + 1;
         }
-
-        return getLimit();
     }
 
     @Override
-    public int drop() {
-        didDrop.set(true);
-        return getLimit();
+    public synchronized void drop() {
+        if (!didDrop) {
+            didDrop = true;
+            limit = Math.max(1, Math.min(limit - 1, (int) (limit * backoffRatio)));
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "AIMDLimit [limit=" + limit + ", didDrop=" + didDrop + "]";
     }
 }

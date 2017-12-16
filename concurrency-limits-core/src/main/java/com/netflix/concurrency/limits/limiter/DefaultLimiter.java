@@ -52,6 +52,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     
     public DefaultLimiter(Limit limit, Strategy<ContextT> strategy) {
         Preconditions.checkArgument(limit != null, "Algorithm may not be null");
+        Preconditions.checkArgument(strategy != null, "Strategy may not be null");
         this.limit = limit;
         this.strategy = strategy;
         
@@ -89,7 +90,8 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                 long updateTime = nextUpdateTime.get();
                 if (endTime >= updateTime && nextUpdateTime.compareAndSet(updateTime, endTime + RTT_noload * 10)) {
                     if (!isAppLimited) {
-                        strategy.setLimit(limit.update(current));
+                        limit.update(current);
+                        strategy.setLimit(limit.getLimit());
                         isAppLimited = true;
                     }
                     RTT_candidate.set(Integer.MAX_VALUE);
@@ -103,7 +105,9 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
 
             @Override
             public void onDropped() {
+                strategy.release(context);
                 limit.drop();
+                strategy.setLimit(limit.getLimit());
             }
         });
     }
@@ -117,6 +121,8 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         return "DefaultLimiter [RTT_noload=" + TimeUnit.NANOSECONDS.toMillis(RTT_noload)
                 + ", RTT_candidate=" + TimeUnit.NANOSECONDS.toMillis(RTT_candidate.get()) 
                 + ", isAppLimited=" + isAppLimited 
-                + ", " + limit + "]";
+                + ", " + limit 
+                + ", " + strategy
+                + "]";
     }
 }
