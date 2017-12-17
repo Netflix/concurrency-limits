@@ -46,7 +46,9 @@ The BlockingAdaptiveExecutor adapts the size of an internal thread pool to match
 ```java
 public void drainQueue(Queue<Runnable> tasks) {
     Executor executor = new BlockingAdaptiveExecutor(
-        new DefaultLimiter(VegasLimit.newDefault(), new SimpleStrategy()));
+        new DefaultLimiter(
+            VegasLimit.newDefault(), 
+            new SimpleStrategy()));
     
     while (true) {
         executor.execute(queue.take());
@@ -63,43 +65,42 @@ A concurrency limiter may be installed either on the server or client. The choic
 
 The purpose of the server limiter is to protect the server from either increased client traffic (batch apps or retry storms) or latency spikes from a dependent service.  With the limiter installed the server can ensure that latencies remain low by rejecting excess traffic with `Status.UNAVAILABLE` errors.
 
-In this example a GRPC server is configured with a single adaptive limiter that is shared among batch and live traffic with live traffic guaranteed 90% of throughput. 
+In this example a GRPC server is configured with a single adaptive limiter that is shared among batch and live traffic with live traffic guaranteed 90% of throughput and 10% guaranteed to batch.  For simplicity we just expect the client to send a "group" header identifying it as 'live' or 'batch'.  Ideally this should be done using TLS certificates and a server side lookup of identity to grouping.  Any requests not identified as either live or batch may only use excess capacity. 
 
-```
+```java
 // Create and configure a server builder
 ServerBuilder builder = ...;
 
-// Add a service + server concurrency limit interceptor
-DefaultLimiter<Integer> limiter = new DefaultLimiter<>(
-    VegasLimiter.newDefault(), 
-    // Group requests into two categories
-    //  10% guarantee for batch
-    //  90% guarantee for live
-    new PercentageStrategy(Arrays.asList(0.1, 0.9)));
-
 builder.addService(ServerInterceptor.intercept(service,
-    new ConcurrencyLimitServerInterceptor<Integer>(LimiterRegistry.single(limiter), (method, header) -> {
-        // For simplicity we just expect the client to send a "group" header identifying it 
-        // as 'live' or 'batch'.  Ideally this should be done using TLS certificates and a server
-        // side lookup of identity to grouping
-        return header.get(ID_GROUP).equals("live") ? 1 : 0;
-    }))
+    new ConcurrencyLimitServerInterceptor(
+        new GrpcServerLimiterBuilder()
+            //  10% guarantee for batch
+            .byHeader(0.1, GROUP_HEADER, header -> header.equals("batch"))
+            //  90% guarantee for live
+            .byHeader(0.9, GROUP_HEADER, header -> header.equals("live"))
+            .build()
+        )
+    ));
 ```
 
 ### Client limiter
 
 There are two main use cases for client side limiters. A client side limiter can protect the client service from its dependent services by failing fast and serving a degraded experience to its client instead of having its latency go up and its resources eventually exhausted. For batch applications that call other services a client side limiter acts as a backpressure mechanism ensuring that the batch application does not put unnecessary load on dependent services.  
 
-In this example a GRPC client would have a blocking version of the VegasLimit to block the caller when the limit has been reached.  
+In this example a GRPC client will use a blocking version of the VegasLimit to block the caller when the limit has been reached.  
 
-```
-Limiter<Void> limiter = BlockingLimiter.wrap(new DefaultLimiter<Void>(VegasLimit.newDefault(), new SimpleStrategy()));
-
+```java
 // Create and configure a channel builder
 ChannelBuilder builder = ...;
 
 // Add the concurrency limit interceptor
-builder.intercept(new ConcurrencyLimitClientInterceptor<>(LimiterRegistry.single(limiter), ClientContextResolver.none()))
+builder.intercept(
+    new ConcurrencyLimitClientInterceptor(
+        new GrpcClientLimiterBuilder()
+            .blockOnLimit(true)
+            .build()
+        )
+    );
 ```
 
 ## Servlet Filter

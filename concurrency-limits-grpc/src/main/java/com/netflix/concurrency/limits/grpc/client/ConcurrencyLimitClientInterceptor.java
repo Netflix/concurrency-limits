@@ -2,7 +2,6 @@ package com.netflix.concurrency.limits.grpc.client;
 
 import com.google.common.base.Preconditions;
 import com.netflix.concurrency.limits.Limiter;
-import com.netflix.concurrency.limits.LimiterRegistry;
 
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -24,39 +23,54 @@ import javax.annotation.Nullable;
  * ClientInterceptor that enforces per service and/or per method concurrent request limits and returns
  * a Status.UNAVAILABLE when that limit has been reached.  
  */
-public class ConcurrencyLimitClientInterceptor<ContextT> implements ClientInterceptor {
+public class ConcurrencyLimitClientInterceptor implements ClientInterceptor {
     private static final Status LIMIT_EXCEEDED_STATUS = Status.UNAVAILABLE.withDescription("Concurrency limit reached");
     
-    private final LimiterRegistry<ContextT> registry;
-    private final ClientContextResolver<ContextT> contextResolver;
+    private final GrpcClientLimiter grpcLimiter;
     
-    public ConcurrencyLimitClientInterceptor(LimiterRegistry<ContextT> registry, ClientContextResolver<ContextT> contextResolver) {
-        Preconditions.checkArgument(registry != null, "ConcurrencyLimit cannot not be null");
-        this.registry = registry;
-        this.contextResolver = contextResolver;
+    public ConcurrencyLimitClientInterceptor(final GrpcClientLimiter grpcLimiter) {
+        Preconditions.checkArgument(grpcLimiter != null, "GrpcLimiter cannot not be null");
+        this.grpcLimiter = grpcLimiter;
     }
     
     @Override
-    public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(MethodDescriptor<ReqT, RespT> method,
-            CallOptions callOptions, Channel next) {
-        final Limiter<ContextT> limiter = registry.get(method.getFullMethodName());
+    public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(final MethodDescriptor<ReqT, RespT> method,
+            final CallOptions callOptions, final Channel next) {
+        final Optional<Limiter.Listener> listener = grpcLimiter.acquire(method, callOptions);
+        if (!listener.isPresent()) {
+            return new ClientCall<ReqT, RespT>() {
+                @Override
+                public void start(io.grpc.ClientCall.Listener<RespT> responseListener, Metadata headers) {
+                    responseListener.onClose(LIMIT_EXCEEDED_STATUS, new Metadata());
+                }
 
+                @Override
+                public void request(int numMessages) {
+                }
+
+                @Override
+                public void cancel(String message, Throwable cause) {
+                }
+
+                @Override
+                public void halfClose() {
+                }
+
+                @Override
+                public void sendMessage(ReqT message) {
+                }
+            };
+        }
+        
         // Perform the operation and release the limiter once done.  
         return new ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(next.newCall(method, callOptions)) {
             final AtomicBoolean done = new AtomicBoolean(false);
-            volatile Optional<Limiter.Listener> listener = Optional.empty();
             
             @Override
-            public void start(Listener<RespT> responseListener, Metadata headers) {
-                listener = limiter.acquire(contextResolver.resolve(callOptions, headers));
-                if (!listener.isPresent()) {
-                    responseListener.onClose(LIMIT_EXCEEDED_STATUS, new Metadata());
-                    return;
-                }
-                
+            public void start(final Listener<RespT> responseListener, final Metadata headers) {
                 super.start(new ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(responseListener) {
                     @Override
-                    public void onClose(Status status, Metadata trailers) {
+                    public void onClose(final Status status, final Metadata trailers) {
                         try {
                             super.onClose(status, trailers);
                         } finally {
@@ -77,7 +91,7 @@ public class ConcurrencyLimitClientInterceptor<ContextT> implements ClientInterc
             }
             
             @Override
-            public void cancel(@Nullable String message, @Nullable Throwable cause) {
+            public void cancel(final @Nullable String message, final @Nullable Throwable cause) {
                 try {
                     super.cancel(message, cause);
                 } finally {

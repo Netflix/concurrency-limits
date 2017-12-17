@@ -1,7 +1,6 @@
 package com.netflix.concurrency.limits.grpc.server;
 
 import com.netflix.concurrency.limits.Limiter;
-import com.netflix.concurrency.limits.LimiterRegistry;
 
 import io.grpc.ForwardingServerCall;
 import io.grpc.ForwardingServerCallListener;
@@ -20,15 +19,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@link ServerInterceptor} that enforces per service and/or per method concurrent request limits and returns
  * a Status.UNAVAILABLE when that limit has been reached. 
  */
-public class ConcurrencyLimitServerInterceptor<ContextT> implements ServerInterceptor {
+public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
     private static final Status LIMIT_EXCEEDED_STATUS = Status.UNAVAILABLE.withDescription("Concurrency limit reached");
 
-    private final LimiterRegistry<ContextT> registry;
-    private final ServerContextResolver<ContextT> contextResolver;
-
-    public ConcurrencyLimitServerInterceptor(LimiterRegistry<ContextT> registry, ServerContextResolver<ContextT> contextResolver) {
-        this.registry = registry;
-        this.contextResolver = contextResolver;
+    private final GrpcServerLimiter grpcLimiter;
+    
+    public ConcurrencyLimitServerInterceptor(GrpcServerLimiter grpcLimiter) {
+        this.grpcLimiter = grpcLimiter;
     }
 
     @Override
@@ -36,8 +33,7 @@ public class ConcurrencyLimitServerInterceptor<ContextT> implements ServerInterc
                                                       final Metadata headers,
                                                       final ServerCallHandler<ReqT, RespT> next) {
         
-        final Limiter<ContextT> limiter = registry.get(call.getMethodDescriptor().getFullMethodName());
-        final Optional<Limiter.Listener> listener = limiter.acquire(contextResolver.resolve(call.getMethodDescriptor(), headers));
+        final Optional<Limiter.Listener> listener = grpcLimiter.acquire(call, headers);
         
         if (!listener.isPresent()) {
             call.close(LIMIT_EXCEEDED_STATUS, new Metadata());

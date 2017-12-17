@@ -2,7 +2,6 @@ package com.netflix.concurrency.limits.grpc.client;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.netflix.concurrency.limits.Limiter;
-import com.netflix.concurrency.limits.LimiterRegistry;
 import com.netflix.concurrency.limits.grpc.StringMarshaller;
 import com.netflix.concurrency.limits.limit.VegasLimit;
 import com.netflix.concurrency.limits.limiter.BlockingLimiter;
@@ -59,7 +58,7 @@ public class ConcurrencyLimitClientInterceptorTest {
         
         Channel channel = NettyChannelBuilder.forTarget("localhost:" + server.getPort())
                 .usePlaintext(true)
-                .intercept(new ConcurrencyLimitClientInterceptor<>(LimiterRegistry.single(limiter), ClientContextResolver.none()))
+                .intercept(new ConcurrencyLimitClientInterceptor(new GrpcClientLimiterBuilder().build()))
                 .build();
         
         AtomicLong counter = new AtomicLong();

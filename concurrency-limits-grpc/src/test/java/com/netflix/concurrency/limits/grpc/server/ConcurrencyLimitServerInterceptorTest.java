@@ -1,16 +1,11 @@
 package com.netflix.concurrency.limits.grpc.server;
 
-import com.netflix.concurrency.limits.Limiter;
-import com.netflix.concurrency.limits.LimiterRegistry;
+import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.grpc.StringMarshaller;
-import com.netflix.concurrency.limits.grpc.client.ClientContextResolver;
 import com.netflix.concurrency.limits.grpc.client.ConcurrencyLimitClientInterceptor;
+import com.netflix.concurrency.limits.grpc.client.GrpcClientLimiterBuilder;
 import com.netflix.concurrency.limits.limit.AIMDLimit;
 import com.netflix.concurrency.limits.limit.FixedLimit;
-import com.netflix.concurrency.limits.limiter.BlockingLimiter;
-import com.netflix.concurrency.limits.limiter.DefaultLimiter;
-import com.netflix.concurrency.limits.strategy.PercentageStrategy;
-import com.netflix.concurrency.limits.strategy.SimpleStrategy;
 
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -29,7 +24,6 @@ import io.grpc.stub.ServerCalls;
 import io.grpc.stub.StreamObserver;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -48,8 +42,6 @@ public class ConcurrencyLimitServerInterceptorTest {
     @Test
     @Ignore
     public void simulation() throws IOException, InterruptedException {
-        Limiter<Integer> limiter = new DefaultLimiter<>(FixedLimit.of(50), new PercentageStrategy(Arrays.asList(0.1, 0.9)));
-        
         Server server = NettyServerBuilder.forPort(0)
             .addService(ServerInterceptors.intercept(ServerServiceDefinition.builder("service")
                     .addMethod(METHOD_DESCRIPTOR, ServerCalls.asyncUnaryCall((req, observer) -> {
@@ -61,40 +53,45 @@ public class ConcurrencyLimitServerInterceptorTest {
                         observer.onNext("response");
                         observer.onCompleted();
                     }))
-                    .build(), new ConcurrencyLimitServerInterceptor<Integer>(LimiterRegistry.single(limiter), (method, header) -> {
-                        return Integer.parseInt(header.get(ID_HEADER));
-                    })
+                    .build(), new ConcurrencyLimitServerInterceptor(new GrpcServerLimiterBuilder()
+                            .limit(FixedLimit.of(50))
+                            .byHeader(0.1, ID_HEADER, header -> header.equals("0"))
+                            .byHeader(0.9, ID_HEADER, header -> header.equals("1"))
+                            .build())
                 ))
             .build()
             .start();
         
-        Limiter<Void> clientLimiter0 = BlockingLimiter.wrap(new DefaultLimiter<Void>(new AIMDLimit(10), new SimpleStrategy()));
-        Limiter<Void> clientLimiter1 = BlockingLimiter.wrap(new DefaultLimiter<Void>(new AIMDLimit(10), new SimpleStrategy()));
+        Limit clientLimit0 = new AIMDLimit(10);
+        Limit clientLimit1 = new AIMDLimit(10);
         
         AtomicLongArray counters = new AtomicLongArray(2);
         AtomicLong drops = new AtomicLong(0);
         Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> {
-            System.out.println("" + drops.getAndSet(0) + " : " + limiter.toString());
-            System.out.println("  0: " + counters.getAndSet(0, 0) + " " + clientLimiter0);
-            System.out.println("  1: " + counters.getAndSet(1, 0) + " " + clientLimiter1);
+            System.out.println("Drops: " + drops.getAndSet(0) + " : ");
+            System.out.println("  0: " + counters.getAndSet(0, 0) + " " + clientLimit0);
+            System.out.println("  1: " + counters.getAndSet(1, 0) + " " + clientLimit1);
         }, 1, 1, TimeUnit.SECONDS);
         
         Executor executor = Executors.newCachedThreadPool();
 
-        executor.execute(() -> simulateClient(0, counters, drops, server.getPort(), clientLimiter0));
-        executor.execute(() -> simulateClient(1, counters, drops, server.getPort(), clientLimiter1));
+        executor.execute(() -> simulateClient(0, counters, drops, server.getPort(), clientLimit0));
+        executor.execute(() -> simulateClient(1, counters, drops, server.getPort(), clientLimit1));
         
         TimeUnit.SECONDS.sleep(100);
     }
 
-    private void simulateClient(int id, AtomicLongArray counters, AtomicLong drops, int port, Limiter limiter) {
+    private void simulateClient(int id, AtomicLongArray counters, AtomicLong drops, int port, Limit limit) {
         Metadata headers = new Metadata();
         headers.put(ID_HEADER, "" + id);
 
-        Channel channel = NettyChannelBuilder.forTarget("localhost:" + port).usePlaintext(true)
+        Channel channel = NettyChannelBuilder.forTarget("localhost:" + port)
+                .usePlaintext(true)
                 .intercept(MetadataUtils.newAttachHeadersInterceptor(headers))
-                .intercept(new ConcurrencyLimitClientInterceptor<>(LimiterRegistry.single(limiter),
-                        ClientContextResolver.none()))
+                .intercept(new ConcurrencyLimitClientInterceptor(new GrpcClientLimiterBuilder()
+                        .limit(limit)
+                        .blockOnLimit(true)
+                        .build()))
                 .build();
 
         try {
