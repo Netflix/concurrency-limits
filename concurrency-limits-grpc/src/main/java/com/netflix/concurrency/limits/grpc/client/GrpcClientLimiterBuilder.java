@@ -59,7 +59,7 @@ public class GrpcClientLimiterBuilder {
      * @param method The method
      * @return Chainable builder
      */
-    public <T> GrpcClientLimiterBuilder byMethod(double d, MethodDescriptor<?, ?> m) {
+    public <T> GrpcClientLimiterBuilder methodEquals(double d, MethodDescriptor<?, ?> m) {
         bins.add(new Segment(d, (method, callOptions) -> method.getFullMethodName().equals(method.getFullMethodName())));
         return this;
     }

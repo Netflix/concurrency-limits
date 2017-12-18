@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiPredicate;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -45,18 +44,17 @@ public class GrpcServerLimiterBuilder {
     }
     
     /**
-     * Guarantee a percentage of the limit when a header matches via the provided predicate.
-     * Evaluates to false if the header was not set. 
+     * Guarantee a percentage of the limit when a header matches a specific value.
      * 
      * @param percent Percent of the limit to guarantee 
      * @param key Header to evaluate
-     * @param predicate Predicate to evaluate on the header value
+     * @param value Header value to match
      * @return Chainable builder
      */
-    public <T> GrpcServerLimiterBuilder byHeader(double percent, Metadata.Key<T> key, Predicate<T> predicate) {
+    public <T> GrpcServerLimiterBuilder headerEquals(double percent, Metadata.Key<T> key, T value) {
         Preconditions.checkArgument(key != null, "Key cannot be null");
-        Preconditions.checkArgument(predicate != null, "Predicate cannot be null");
-        bins.add(new Segment(percent, (call, headers) -> Optional.ofNullable(headers.get(key)).map(predicate::test).orElse(false)));
+        Preconditions.checkArgument(value != null, "Value cannot be null");
+        bins.add(new Segment(percent, (call, headers) -> Optional.ofNullable(headers.get(key)).map(t -> t.equals(value)).orElse(false)));
         return this;
     }
     
@@ -66,7 +64,7 @@ public class GrpcServerLimiterBuilder {
      * @param method The method
      * @return Chainable builder
      */
-    public <T> GrpcServerLimiterBuilder byMethod(double percent, MethodDescriptor<?, ?> method) {
+    public <T> GrpcServerLimiterBuilder methodEquals(double percent, MethodDescriptor<?, ?> method) {
         bins.add(new Segment(percent, (call, headers) -> call.getMethodDescriptor().getFullMethodName().equals(method.getFullMethodName())));
         return this;
     }

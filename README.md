@@ -73,11 +73,12 @@ ServerBuilder builder = ...;
 
 builder.addService(ServerInterceptor.intercept(service,
     new ConcurrencyLimitServerInterceptor(
-        new GrpcServerLimiterBuilder()
-            //  10% guarantee for batch
-            .byHeader(0.1, GROUP_HEADER, header -> header.equals("batch"))
+        new GrpcServerLimiterBuilder() 
             //  90% guarantee for live
-            .byHeader(0.9, GROUP_HEADER, header -> header.equals("live"))
+            .headerEquals(0.9, GROUP_HEADER, header -> header.equals("live"))
+        
+            //  10% guarantee for batch
+            .headerEquals(0.1, GROUP_HEADER, header -> header.equals("batch"))
             .build()
         )
     ));
