@@ -4,8 +4,8 @@ import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.grpc.StringMarshaller;
 import com.netflix.concurrency.limits.grpc.client.ConcurrencyLimitClientInterceptor;
 import com.netflix.concurrency.limits.grpc.client.GrpcClientLimiterBuilder;
-import com.netflix.concurrency.limits.limit.AIMDLimit;
 import com.netflix.concurrency.limits.limit.FixedLimit;
+import com.netflix.concurrency.limits.limit.VegasLimit;
 
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -55,28 +55,29 @@ public class ConcurrencyLimitServerInterceptorTest {
                     }))
                     .build(), new ConcurrencyLimitServerInterceptor(new GrpcServerLimiterBuilder()
                             .limit(FixedLimit.of(50))
-                            .byHeader(0.1, ID_HEADER, header -> header.equals("0"))
-                            .byHeader(0.9, ID_HEADER, header -> header.equals("1"))
+                            .headerEquals(0.1, ID_HEADER, "0")
+                            .headerEquals(0.2, ID_HEADER, "1")
+                            .headerEquals(0.7, ID_HEADER, "2")
                             .build())
                 ))
             .build()
             .start();
         
-        Limit clientLimit0 = new AIMDLimit(10);
-        Limit clientLimit1 = new AIMDLimit(10);
+        Limit clientLimit0 = VegasLimit.newDefault();
+        Limit clientLimit1 = VegasLimit.newDefault();
+        Limit clientLimit2 = VegasLimit.newDefault();
         
-        AtomicLongArray counters = new AtomicLongArray(2);
+        AtomicLongArray counters = new AtomicLongArray(3);
         AtomicLong drops = new AtomicLong(0);
         Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> {
-            System.out.println("Drops: " + drops.getAndSet(0) + " : ");
-            System.out.println("  0: " + counters.getAndSet(0, 0) + " " + clientLimit0);
-            System.out.println("  1: " + counters.getAndSet(1, 0) + " " + clientLimit1);
+            System.out.println("" + counters.getAndSet(0, 0) + ", " + counters.getAndSet(1, 0)+ ", " + counters.getAndSet(2, 0));
         }, 1, 1, TimeUnit.SECONDS);
         
         Executor executor = Executors.newCachedThreadPool();
 
         executor.execute(() -> simulateClient(0, counters, drops, server.getPort(), clientLimit0));
         executor.execute(() -> simulateClient(1, counters, drops, server.getPort(), clientLimit1));
+        executor.execute(() -> simulateClient(2, counters, drops, server.getPort(), clientLimit2));
         
         TimeUnit.SECONDS.sleep(100);
     }
