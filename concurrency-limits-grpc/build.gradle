@@ -1,0 +1,15 @@
+plugins {
+    id 'java'
+}
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+
+dependencies {
+    compile project(":concurrency-limits-core")
+
+    compile "io.grpc:grpc-core:1.3.1"
+    
+    testCompile "io.grpc:grpc-netty:1.3.1"
+    testCompile "io.grpc:grpc-stub:1.3.1"
+    testCompile "junit:junit-dep:4.10"
+}

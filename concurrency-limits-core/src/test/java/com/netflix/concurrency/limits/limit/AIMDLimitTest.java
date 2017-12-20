@@ -25,6 +25,6 @@ public class AIMDLimitTest {
         AIMDLimit limiter = new AIMDLimit(10);
         limiter.drop();
         limiter.update(TimeUnit.MILLISECONDS.toNanos(1));
-        Assert.assertEquals(7, limiter.getLimit());
+        Assert.assertEquals(9, limiter.getLimit());
     }
 }
