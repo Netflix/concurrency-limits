@@ -97,12 +97,12 @@ public class VegasLimit implements Limit {
         if (didDrop) {
             didDrop = false;
         } else {
-            int newLimit = 1;
+            int newLimit = estimatedLimit;
             int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / rtt));
             if (queueSize <= alpha) {
-                newLimit = estimatedLimit + 1;
+                newLimit ++;
             } else if (queueSize >= beta) {
-                newLimit = estimatedLimit - 1;
+                newLimit --;
             }
             
             estimatedLimit = Math.max(1, Math.min(maxLimit, newLimit));
