@@ -9,6 +9,10 @@ public final class FixedLimit implements Limit {
 
     private final int limit;
 
+    public static FixedLimit of(int limit) {
+        return new FixedLimit(limit);
+    }
+    
     public FixedLimit(int limit) {
         this.limit = limit;
     }
@@ -19,12 +23,15 @@ public final class FixedLimit implements Limit {
     }
 
     @Override
-    public int update(long rtt) {
-        return limit;
+    public void update(long rtt) {
     }
 
     @Override
-    public int drop() {
-        return limit;
+    public void drop() {
+    }
+
+    @Override
+    public String toString() {
+        return "FixedLimit [limit=" + limit + "]";
     }
 }

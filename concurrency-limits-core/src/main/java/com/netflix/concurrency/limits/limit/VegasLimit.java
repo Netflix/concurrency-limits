@@ -20,6 +20,7 @@ public class VegasLimit implements Limit {
         private int maxConcurrency = 100;
         private int alpha = 2;
         private int beta = 4;
+        private double backoffRatio = 0.9;
         
         public Builder withAlpha(int alpha) {
             this.alpha = alpha;
@@ -41,6 +42,11 @@ public class VegasLimit implements Limit {
             return this;
         }
         
+        public Builder withBackoffRatio(double ratio) {
+            this.backoffRatio = ratio;
+            return this;
+        }
+        
         public VegasLimit build() {
             return new VegasLimit(this);
         }
@@ -59,6 +65,10 @@ public class VegasLimit implements Limit {
      */
     private volatile int estimatedLimit;
     
+    private long rtt_noload;
+    
+    private boolean didDrop = false;
+    
     /**
      * Maximum allowed limit providing an upper bound failsafe
      */
@@ -66,45 +76,45 @@ public class VegasLimit implements Limit {
     
     private final int alpha;
     private final int beta;
-    
-    private long rtt_noload;
+    private final double backoffRatio;
     
     private VegasLimit(Builder builder) {
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
         this.alpha = builder.alpha;
         this.beta = builder.beta;
+        this.backoffRatio = builder.backoffRatio;
     }
 
     @Override
-    public synchronized int update(long rtt) {
+    public synchronized void update(long rtt) {
         Preconditions.checkArgument(rtt > 0, "rtt must be >0 but got " + rtt);
         
         if (rtt_noload == 0 || rtt < rtt_noload) {
             rtt_noload = rtt;
         }
         
-        int newLimit = estimatedLimit;
-        int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / rtt));
-        if (queueSize <= alpha) {
-            newLimit++;
-        } else if (queueSize >= beta) {
-            newLimit--;
-        }
+        if (didDrop) {
+            didDrop = false;
+        } else {
+            int newLimit = 1;
+            int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / rtt));
+            if (queueSize <= alpha) {
+                newLimit = estimatedLimit + 1;
+            } else if (queueSize >= beta) {
+                newLimit = estimatedLimit - 1;
+            }
             
-        if (newLimit > maxLimit) {
-            newLimit = maxLimit;
-        } else if (newLimit < 1) {
-            newLimit = 1;
+            estimatedLimit = Math.max(1, Math.min(maxLimit, newLimit));
         }
-        
-        estimatedLimit = newLimit;
-        return getLimit();
     }
 
     @Override
-    public int drop() {
-        return getLimit();
+    public synchronized void drop() {
+        if (!didDrop) {
+            didDrop = true;
+            estimatedLimit = Math.max(1, Math.min(estimatedLimit - 1, (int) (estimatedLimit * backoffRatio)));
+        }
     }
 
     @Override

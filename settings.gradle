@@ -1,2 +1,3 @@
 rootProject.name='concurrency-limits'
 include 'concurrency-limits-core'
+include 'concurrency-limits-grpc'

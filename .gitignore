@@ -1,0 +1,50 @@
+# Compiled source #
+###################
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# OS generated files
+.DS_Store*
+ehthumbs.db
+Icon?
+Thumbs.db
+
+# protobuf/grpc generated files
+**/src/generated
+
+# Logs and databases #
+######################
+*.log
+
+# Editor Files
+*~
+*.swp
+
+# Gradle Files
+.gradle
+.m2
+
+# Build output directies
+**/target
+**/build
+*/bin
+*/integrationTest/bin
+*/src/generated
+# IntelliJ specific files/directories
+out
+.idea
+*.ipr
+*.iws
+*.iml
+atlassian-ide-plugin.xml
+
+# Eclipse specific files/directories
+.classpath
+.project
+.settings
+.metadata
+
