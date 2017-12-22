@@ -21,6 +21,7 @@ import javax.servlet.http.HttpServletResponse;
  */
 public class ConcurrencyLimitServletFilter implements Filter {
 
+    private static final int STATUS_TOO_MANY_REQUESTS = 429;
     private final ServletLimiter limiter;
 
     public ConcurrencyLimitServletFilter(ServletLimiter limiter) {
@@ -50,7 +51,7 @@ public class ConcurrencyLimitServletFilter implements Filter {
 
     protected void outputThrottleError(HttpServletResponse response) {
         try {
-            response.setStatus(429);
+            response.setStatus(STATUS_TOO_MANY_REQUESTS);
             response.getWriter().print("Concurrency limit exceeded");
         } catch (IOException e) {
         }
