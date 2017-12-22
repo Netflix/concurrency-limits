@@ -1,6 +1,5 @@
 package com.netflix.concurrency.limits.grpc.client;
 
-import com.google.common.util.concurrent.ListenableFuture;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.grpc.StringMarshaller;
 import com.netflix.concurrency.limits.limit.VegasLimit;
@@ -68,7 +67,7 @@ public class ConcurrencyLimitClientInterceptorTest {
         
         for (int i = 0 ; i < 10000000; i++) {
             counter.incrementAndGet();
-            ListenableFuture<String> future = ClientCalls.futureUnaryCall(channel.newCall(METHOD_DESCRIPTOR, CallOptions.DEFAULT), "request");
+            ClientCalls.futureUnaryCall(channel.newCall(METHOD_DESCRIPTOR, CallOptions.DEFAULT), "request");
         }
     }
 }

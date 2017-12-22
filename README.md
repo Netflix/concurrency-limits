@@ -75,10 +75,10 @@ builder.addService(ServerInterceptor.intercept(service,
     new ConcurrencyLimitServerInterceptor(
         new GrpcServerLimiterBuilder() 
             //  90% guarantee for live
-            .headerEquals(0.9, GROUP_HEADER, header -> header.equals("live"))
+            .headerEquals(0.9, GROUP_HEADER, "live")
         
             //  10% guarantee for batch
-            .headerEquals(0.1, GROUP_HEADER, header -> header.equals("batch"))
+            .headerEquals(0.1, GROUP_HEADER, "batch")
             .build()
         )
     ));
@@ -106,4 +106,18 @@ builder.intercept(
 
 ## Servlet Filter
 
-Coming soon...
+The purpose of the servlet filter limiter is to protect the servlet from either increased client traffic (batch apps or retry storms) or latency spikes from a dependent service.  With the limiter installed the server can ensure that latencies remain low by rejecting excess traffic with HTTP 429 Too Many Requests errors.
+
+In this example a servlet is configured with a single adaptive limiter that is shared among batch and live traffic with live traffic guaranteed 90% of throughput and 10% guaranteed to batch.  The limiter is given a lookup function that translates the request's Principal to one of the two groups (live vs batch). 
+
+```java
+Map<String, String> mapPrincipalToLiveOrBatch = ...;
+Map<String, Double> groupToPercent = new HashMap<>();
+groupToPercent.put("live", 0.9);
+groupToPercent.put("batch", 0.1);
+
+GroupServletServerLimiter limiter = new GroupServletServerLimiter(
+    VegasLimit.newDefault(), 
+    ServletServerLimiterImpl.fromUserPrincipal().andThen(mapPrincipalToLiveOrBatch::get),
+    groupToPercent);
+```
