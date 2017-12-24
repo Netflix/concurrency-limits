@@ -1,5 +1,7 @@
 package com.netflix.concurrency.limits.strategy;
 
+import java.util.Optional;
+
 import org.junit.Test;
 
 import junit.framework.Assert;
@@ -7,7 +9,7 @@ import junit.framework.Assert;
 public class SimpleStrategyTest {
     @Test
     public void limitLessThanZeroSetAs1() {
-        SimpleStrategy strategy = new SimpleStrategy();
+        SimpleStrategy<Void> strategy = new SimpleStrategy<Void>();
         
         strategy.setLimit(-10);
         Assert.assertEquals(1, strategy.getLimit());
@@ -15,37 +17,39 @@ public class SimpleStrategyTest {
     
     @Test
     public void initialState() {
-        SimpleStrategy strategy = new SimpleStrategy();
+        SimpleStrategy<Void> strategy = new SimpleStrategy<Void>();
         Assert.assertEquals(1, strategy.getLimit());
         Assert.assertEquals(0, strategy.getBusyCount());
     }
     
     @Test
     public void acquireIncrementsBusy() {
-        SimpleStrategy strategy = new SimpleStrategy();
+        SimpleStrategy<Void> strategy = new SimpleStrategy<Void>();
         Assert.assertEquals(0, strategy.getBusyCount());
-        Assert.assertTrue(strategy.tryAcquire(null));
+        Assert.assertTrue(strategy.tryAcquire(null).isPresent());
         Assert.assertEquals(1, strategy.getBusyCount());
     }
 
     @Test
     public void exceedingLimitReturnsFalse() {
-        SimpleStrategy strategy = new SimpleStrategy();
-        Assert.assertTrue(strategy.tryAcquire(null));
-        Assert.assertFalse(strategy.tryAcquire(null));
+        SimpleStrategy<Void> strategy = new SimpleStrategy<Void>();
+        Assert.assertTrue(strategy.tryAcquire(null).isPresent());
+        Assert.assertFalse(strategy.tryAcquire(null).isPresent());
         Assert.assertEquals(1, strategy.getBusyCount());
     }
 
     @Test
     public void acquireAndRelease() {
-        SimpleStrategy strategy = new SimpleStrategy();
-        Assert.assertTrue(strategy.tryAcquire(null));
+        SimpleStrategy<Void> strategy = new SimpleStrategy<Void>();
+        Optional<Runnable> completion = strategy.tryAcquire(null);
+        Assert.assertTrue(completion.isPresent());
         Assert.assertEquals(1, strategy.getBusyCount());
         
-        strategy.release(null);
+        completion.get().run();
+        
         Assert.assertEquals(0, strategy.getBusyCount());
 
-        Assert.assertTrue(strategy.tryAcquire(null));
+        Assert.assertTrue(strategy.tryAcquire(null).isPresent());
         Assert.assertEquals(1, strategy.getBusyCount());
     }
 }

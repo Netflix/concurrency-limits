@@ -5,13 +5,12 @@ import com.netflix.concurrency.limits.limit.FixedLimit;
 import com.netflix.concurrency.limits.limit.VegasLimit;
 import com.netflix.concurrency.limits.limiter.DefaultLimiter;
 import com.netflix.concurrency.limits.servlet.ConcurrencyLimitServletFilter;
-import com.netflix.concurrency.limits.servlet.GroupServletLimiter;
+import com.netflix.concurrency.limits.servlet.ServletLimiterBuilder;
 import com.netflix.concurrency.limits.strategy.SimpleStrategy;
 
 import java.io.IOException;
+import java.security.Principal;
 import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -33,14 +32,12 @@ public class ConcurrencyLimitServletFilterTest {
     public static HttpServerRule server = new HttpServerRule(context -> {
         context.addServlet(HelloServlet.class, "/");
         
-        Map<String, Double> groupToPercent = new HashMap<>();
-        groupToPercent.put("live", 0.8);
-        groupToPercent.put("batch", 0.2);
-          
-        GroupServletLimiter limiter = new GroupServletLimiter(
-             FixedLimit.of(10), // VegasLimit.newDefault(), 
-             GroupServletLimiter.fromPathInfo(),
-             groupToPercent);
+        Limiter<HttpServletRequest> limiter = new ServletLimiterBuilder()
+                .limit(FixedLimit.of(10))
+                .partitionByUserPrincipal(Principal::getName, builder -> builder
+                       .assign("live", 0.8)
+                       .assign("batch", 0.2))
+                .build();
 
         FilterHolder holder = new FilterHolder();
         holder.setFilter(new ConcurrencyLimitServletFilter(limiter));
@@ -52,7 +49,8 @@ public class ConcurrencyLimitServletFilterTest {
     @Ignore
     public void simulation() throws Exception {
         Limit limit = VegasLimit.newDefault();
-        BlockingAdaptiveExecutor executor = new BlockingAdaptiveExecutor(new DefaultLimiter<Void>(limit, new SimpleStrategy()));
+        BlockingAdaptiveExecutor executor = new BlockingAdaptiveExecutor(
+                new DefaultLimiter<Void>(limit, new SimpleStrategy<>()));
         AtomicInteger errors = new AtomicInteger();
         AtomicInteger success = new AtomicInteger();
         

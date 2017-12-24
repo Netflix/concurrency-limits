@@ -55,7 +55,6 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         Preconditions.checkArgument(strategy != null, "Strategy may not be null");
         this.limit = limit;
         this.strategy = strategy;
-        
         strategy.setLimit(limit.getLimit());
     }
     
@@ -64,15 +63,15 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         final long startTime = nanoClock.get();
         
         // Did we exceed the limit
-        if (!strategy.tryAcquire(context)) {
+        Optional<Runnable> token = strategy.tryAcquire(context);
+        if (!token.isPresent()) {
             isAppLimited = false;
-            return Optional.empty();
         }
-        
-        return Optional.of(new Listener() {
+
+        return token.map(completion -> new Listener() {
             @Override
             public void onSuccess() {
-                strategy.release(context);
+                completion.run();
                 
                 final long endTime = nanoClock.get();
                 long rtt = endTime - startTime;
@@ -100,12 +99,12 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
             
             @Override
             public void onIgnore() {
-                strategy.release(context);
+                completion.run();
             }
 
             @Override
             public void onDropped() {
-                strategy.release(context);
+                completion.run();
                 limit.drop();
                 strategy.setLimit(limit.getLimit());
             }

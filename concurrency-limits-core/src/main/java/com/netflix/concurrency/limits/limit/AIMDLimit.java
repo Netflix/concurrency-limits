@@ -7,20 +7,37 @@ import com.netflix.concurrency.limits.Limit;
  * there are no errors and a multiplicative decrement when there is an error.
  */
 public final class AIMDLimit implements Limit {
-
-    private static final double DEFAULT_BACKOFF_RATIO = 0.9;
+    
+    public static class Builder {
+        private int initialLimit = 10;
+        private double backoffRatio = 0.9;
+        
+        public Builder initialLimit(int initialLimit) {
+            this.initialLimit = initialLimit;
+            return this;
+        }
+        
+        public Builder backoffRatio(double backoffRatio) {
+            this.backoffRatio = backoffRatio;
+            return this;
+        }
+        
+        public AIMDLimit build() {
+            return new AIMDLimit(this);
+        }
+    }
+    
+    public static Builder newBuilder() {
+        return new Builder();
+    }
     
     private volatile int limit;
     private boolean didDrop = false;
     private final double backoffRatio;
-    
-    public AIMDLimit(int initialLimit) {
-        this(initialLimit, DEFAULT_BACKOFF_RATIO);
-    }
-    
-    public AIMDLimit(int initialLimit, double backoffRatio) {
-        this.limit = initialLimit;
-        this.backoffRatio = backoffRatio;
+
+    private AIMDLimit(Builder builder) {
+        this.limit = builder.initialLimit;
+        this.backoffRatio = builder.backoffRatio;
     }
     
     @Override

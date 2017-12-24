@@ -9,10 +9,10 @@ import junit.framework.Assert;
 public class VegasLimitTest {
     public static VegasLimit create() {
         return VegasLimit.newBuilder()
-                .withAlpha(3)
-                .withBeta(6)
-                .withInitialLimit(10)
-                .withMaxConcurrency(20)
+                .alpha(3)
+                .beta(6)
+                .initialLimit(10)
+                .maxConcurrency(20)
                 .build();
     }
     

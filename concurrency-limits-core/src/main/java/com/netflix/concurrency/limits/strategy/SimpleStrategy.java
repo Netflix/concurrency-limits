@@ -1,33 +1,44 @@
 package com.netflix.concurrency.limits.strategy;
 
+import com.netflix.concurrency.limits.MetricIds;
+import com.netflix.concurrency.limits.MetricRegistry;
+import com.netflix.concurrency.limits.MetricRegistry.Metric;
 import com.netflix.concurrency.limits.Strategy;
+import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Simplest strategy for enforcing a concurrency limit that has a single counter
  * for tracking total usage.
  */
-public final class SimpleStrategy implements Strategy<Void> {
+public final class SimpleStrategy<T> implements Strategy<T> {
 
-    private AtomicInteger busy = new AtomicInteger();
+    private final AtomicInteger busy = new AtomicInteger();
     private volatile int limit = 1;
+    private final Metric inflightMetric;
+    
+    public SimpleStrategy() {
+        this(EmptyMetricRegistry.INSTANCE);
+    }
+    
+    public SimpleStrategy(MetricRegistry registry) {
+        this.inflightMetric = registry.metric(MetricIds.INFLIGHT_METRIC_ID);
+        registry.guage(MetricIds.LIMIT_METRIC_ID, this::getLimit);
+    }
     
     @Override
-    public boolean tryAcquire(Void context) {
+    public Optional<Runnable> tryAcquire(T context) {
         if (busy.get() >= limit) {
-            return false;
+            return Optional.empty();
         }
         
-        busy.incrementAndGet();
-        return true;
+        int inflight = busy.incrementAndGet();
+        inflightMetric.add(inflight);
+        return Optional.of(busy::decrementAndGet);
     }
     
-    @Override
-    public void release(Void context) {
-        busy.decrementAndGet();
-    }
-
     @Override
     public void setLimit(int limit) {
         if (limit < 1) {

@@ -1,5 +1,7 @@
 package com.netflix.concurrency.limits;
 
+import java.util.Optional;
+
 /**
  * Contract for enforcing a concurrency limit with optional partitioning 
  * of the limit.
@@ -11,16 +13,10 @@ public interface Strategy<ContextT> {
      * Try to acquire a token from the limiter.
      * 
      * @param context Context of the request for partitioned limits
-     * @return True if successful or false if the limit has been reached.  Must call
-     *  release() if true.
+     * @return Optional.empty() if limit exceeded or a runnable that must be called when
+     *  the operation completes
      */
-    boolean tryAcquire(ContextT context);
-    
-    /**
-     * Release a previously acquired limit
-     * @param context Context of the request for partitioned limits
-     */
-    void release(ContextT context);
+    Optional<Runnable> tryAcquire(ContextT context);
     
     /**
      * Update the strategy with a new limit

@@ -17,14 +17,14 @@ import javax.servlet.http.HttpServletResponse;
 /**
  * Servlet {@link Filter} that enforces concurrency limits on all requests into the servlet.
  * 
- * @see GroupServletLimiter
+ * @see ServletLimiterBuilder
  */
 public class ConcurrencyLimitServletFilter implements Filter {
 
     private static final int STATUS_TOO_MANY_REQUESTS = 429;
-    private final ServletLimiter limiter;
+    private final Limiter<HttpServletRequest> limiter;
 
-    public ConcurrencyLimitServletFilter(ServletLimiter limiter) {
+    public ConcurrencyLimitServletFilter(Limiter<HttpServletRequest> limiter) {
         this.limiter = limiter;
     }
     

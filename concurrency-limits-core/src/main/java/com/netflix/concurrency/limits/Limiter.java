@@ -1,6 +1,6 @@
 package com.netflix.concurrency.limits;
 
-import com.netflix.concurrency.limits.strategy.PercentageStrategy;
+import com.netflix.concurrency.limits.strategy.LookupPartitionStrategy;
 
 import java.util.Optional;
 
@@ -41,7 +41,7 @@ public interface Limiter<ContextT> {
      * to release the count.
      * 
      * @param context Context for the request. The context is used by advanced startegies such as 
-     *                  {@link PercentageStrategy}.
+     *                  {@link LookupPartitionStrategy}.
      * @return Optional.empty() if limit exceeded.
      */
     Optional<Listener> acquire(ContextT context);

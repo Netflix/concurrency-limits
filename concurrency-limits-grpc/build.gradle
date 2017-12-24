@@ -9,6 +9,8 @@ dependencies {
 
     compile "io.grpc:grpc-core:1.3.1"
     
+    testCompile project(":concurrency-limits-spectator")
+    
     testCompile "io.grpc:grpc-netty:1.3.1"
     testCompile "io.grpc:grpc-stub:1.3.1"
     testCompile "junit:junit-dep:4.10"

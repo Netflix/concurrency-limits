@@ -13,7 +13,7 @@ public final class FixedLimit implements Limit {
         return new FixedLimit(limit);
     }
     
-    public FixedLimit(int limit) {
+    private FixedLimit(int limit) {
         this.limit = limit;
     }
     

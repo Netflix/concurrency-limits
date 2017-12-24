@@ -6,6 +6,10 @@ import com.netflix.concurrency.limits.grpc.client.ConcurrencyLimitClientIntercep
 import com.netflix.concurrency.limits.grpc.client.GrpcClientLimiterBuilder;
 import com.netflix.concurrency.limits.limit.FixedLimit;
 import com.netflix.concurrency.limits.limit.VegasLimit;
+import com.netflix.concurrency.limits.spectator.SpectatorMetricRegistry;
+import com.netflix.concurrency.limits.strategy.SimpleStrategy;
+import com.netflix.spectator.api.DefaultRegistry;
+import com.netflix.spectator.api.Registry;
 
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -39,9 +43,14 @@ public class ConcurrencyLimitServerInterceptorTest {
 
     private static final Key<String> ID_HEADER = Metadata.Key.of("id", Metadata.ASCII_STRING_MARSHALLER);
 
+    Registry spectatorRegistry = new DefaultRegistry();
+    SpectatorMetricRegistry serverRegistry = new SpectatorMetricRegistry("grpc.server.call", spectatorRegistry);
+    SpectatorMetricRegistry clientRegistry = new SpectatorMetricRegistry("grpc.client.call", spectatorRegistry);
+    
     @Test
     @Ignore
     public void simulation() throws IOException, InterruptedException {
+        
         Server server = NettyServerBuilder.forPort(0)
             .addService(ServerInterceptors.intercept(ServerServiceDefinition.builder("service")
                     .addMethod(METHOD_DESCRIPTOR, ServerCalls.asyncUnaryCall((req, observer) -> {
@@ -55,17 +64,25 @@ public class ConcurrencyLimitServerInterceptorTest {
                     }))
                     .build(), new ConcurrencyLimitServerInterceptor(new GrpcServerLimiterBuilder()
                             .limit(FixedLimit.of(50))
-                            .headerEquals(0.1, ID_HEADER, "0")
-                            .headerEquals(0.2, ID_HEADER, "1")
-                            .headerEquals(0.7, ID_HEADER, "2")
+                            .partitionByHeader(ID_HEADER, builder -> builder
+                                    .metricRegistry(serverRegistry)
+                                    .assign("0", 0.1)
+                                    .assign("1", 0.2)
+                                    .assign("2", 0.7))
                             .build())
                 ))
             .build()
             .start();
         
-        Limit clientLimit0 = VegasLimit.newDefault();
-        Limit clientLimit1 = VegasLimit.newDefault();
-        Limit clientLimit2 = VegasLimit.newDefault();
+        Limit clientLimit0 = VegasLimit.newBuilder()
+                .metricRegistry(clientRegistry)
+                .build();
+        Limit clientLimit1 = VegasLimit.newBuilder()
+                .metricRegistry(clientRegistry)
+                .build();
+        Limit clientLimit2 = VegasLimit.newBuilder()
+                .metricRegistry(clientRegistry)
+                .build();
         
         AtomicLongArray counters = new AtomicLongArray(3);
         AtomicLong drops = new AtomicLong(0);
@@ -80,6 +97,9 @@ public class ConcurrencyLimitServerInterceptorTest {
         executor.execute(() -> simulateClient(2, counters, drops, server.getPort(), clientLimit2));
         
         TimeUnit.SECONDS.sleep(100);
+        
+        spectatorRegistry.distributionSummaries().forEach(sum -> sum.measure().forEach(System.out::println));
+        spectatorRegistry.gauges().forEach(guage -> guage.measure().forEach(System.out::println));
     }
 
     private void simulateClient(int id, AtomicLongArray counters, AtomicLong drops, int port, Limit limit) {
@@ -90,6 +110,7 @@ public class ConcurrencyLimitServerInterceptorTest {
                 .usePlaintext(true)
                 .intercept(MetadataUtils.newAttachHeadersInterceptor(headers))
                 .intercept(new ConcurrencyLimitClientInterceptor(new GrpcClientLimiterBuilder()
+                        .strategy(new SimpleStrategy<>(clientRegistry))
                         .limit(limit)
                         .blockOnLimit(true)
                         .build()))
