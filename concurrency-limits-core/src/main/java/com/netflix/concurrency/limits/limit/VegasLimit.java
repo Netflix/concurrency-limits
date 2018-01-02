@@ -8,8 +8,8 @@ import com.netflix.concurrency.limits.internal.Preconditions;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Limiter based on TCP Vegas where the limit increases by 1 if the queue_use is small (< alpha)
- * and decreases by 1 if the queue_use is large (> beta).
+ * Limiter based on TCP Vegas where the limit increases by 1 if the queue_use is small ({@literal <} alpha)
+ * and decreases by 1 if the queue_use is large ({@literal >} beta).
  * 
  * Queue size is calculated using the formula, 
  *  queue_use = limit − BWE×RTTnoLoad = limit × (1 − RTTnoLoad/RTTactual)
