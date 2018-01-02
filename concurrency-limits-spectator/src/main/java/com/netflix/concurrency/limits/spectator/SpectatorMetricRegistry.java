@@ -16,29 +16,23 @@ public final class SpectatorMetricRegistry implements MetricRegistry {
         this.baseId = baseId;
     }
     
-    public void guage(String id, Supplier<Number> supplier) {
+    public void registerGuage(String id, Supplier<Number> supplier) {
         PolledMeter.using(registry)
             .withName(this.baseId + "." + id)
             .monitorValue(this, o -> supplier.get().doubleValue());
     }
 
     @Override
-    public Metric metric(String id) {
-        DistributionSummary summary = registry.distributionSummary(this.baseId + "." + id);
+    public SampleListener registerDistribution(String id, String... tagNameValuePairs) {
+        DistributionSummary summary = registry.distributionSummary(this.baseId + "." + id, tagNameValuePairs);
         return value -> summary.record(value.longValue());
     }
 
     @Override
-    public Metric metric(String id, String tagName, String valueName) {
-        DistributionSummary summary = registry.distributionSummary(registry.createId(this.baseId + "." + id, tagName, valueName));
-        return value -> summary.record(value.longValue());
-    }
-
-    @Override
-    public void guage(String id, String tagName, String tagValue, Supplier<Number> supplier) {
+    public void registerGuage(String id, Supplier<Number> supplier, String... tagNameValuePairs) {
         PolledMeter.using(registry)
             .withName(this.baseId + "." + id)
-            .withTag(tagName, tagValue)
+            .withTags(tagNameValuePairs)
             .monitorValue(this, o -> supplier.get().doubleValue());
     }
 }

@@ -1,5 +1,7 @@
 package com.netflix.concurrency.limits.strategy;
 
+import com.netflix.concurrency.limits.Strategy.Token;
+
 import java.util.Optional;
 
 import org.junit.Assert;
@@ -88,7 +90,7 @@ public class PercentageStrategyTest {
                 .build();
         
         strategy.setLimit(10);
-        Optional<Runnable> completion = strategy.tryAcquire("batch");
+        Optional<Token> completion = strategy.tryAcquire("batch");
         for (int i = 1; i < 10; i++) {
             Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(0));
@@ -98,7 +100,7 @@ public class PercentageStrategyTest {
         
         Assert.assertFalse(strategy.tryAcquire("batch").isPresent());
         
-        completion.get().run();
+        completion.get().release();
         Assert.assertEquals(9, strategy.getBinBusyCount(0));
         Assert.assertEquals(9, strategy.getBusyCount());
         

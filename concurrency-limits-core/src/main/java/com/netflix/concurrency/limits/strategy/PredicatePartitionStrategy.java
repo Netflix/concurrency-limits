@@ -2,7 +2,7 @@ package com.netflix.concurrency.limits.strategy;
 
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
-import com.netflix.concurrency.limits.MetricRegistry.Metric;
+import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.Strategy;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
@@ -65,11 +65,11 @@ public final class PredicatePartitionStrategy<T> implements Strategy<T> {
         this.partitions = new ArrayList<>(builder.partitions);
         this.partitions.forEach(partition -> partition.createMetrics(builder.registry));
         
-        builder.registry.guage(MetricIds.LIMIT_METRIC_ID, this::getLimit);
+        builder.registry.registerGuage(MetricIds.LIMIT_METRIC_ID, this::getLimit);
     }
     
     @Override
-    public synchronized Optional<Runnable> tryAcquire(T type) {
+    public synchronized Optional<Token> tryAcquire(T type) {
         for (Partition<T> partition : partitions) {
             if (partition.predicate.test(type)) {
                 if (busy >= limit && partition.isLimitExceeded()) {
@@ -104,7 +104,7 @@ public final class PredicatePartitionStrategy<T> implements Strategy<T> {
         private final double percent;
         private final Predicate<T> predicate;
         private final String name;
-        private Metric metric;
+        private SampleListener inflightDistribution;
         private int limit;
         private int busy;
         
@@ -115,8 +115,8 @@ public final class PredicatePartitionStrategy<T> implements Strategy<T> {
         }
         
         public void createMetrics(MetricRegistry registry) {
-            this.metric = registry.metric(MetricIds.INFLIGHT_METRIC_ID, PARTITION_TAG_NAME, name);
-            registry.guage(MetricIds.PARTITION_LIMIT_METRIC_ID, PARTITION_TAG_NAME, name, this::getLimit);
+            this.inflightDistribution = registry.registerDistribution(MetricIds.INFLIGHT_METRIC_ID, PARTITION_TAG_NAME, name);
+            registry.registerGuage(MetricIds.PARTITION_LIMIT_METRIC_ID, this::getLimit, PARTITION_TAG_NAME, name);
         }
         
         public void updateLimit(int totalLimit) {
@@ -132,7 +132,7 @@ public final class PredicatePartitionStrategy<T> implements Strategy<T> {
 
         public void acquire() {
             busy++;
-            metric.add(busy);
+            inflightDistribution.addSample(busy);
         }
         
         public void release() {

@@ -3,6 +3,7 @@ package com.netflix.concurrency.limits.limiter;
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.Strategy;
+import com.netflix.concurrency.limits.Strategy.Token;
 import com.netflix.concurrency.limits.internal.Preconditions;
 
 import java.util.Optional;
@@ -63,15 +64,15 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         final long startTime = nanoClock.get();
         
         // Did we exceed the limit
-        Optional<Runnable> token = strategy.tryAcquire(context);
-        if (!token.isPresent()) {
+        final Optional<Token> optionalToken = strategy.tryAcquire(context);
+        if (!optionalToken.isPresent()) {
             isAppLimited = false;
         }
 
-        return token.map(completion -> new Listener() {
+        return optionalToken.map(token -> new Listener() {
             @Override
             public void onSuccess() {
-                completion.run();
+                token.release();
                 
                 final long endTime = nanoClock.get();
                 long rtt = endTime - startTime;
@@ -99,12 +100,12 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
             
             @Override
             public void onIgnore() {
-                completion.run();
+                token.release();
             }
 
             @Override
             public void onDropped() {
-                completion.run();
+                token.release();
                 limit.drop();
                 strategy.setLimit(limit.getLimit());
             }

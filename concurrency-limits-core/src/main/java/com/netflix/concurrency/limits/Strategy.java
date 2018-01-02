@@ -10,13 +10,23 @@ import java.util.Optional;
  */
 public interface Strategy<ContextT> {
     /**
+     * Representation of a single acquired Token from the strategy.  
+     */
+    interface Token {
+        /**
+         * Release the acquired token and decrement the current inflight count.
+         */
+        void release();
+    }
+    
+    /**
      * Try to acquire a token from the limiter.
      * 
      * @param context Context of the request for partitioned limits
-     * @return Optional.empty() if limit exceeded or a runnable that must be called when
-     *  the operation completes
+     * @return Optional.empty() if limit exceeded or a {@link Token} that must be released when
+     *  the operation completes.
      */
-    Optional<Runnable> tryAcquire(ContextT context);
+    Optional<Token> tryAcquire(ContextT context);
     
     /**
      * Update the strategy with a new limit

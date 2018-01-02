@@ -2,7 +2,7 @@ package com.netflix.concurrency.limits.strategy;
 
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
-import com.netflix.concurrency.limits.MetricRegistry.Metric;
+import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.Strategy;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
@@ -71,11 +71,11 @@ public class LookupPartitionStrategy<T> implements Strategy<T> {
         
         this.lookup = builder.lookup;
         
-        builder.registry.guage(MetricIds.LIMIT_METRIC_ID, this::getLimit);
+        builder.registry.registerGuage(MetricIds.LIMIT_METRIC_ID, this::getLimit);
     }
     
     @Override
-    public synchronized Optional<Runnable> tryAcquire(T type) {
+    public synchronized Optional<Token> tryAcquire(T type) {
         Partition partition = partitions.getOrDefault(lookup.apply(type), this.unknownPartition);
         
         if (busy >= limit && partition.isLimitExceeded()) {
@@ -106,7 +106,7 @@ public class LookupPartitionStrategy<T> implements Strategy<T> {
     private static class Partition {
         private final double percent;
         private final String name;
-        private Metric metric;
+        private SampleListener busyDistribution;
         private int limit;
         private int busy;
         
@@ -116,8 +116,8 @@ public class LookupPartitionStrategy<T> implements Strategy<T> {
         }
         
         public void createMetrics(MetricRegistry registry) {
-            this.metric = registry.metric(MetricIds.INFLIGHT_METRIC_ID, PARTITION_TAG_NAME, name);
-            registry.guage(MetricIds.PARTITION_LIMIT_METRIC_ID, PARTITION_TAG_NAME, name, this::getLimit);
+            this.busyDistribution = registry.registerDistribution(MetricIds.INFLIGHT_METRIC_ID, PARTITION_TAG_NAME, name);
+            registry.registerGuage(MetricIds.PARTITION_LIMIT_METRIC_ID, this::getLimit, PARTITION_TAG_NAME, name);
         }
         
         public void updateLimit(int totalLimit) {
@@ -133,7 +133,7 @@ public class LookupPartitionStrategy<T> implements Strategy<T> {
 
         public void acquire() {
             busy++;
-            metric.add(busy);
+            busyDistribution.addSample(busy);
         }
         
         public void release() {

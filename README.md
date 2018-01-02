@@ -93,7 +93,7 @@ In this example a servlet is configured with a single adaptive limiter that is s
 ```java
 Map<String, String> principalToGroup = ...;
 Filter filter = new ConcurrencyLimitServletFilter(new ServletLimiterBuilder()
-        .partitionByUserPrincipal(principal -> principalToGroup(principal.getName()), c -> c
+        .partitionByUserPrincipal(principal -> principalToGroup.get(principal.getName()), c -> c
                .assign("live", 0.9)
                .assign("batch", 0.1))
         .build());
@@ -111,7 +111,7 @@ public void drainQueue(Queue<Runnable> tasks) {
             new SimpleStrategy()));
     
     while (true) {
-        executor.execute(queue.take());
+        executor.execute(tasks.take());
     }
 }
 

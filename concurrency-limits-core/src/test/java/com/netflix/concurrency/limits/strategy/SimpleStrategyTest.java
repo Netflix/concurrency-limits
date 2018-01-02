@@ -1,5 +1,7 @@
 package com.netflix.concurrency.limits.strategy;
 
+import com.netflix.concurrency.limits.Strategy.Token;
+
 import java.util.Optional;
 
 import org.junit.Test;
@@ -41,11 +43,11 @@ public class SimpleStrategyTest {
     @Test
     public void acquireAndRelease() {
         SimpleStrategy<Void> strategy = new SimpleStrategy<Void>();
-        Optional<Runnable> completion = strategy.tryAcquire(null);
+        Optional<Token> completion = strategy.tryAcquire(null);
         Assert.assertTrue(completion.isPresent());
         Assert.assertEquals(1, strategy.getBusyCount());
         
-        completion.get().run();
+        completion.ifPresent(Token::release);
         
         Assert.assertEquals(0, strategy.getBusyCount());
 

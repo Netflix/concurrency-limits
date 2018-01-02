@@ -95,7 +95,7 @@ public class VegasLimit implements Limit {
         this.alpha = builder.alpha;
         this.beta = builder.beta;
         this.backoffRatio = builder.backoffRatio;
-        builder.registry.guage(MIN_RTT_GUAGE_NAME, () -> rtt_noload);
+        builder.registry.registerGuage(MIN_RTT_GUAGE_NAME, () -> rtt_noload);
     }
 
     @Override
