@@ -39,24 +39,6 @@ For more complex systems it's desirable to provide certain quality of service gu
 
 # Integrations
 
-## Executor
-
-The BlockingAdaptiveExecutor adapts the size of an internal thread pool to match the concurrency limit based on measured latencies of Runnable commands and will block when the limit has been reached.
- 
-```java
-public void drainQueue(Queue<Runnable> tasks) {
-    Executor executor = new BlockingAdaptiveExecutor(
-        new DefaultLimiter(
-            VegasLimit.newDefault(), 
-            new SimpleStrategy()));
-    
-    while (true) {
-        executor.execute(queue.take());
-    }
-}
-
-```
-
 ## GRPC
 
 A concurrency limiter may be installed either on the server or client. The choice of limiter depends on your use case. For the most part it is recommended to use a dynamic delay based limiter such as the VegasLimit on the server and either a pure loss based (AIMDLimit) or combined loss and delay based limiter on the client.
@@ -73,12 +55,10 @@ ServerBuilder builder = ...;
 
 builder.addService(ServerInterceptor.intercept(service,
     new ConcurrencyLimitServerInterceptor(
-        new GrpcServerLimiterBuilder() 
-            //  90% guarantee for live
-            .headerEquals(0.9, GROUP_HEADER, "live")
-        
-            //  10% guarantee for batch
-            .headerEquals(0.1, GROUP_HEADER, "batch")
+        new GrpcServerLimiterBuilder()
+            .partitionByHeader(GROUP_HEADER, c -> c
+                .assign("live", 0.9)
+                .assign("batch", 0.1))
             .build()
         )
     ));
@@ -111,13 +91,28 @@ The purpose of the servlet filter limiter is to protect the servlet from either 
 In this example a servlet is configured with a single adaptive limiter that is shared among batch and live traffic with live traffic guaranteed 90% of throughput and 10% guaranteed to batch.  The limiter is given a lookup function that translates the request's Principal to one of the two groups (live vs batch). 
 
 ```java
-Map<String, String> mapPrincipalToLiveOrBatch = ...;
-Map<String, Double> groupToPercent = new HashMap<>();
-groupToPercent.put("live", 0.9);
-groupToPercent.put("batch", 0.1);
+Map<String, String> principalToGroup = ...;
+Filter filter = new ConcurrencyLimitServletFilter(new ServletLimiterBuilder()
+        .partitionByUserPrincipal(principal -> principalToGroup.get(principal.getName()), c -> c
+               .assign("live", 0.9)
+               .assign("batch", 0.1))
+        .build());
+```
 
-GroupServletServerLimiter limiter = new GroupServletServerLimiter(
-    VegasLimit.newDefault(), 
-    ServletServerLimiterImpl.fromUserPrincipal().andThen(mapPrincipalToLiveOrBatch::get),
-    groupToPercent);
+## Executor
+
+The BlockingAdaptiveExecutor adapts the size of an internal thread pool to match the concurrency limit based on measured latencies of Runnable commands and will block when the limit has been reached.
+ 
+```java
+public void drainQueue(Queue<Runnable> tasks) {
+    Executor executor = new BlockingAdaptiveExecutor(
+        new DefaultLimiter(
+            VegasLimit.newDefault(), 
+            new SimpleStrategy()));
+    
+    while (true) {
+        executor.execute(tasks.take());
+    }
+}
+
 ```

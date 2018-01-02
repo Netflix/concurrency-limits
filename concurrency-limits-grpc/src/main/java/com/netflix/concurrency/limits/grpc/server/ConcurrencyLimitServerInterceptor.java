@@ -22,9 +22,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
     private static final Status LIMIT_EXCEEDED_STATUS = Status.UNAVAILABLE.withDescription("Concurrency limit reached");
 
-    private final GrpcServerLimiter grpcLimiter;
+    private final Limiter<GrpcServerRequestContext> grpcLimiter;
     
-    public ConcurrencyLimitServerInterceptor(GrpcServerLimiter grpcLimiter) {
+    public ConcurrencyLimitServerInterceptor(Limiter<GrpcServerRequestContext> grpcLimiter) {
         this.grpcLimiter = grpcLimiter;
     }
 
@@ -33,7 +33,17 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
                                                       final Metadata headers,
                                                       final ServerCallHandler<ReqT, RespT> next) {
         
-        final Optional<Limiter.Listener> listener = grpcLimiter.acquire(call, headers);
+        final Optional<Limiter.Listener> listener = grpcLimiter.acquire(new GrpcServerRequestContext() {
+            @Override
+            public ServerCall<?, ?> getCall() {
+                return call;
+            }
+
+            @Override
+            public Metadata getHeaders() {
+                return headers;
+            }
+        });
         
         if (!listener.isPresent()) {
             call.close(LIMIT_EXCEEDED_STATUS, new Metadata());

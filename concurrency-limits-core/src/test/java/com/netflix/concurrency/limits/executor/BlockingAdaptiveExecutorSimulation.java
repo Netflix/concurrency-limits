@@ -21,7 +21,7 @@ import org.junit.Test;
 public class BlockingAdaptiveExecutorSimulation {
     @Test
     public void test() {
-        DefaultLimiter<Void> limiter = new DefaultLimiter<>(new AIMDLimit(10), new SimpleStrategy());
+        DefaultLimiter<Void> limiter = new DefaultLimiter<>(AIMDLimit.newBuilder().initialLimit(10).build(), new SimpleStrategy<>());
         Executor executor = new BlockingAdaptiveExecutor(limiter);
         
         run(10000, 20, executor, randomLatency(50, 150));
@@ -29,7 +29,7 @@ public class BlockingAdaptiveExecutorSimulation {
     
     @Test
     public void testVegas() {
-        DefaultLimiter<Void> limiter = new DefaultLimiter<>(VegasLimit.newBuilder().withInitialLimit(100).build(), new SimpleStrategy());
+        DefaultLimiter<Void> limiter = new DefaultLimiter<>(VegasLimit.newBuilder().initialLimit(100).build(), new SimpleStrategy<>());
         Executor executor = new BlockingAdaptiveExecutor(limiter);
         run(10000, 50, executor, randomLatency(50, 150));
     }

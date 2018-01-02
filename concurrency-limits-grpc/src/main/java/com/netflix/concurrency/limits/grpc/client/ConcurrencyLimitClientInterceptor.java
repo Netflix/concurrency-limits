@@ -26,9 +26,9 @@ import javax.annotation.Nullable;
 public class ConcurrencyLimitClientInterceptor implements ClientInterceptor {
     private static final Status LIMIT_EXCEEDED_STATUS = Status.UNAVAILABLE.withDescription("Concurrency limit reached");
     
-    private final GrpcClientLimiter grpcLimiter;
+    private final Limiter<GrpcClientRequestContext> grpcLimiter;
     
-    public ConcurrencyLimitClientInterceptor(final GrpcClientLimiter grpcLimiter) {
+    public ConcurrencyLimitClientInterceptor(final Limiter<GrpcClientRequestContext> grpcLimiter) {
         Preconditions.checkArgument(grpcLimiter != null, "GrpcLimiter cannot not be null");
         this.grpcLimiter = grpcLimiter;
     }
@@ -36,7 +36,18 @@ public class ConcurrencyLimitClientInterceptor implements ClientInterceptor {
     @Override
     public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(final MethodDescriptor<ReqT, RespT> method,
             final CallOptions callOptions, final Channel next) {
-        final Optional<Limiter.Listener> listener = grpcLimiter.acquire(method, callOptions);
+        final Optional<Limiter.Listener> listener = grpcLimiter.acquire(new GrpcClientRequestContext() {
+            @Override
+            public MethodDescriptor<?, ?> getMethod() {
+                return method;
+            }
+
+            @Override
+            public CallOptions getCallOptions() {
+                return callOptions;
+            }
+        });
+        
         if (!listener.isPresent()) {
             return new ClientCall<ReqT, RespT>() {
                 @Override

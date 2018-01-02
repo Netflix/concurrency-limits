@@ -3,6 +3,7 @@ package com.netflix.concurrency.limits.limiter;
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.Strategy;
+import com.netflix.concurrency.limits.Strategy.Token;
 import com.netflix.concurrency.limits.internal.Preconditions;
 
 import java.util.Optional;
@@ -55,7 +56,6 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         Preconditions.checkArgument(strategy != null, "Strategy may not be null");
         this.limit = limit;
         this.strategy = strategy;
-        
         strategy.setLimit(limit.getLimit());
     }
     
@@ -64,15 +64,15 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         final long startTime = nanoClock.get();
         
         // Did we exceed the limit
-        if (!strategy.tryAcquire(context)) {
+        final Optional<Token> optionalToken = strategy.tryAcquire(context);
+        if (!optionalToken.isPresent()) {
             isAppLimited = false;
-            return Optional.empty();
         }
-        
-        return Optional.of(new Listener() {
+
+        return optionalToken.map(token -> new Listener() {
             @Override
             public void onSuccess() {
-                strategy.release(context);
+                token.release();
                 
                 final long endTime = nanoClock.get();
                 long rtt = endTime - startTime;
@@ -100,12 +100,12 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
             
             @Override
             public void onIgnore() {
-                strategy.release(context);
+                token.release();
             }
 
             @Override
             public void onDropped() {
-                strategy.release(context);
+                token.release();
                 limit.drop();
                 strategy.setLimit(limit.getLimit());
             }

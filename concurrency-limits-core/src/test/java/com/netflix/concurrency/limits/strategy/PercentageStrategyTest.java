@@ -1,6 +1,8 @@
 package com.netflix.concurrency.limits.strategy;
 
-import java.util.Arrays;
+import com.netflix.concurrency.limits.Strategy.Token;
+
+import java.util.Optional;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -8,7 +10,10 @@ import org.junit.Test;
 public class PercentageStrategyTest {
     @Test
     public void limitAllocatedToBins() {
-        PercentageStrategy strategy = new PercentageStrategy(Arrays.asList(0.3, 0.7));
+        PredicatePartitionStrategy<String> strategy = PredicatePartitionStrategy.<String>newBuilder()
+                .add("batch", 0.3, str -> str.equals("batch"))
+                .add("live", 0.7, str -> str.equals("live"))
+                .build();
         strategy.setLimit(10);
 
         Assert.assertEquals(3, strategy.getBinLimit(0));
@@ -17,83 +22,103 @@ public class PercentageStrategyTest {
     
     @Test
     public void useExcessCapacityUntilTotalLimit() {
-        PercentageStrategy strategy = new PercentageStrategy(Arrays.asList(0.3, 0.7));
+        PredicatePartitionStrategy<String> strategy = PredicatePartitionStrategy.<String>newBuilder()
+                .add("batch", 0.3, str -> str.equals("batch"))
+                .add("live", 0.7, str -> str.equals("live"))
+                .build();
         strategy.setLimit(10);
         for (int i = 0; i < 10; i++) {
-            Assert.assertTrue(strategy.tryAcquire(0));
+            Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(0));
         }
         
-        Assert.assertFalse(strategy.tryAcquire(0));
+        Assert.assertFalse(strategy.tryAcquire("batch").isPresent());
     }
     
     @Test
     public void exceedTotalLimitForUnusedBin() {
-        PercentageStrategy strategy = new PercentageStrategy(Arrays.asList(0.3, 0.7));
+        PredicatePartitionStrategy<String> strategy = PredicatePartitionStrategy.<String>newBuilder()
+                .add("batch", 0.3, str -> str.equals("batch"))
+                .add("live", 0.7, str -> str.equals("live"))
+                .build();
+        
         strategy.setLimit(10);
         for (int i = 0; i < 10; i++) {
-            Assert.assertTrue(strategy.tryAcquire(0));
+            Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(0));
         }
         
-        Assert.assertFalse(strategy.tryAcquire(0));
+        Assert.assertFalse(strategy.tryAcquire("batch").isPresent());
         
         for (int i = 0; i < 7; i++) {
-            Assert.assertTrue(strategy.tryAcquire(1));
+            Assert.assertTrue(strategy.tryAcquire("live").isPresent());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(1));
         }
 
-        Assert.assertFalse(strategy.tryAcquire(1));
+        Assert.assertFalse(strategy.tryAcquire("live").isPresent());
     }
 
     @Test
     public void rejectOnceAllLimitsReached() {
-        PercentageStrategy strategy = new PercentageStrategy(Arrays.asList(0.3, 0.7));
+        PredicatePartitionStrategy<String> strategy = PredicatePartitionStrategy.<String>newBuilder()
+                .add("batch", 0.3, str -> str.equals("batch"))
+                .add("live", 0.7, str -> str.equals("live"))
+                .build();
+        
         strategy.setLimit(10);
         for (int i = 0; i < 3; i++) {
-            Assert.assertTrue(strategy.tryAcquire(0));
+            Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(0));
             Assert.assertEquals(i+1, strategy.getBusyCount());
         }
         
         for (int i = 0; i < 7; i++) {
-            Assert.assertTrue(strategy.tryAcquire(1));
+            Assert.assertTrue(strategy.tryAcquire("live").isPresent());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(1));
             Assert.assertEquals(i+4, strategy.getBusyCount());
         }
 
-        Assert.assertFalse(strategy.tryAcquire(0));
-        Assert.assertFalse(strategy.tryAcquire(1));
+        Assert.assertFalse(strategy.tryAcquire("batch").isPresent());
+        Assert.assertFalse(strategy.tryAcquire("live").isPresent());
     }
 
     @Test
     public void releaseLimit() {
-        PercentageStrategy strategy = new PercentageStrategy(Arrays.asList(0.3, 0.7));
+        PredicatePartitionStrategy<String> strategy = PredicatePartitionStrategy.<String>newBuilder()
+                .add("batch", 0.3, str -> str.equals("batch"))
+                .add("live", 0.7, str -> str.equals("live"))
+                .build();
+        
         strategy.setLimit(10);
-        for (int i = 0; i < 10; i++) {
-            Assert.assertTrue(strategy.tryAcquire(0));
+        Optional<Token> completion = strategy.tryAcquire("batch");
+        for (int i = 1; i < 10; i++) {
+            Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(0));
         }
     
         Assert.assertEquals(10, strategy.getBusyCount());
         
-        Assert.assertFalse(strategy.tryAcquire(0));
+        Assert.assertFalse(strategy.tryAcquire("batch").isPresent());
         
-        strategy.release(0);
+        completion.get().release();
         Assert.assertEquals(9, strategy.getBinBusyCount(0));
         Assert.assertEquals(9, strategy.getBusyCount());
         
-        Assert.assertTrue(strategy.tryAcquire(0));
+        Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
         Assert.assertEquals(10, strategy.getBinBusyCount(0));
         Assert.assertEquals(10, strategy.getBusyCount());
     }
     
     @Test
     public void setLimitReservesBusy() {
-        PercentageStrategy strategy = new PercentageStrategy(Arrays.asList(0.3, 0.7));
+        PredicatePartitionStrategy<String> strategy = PredicatePartitionStrategy.<String>newBuilder()
+                .add("batch", 0.3, str -> str.equals("batch"))
+                .add("live", 0.7, str -> str.equals("live"))
+                .build();
+        
         strategy.setLimit(10);
         Assert.assertEquals(3, strategy.getBinLimit(0));
-        Assert.assertTrue(strategy.tryAcquire(0));
+        Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
         Assert.assertEquals(1, strategy.getBinBusyCount(0));
         Assert.assertEquals(1, strategy.getBusyCount());
         

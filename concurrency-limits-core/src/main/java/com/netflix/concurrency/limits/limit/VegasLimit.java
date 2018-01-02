@@ -1,6 +1,8 @@
 package com.netflix.concurrency.limits.limit;
 
 import com.netflix.concurrency.limits.Limit;
+import com.netflix.concurrency.limits.MetricRegistry;
+import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
 
 import java.util.concurrent.TimeUnit;
@@ -15,35 +17,44 @@ import java.util.concurrent.TimeUnit;
  * alpha is typically 2-3 and beta is typically 4-6
  */
 public class VegasLimit implements Limit {
+    private static final String LIMIT_GUAGE_NAME = "limit";
+    private static final String MIN_RTT_GUAGE_NAME = "min_rtt";
+
     public static class Builder {
         private int initialLimit = 10;
         private int maxConcurrency = 100;
         private int alpha = 2;
         private int beta = 4;
         private double backoffRatio = 0.9;
+        private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         
-        public Builder withAlpha(int alpha) {
+        public Builder alpha(int alpha) {
             this.alpha = alpha;
             return this;
         }
         
-        public Builder withBeta(int beta) {
+        public Builder beta(int beta) {
             this.beta = beta;
             return this;
         }
         
-        public Builder withInitialLimit(int initialLimit) {
+        public Builder initialLimit(int initialLimit) {
             this.initialLimit = initialLimit;
             return this;
         }
         
-        public Builder withMaxConcurrency(int maxConcurrency) {
+        public Builder maxConcurrency(int maxConcurrency) {
             this.maxConcurrency = maxConcurrency;
             return this;
         }
         
-        public Builder withBackoffRatio(double ratio) {
+        public Builder backoffRatio(double ratio) {
             this.backoffRatio = ratio;
+            return this;
+        }
+        
+        public Builder metricRegistry(MetricRegistry registry) {
+            this.registry = registry;
             return this;
         }
         
@@ -77,13 +88,14 @@ public class VegasLimit implements Limit {
     private final int alpha;
     private final int beta;
     private final double backoffRatio;
-    
+
     private VegasLimit(Builder builder) {
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
         this.alpha = builder.alpha;
         this.beta = builder.beta;
         this.backoffRatio = builder.backoffRatio;
+        builder.registry.registerGuage(MIN_RTT_GUAGE_NAME, () -> rtt_noload);
     }
 
     @Override

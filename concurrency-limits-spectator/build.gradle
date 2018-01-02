@@ -1,0 +1,13 @@
+plugins {
+    id 'java'
+}
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+
+dependencies {
+    compile project(":concurrency-limits-core")
+
+    compile 'com.netflix.spectator:spectator-api:0.+'
+    
+    testCompile "junit:junit-dep:4.10"
+}
