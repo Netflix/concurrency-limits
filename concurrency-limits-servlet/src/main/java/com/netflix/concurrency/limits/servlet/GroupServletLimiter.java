@@ -23,7 +23,7 @@ import javax.servlet.http.HttpServletRequest;
  * where each group is allocated a certain percentage of the limit.
  * 
  * For example, the following setup guarantees 10% of the limit to batch and 90% to live based on the user
- * principal.  The user principal is mapped here to a group using a simple Map<String, String> which
+ * principal.  The user principal is mapped here to a group using a simple {@literal Map<String, String>} which
  * could have been loaded from a configuration file or database.
  * 
  * {@code

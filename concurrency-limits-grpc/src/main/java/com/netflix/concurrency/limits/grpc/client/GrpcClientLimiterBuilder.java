@@ -55,8 +55,8 @@ public class GrpcClientLimiterBuilder {
     
     /**
      * Guarantee a percentage of the limit to the specific method
-     * @param percent Percent of the limit to guarantee 
-     * @param method The method
+     * @param d Percent of the limit to guarantee 
+     * @param m The method
      * @return Chainable builder
      */
     public <T> GrpcClientLimiterBuilder methodEquals(double d, MethodDescriptor<?, ?> m) {

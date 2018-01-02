@@ -16,8 +16,8 @@ public interface GrpcServerLimiter {
     /**
      * Acquire a limit given a request context.
      * 
-     * @param method
-     * @param callOptions
+     * @param call
+     * @param headers
      * @return Valid Listener if acquired or Optional.empty() if limit reached
      */
     Optional<Limiter.Listener> acquire(ServerCall<?, ?> call, Metadata headers);
