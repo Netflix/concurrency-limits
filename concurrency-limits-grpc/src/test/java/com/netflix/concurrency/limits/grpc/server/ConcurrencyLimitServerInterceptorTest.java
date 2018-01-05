@@ -44,8 +44,8 @@ public class ConcurrencyLimitServerInterceptorTest {
     private static final Key<String> ID_HEADER = Metadata.Key.of("id", Metadata.ASCII_STRING_MARSHALLER);
 
     Registry spectatorRegistry = new DefaultRegistry();
-    SpectatorMetricRegistry serverRegistry = new SpectatorMetricRegistry("grpc.server.call", spectatorRegistry);
-    SpectatorMetricRegistry clientRegistry = new SpectatorMetricRegistry("grpc.client.call", spectatorRegistry);
+    SpectatorMetricRegistry serverRegistry = new SpectatorMetricRegistry(spectatorRegistry, spectatorRegistry.createId("grpc.server.call.limter"));
+    SpectatorMetricRegistry clientRegistry = new SpectatorMetricRegistry(spectatorRegistry, spectatorRegistry.createId("grpc.client.call.limter"));
     
     @Test
     @Ignore
