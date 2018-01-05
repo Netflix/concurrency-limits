@@ -60,6 +60,7 @@ public class LookupPartitionStrategy<T> implements Strategy<T> {
     private int limit = 0;
     
     private LookupPartitionStrategy(Builder<T> builder) {
+        Preconditions.checkArgument(!builder.partitions.isEmpty(), "No partitions specified");
         Preconditions.checkArgument(builder.partitions.values().stream().map(Partition::getPercent).reduce(0.0, Double::sum) <= 1.0, 
                 "Sum of percentages must be <= 1.0");
 
@@ -71,7 +72,7 @@ public class LookupPartitionStrategy<T> implements Strategy<T> {
         
         this.lookup = builder.lookup;
         
-        builder.registry.registerGuage(MetricIds.LIMIT_METRIC_ID, this::getLimit);
+        builder.registry.registerGuage(MetricIds.LIMIT_GUAGE_NAME, this::getLimit);
     }
     
     @Override
@@ -116,8 +117,8 @@ public class LookupPartitionStrategy<T> implements Strategy<T> {
         }
         
         public void createMetrics(MetricRegistry registry) {
-            this.busyDistribution = registry.registerDistribution(MetricIds.INFLIGHT_METRIC_ID, PARTITION_TAG_NAME, name);
-            registry.registerGuage(MetricIds.PARTITION_LIMIT_METRIC_ID, this::getLimit, PARTITION_TAG_NAME, name);
+            this.busyDistribution = registry.registerDistribution(MetricIds.INFLIGHT_GUAGE_NAME, PARTITION_TAG_NAME, name);
+            registry.registerGuage(MetricIds.PARTITION_LIMIT_GUAGE_NAME, this::getLimit, PARTITION_TAG_NAME, name);
         }
         
         public void updateLimit(int totalLimit) {
