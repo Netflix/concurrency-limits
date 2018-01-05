@@ -17,12 +17,6 @@ public final class SpectatorMetricRegistry implements MetricRegistry {
         this.baseId = baseId;
     }
     
-    public void registerGuage(String id, Supplier<Number> supplier) {
-        PolledMeter.using(registry)
-            .withId(suffixBaseId(id))
-            .monitorValue(this, o -> supplier.get().doubleValue());
-    }
-
     @Override
     public SampleListener registerDistribution(String id, String... tagNameValuePairs) {
         DistributionSummary summary = registry.distributionSummary(suffixBaseId(id).withTags(tagNameValuePairs));

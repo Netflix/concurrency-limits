@@ -1,6 +1,7 @@
 package com.netflix.concurrency.limits.limit;
 
 import com.netflix.concurrency.limits.Limit;
+import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
@@ -17,9 +18,6 @@ import java.util.concurrent.TimeUnit;
  * alpha is typically 2-3 and beta is typically 4-6
  */
 public class VegasLimit implements Limit {
-    private static final String LIMIT_GUAGE_NAME = "limit";
-    private static final String MIN_RTT_GUAGE_NAME = "min_rtt";
-
     public static class Builder {
         private int initialLimit = 10;
         private int maxConcurrency = 100;
@@ -95,7 +93,7 @@ public class VegasLimit implements Limit {
         this.alpha = builder.alpha;
         this.beta = builder.beta;
         this.backoffRatio = builder.backoffRatio;
-        builder.registry.registerGuage(MIN_RTT_GUAGE_NAME, () -> rtt_noload);
+        builder.registry.registerGuage(MetricIds.MIN_RTT_GUAGE_NAME, () -> rtt_noload);
     }
 
     @Override
