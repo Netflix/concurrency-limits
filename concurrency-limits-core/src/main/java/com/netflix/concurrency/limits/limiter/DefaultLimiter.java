@@ -1,15 +1,15 @@
 package com.netflix.concurrency.limits.limiter;
 
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
+
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.Strategy;
 import com.netflix.concurrency.limits.Strategy.Token;
 import com.netflix.concurrency.limits.internal.Preconditions;
-
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 
 /**
  * {@link Limiter} that combines a plugable limit algorithm and enforcement strategy to 
@@ -18,6 +18,8 @@ import java.util.function.Supplier;
  */
 public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     private final Supplier<Long> nanoClock = System::nanoTime;
+    
+    private final long MIN_WINDOW_SIZE = TimeUnit.MILLISECONDS.toNanos(200);
     
     /**
      * Ideal RTT when no queuing occurs.  For simplicity we assume the lowest latency
@@ -88,13 +90,12 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                 }
                 
                 long updateTime = nextUpdateTime.get();
-                if (endTime >= updateTime && nextUpdateTime.compareAndSet(updateTime, endTime + RTT_noload * 10)) {
-                    if (!isAppLimited) {
+                if (endTime >= updateTime && nextUpdateTime.compareAndSet(updateTime, endTime + Math.max(MIN_WINDOW_SIZE, RTT_noload * 20))) {
+                    if (!isAppLimited && current != Integer.MAX_VALUE && RTT_candidate.compareAndSet(current, Integer.MAX_VALUE)) {
                         limit.update(current);
                         strategy.setLimit(limit.getLimit());
                         isAppLimited = true;
                     }
-                    RTT_candidate.set(Integer.MAX_VALUE);
                 }
             }
             
