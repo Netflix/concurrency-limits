@@ -1,15 +1,12 @@
 package com.netflix.concurrency.limits.spectator;
 
+import java.util.function.Supplier;
+
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.spectator.api.DistributionSummary;
 import com.netflix.spectator.api.Id;
 import com.netflix.spectator.api.Registry;
 import com.netflix.spectator.api.patterns.PolledMeter;
-
-import java.util.function.Supplier;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class SpectatorMetricRegistry implements MetricRegistry {
     private final Registry registry;

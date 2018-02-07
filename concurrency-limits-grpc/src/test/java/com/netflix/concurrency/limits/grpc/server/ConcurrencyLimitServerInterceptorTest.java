@@ -38,8 +38,12 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 public class ConcurrencyLimitServerInterceptorTest {
-    private static final MethodDescriptor<String, String> METHOD_DESCRIPTOR = MethodDescriptor.create(MethodType.UNARY,
-            "service/method", StringMarshaller.INSTANCE, StringMarshaller.INSTANCE);
+    private static final MethodDescriptor<String, String> METHOD_DESCRIPTOR = MethodDescriptor.<String, String>newBuilder()
+            .setType(MethodType.UNARY)
+            .setFullMethodName("service/method")
+            .setRequestMarshaller(StringMarshaller.INSTANCE)
+            .setResponseMarshaller(StringMarshaller.INSTANCE)
+            .build();
 
     private static final Key<String> ID_HEADER = Metadata.Key.of("id", Metadata.ASCII_STRING_MARSHALLER);
 

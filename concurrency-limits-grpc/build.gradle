@@ -14,4 +14,5 @@ dependencies {
     testCompile "io.grpc:grpc-netty:1.9.0"
     testCompile "io.grpc:grpc-stub:1.9.0"
     testCompile "junit:junit-dep:4.10"
+    testCompile "org.slf4j:slf4j-log4j12:1.7.+"
 }

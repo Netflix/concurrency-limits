@@ -52,6 +52,6 @@ public final class GrpcServerLimiterBuilder extends AbstractLimiterBuilder<GrpcS
     }
     
     public Limiter<GrpcServerRequestContext> build() {
-        return new DefaultLimiter<>(limit, getFinalStrategy());
+        return DefaultLimiter.newBuilder().limit(limit).build(getFinalStrategy());
     }
 }

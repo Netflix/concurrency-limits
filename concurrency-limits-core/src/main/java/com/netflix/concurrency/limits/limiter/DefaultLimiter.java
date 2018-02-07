@@ -10,6 +10,7 @@ import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.Strategy;
 import com.netflix.concurrency.limits.Strategy.Token;
 import com.netflix.concurrency.limits.internal.Preconditions;
+import com.netflix.concurrency.limits.limit.VegasLimit;
 
 /**
  * {@link Limiter} that combines a plugable limit algorithm and enforcement strategy to 
@@ -19,13 +20,14 @@ import com.netflix.concurrency.limits.internal.Preconditions;
 public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     private final Supplier<Long> nanoClock = System::nanoTime;
     
-    private final long MIN_WINDOW_SIZE = TimeUnit.MILLISECONDS.toNanos(200);
+    private final static long DEFAULT_MIN_WINDOW_TIME = TimeUnit.MILLISECONDS.toNanos(200);
+    private final static int DEFAULT_WINDOW_SIZE = 100;
     
     /**
      * Ideal RTT when no queuing occurs.  For simplicity we assume the lowest latency
      * ever observed is the ideal RTT.
      */
-    private volatile long RTT_noload = TimeUnit.MILLISECONDS.toNanos(100);
+    private volatile long RTT_noload = Long.MAX_VALUE;
     
     /**
      * Smallest observed RTT during the sampling window. 
@@ -51,16 +53,78 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
      */
     private final Limit limit;
 
+    /**
+     * Strategy for enforcing the limit
+     */
     private final Strategy<ContextT> strategy;
     
+    /**
+     * Minimum window size in nanonseconds for sampling a new minRtt
+     */
+    private final long minWindowTime;
+    
+    /**
+     * Sampling window size in multiple of the measured minRtt
+     */
+    private final int windowSize;
+    
+    public static class Builder {
+        private Limit limit = VegasLimit.newDefault();
+        private long minWindowTime = DEFAULT_MIN_WINDOW_TIME;
+        private int windowSize = DEFAULT_WINDOW_SIZE;
+        
+        public Builder limit(Limit limit) {
+            Preconditions.checkArgument(limit != null, "Algorithm may not be null");
+            this.limit = limit;
+            return this;
+        }
+        
+        public Builder minWindowTime(long minWindowTime, TimeUnit units) {
+            Preconditions.checkArgument(minWindowTime >= units.toMillis(100), "minWindowTime must be >= 100 ms");
+            this.minWindowTime = units.toNanos(minWindowTime);
+            return this;
+        }
+        
+        public Builder windowSize(int windowSize) {
+            Preconditions.checkArgument(windowSize >= 10, "Window size must be >= 10");
+            this.windowSize = windowSize;
+            return this;
+        }
+        
+        public <ContextT> DefaultLimiter<ContextT> build(Strategy<ContextT> strategy) {
+            Preconditions.checkArgument(strategy != null, "Strategy may not be null");
+            return new DefaultLimiter<ContextT>(this, strategy);
+        }
+    }
+    
+    public static Builder newBuilder() {
+        return new Builder();
+    }
+    
+    /**
+     * @deprecated Use {@link DefaultLimiter#newBuilder}
+     * @param limit
+     * @param strategy
+     */
+    @Deprecated
     public DefaultLimiter(Limit limit, Strategy<ContextT> strategy) {
         Preconditions.checkArgument(limit != null, "Algorithm may not be null");
         Preconditions.checkArgument(strategy != null, "Strategy may not be null");
         this.limit = limit;
         this.strategy = strategy;
+        this.windowSize = DEFAULT_WINDOW_SIZE;
+        this.minWindowTime = DEFAULT_MIN_WINDOW_TIME;
         strategy.setLimit(limit.getLimit());
     }
     
+    private DefaultLimiter(Builder builder, Strategy<ContextT> strategy) {
+        this.limit = builder.limit;
+        this.minWindowTime = builder.minWindowTime;
+        this.windowSize = builder.windowSize;
+        this.strategy = strategy;
+        strategy.setLimit(limit.getLimit());
+    }
+
     @Override
     public Optional<Listener> acquire(final ContextT context) {
         final long startTime = nanoClock.get();
@@ -90,7 +154,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                 }
                 
                 long updateTime = nextUpdateTime.get();
-                if (endTime >= updateTime && nextUpdateTime.compareAndSet(updateTime, endTime + Math.max(MIN_WINDOW_SIZE, RTT_noload * 20))) {
+                if (endTime >= updateTime && nextUpdateTime.compareAndSet(updateTime, endTime + Math.max(minWindowTime, RTT_noload * windowSize))) {
                     if (!isAppLimited && current != Integer.MAX_VALUE && RTT_candidate.compareAndSet(current, Integer.MAX_VALUE)) {
                         limit.update(current);
                         strategy.setLimit(limit.getLimit());
@@ -116,10 +180,17 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     protected int getLimit() {
         return limit.getLimit();
     }
+    
+    /**
+     * @return Return the minimum observed RTT time or 0 if none found yet
+     */
+    protected long getMinRtt() {
+        return RTT_noload == Long.MAX_VALUE ? 0 : RTT_noload;
+    }
 
     @Override
     public String toString() {
-        return "DefaultLimiter [RTT_noload=" + TimeUnit.NANOSECONDS.toMillis(RTT_noload)
+        return "DefaultLimiter [RTT_noload=" + TimeUnit.NANOSECONDS.toMillis(getMinRtt())
                 + ", RTT_candidate=" + TimeUnit.NANOSECONDS.toMillis(RTT_candidate.get()) 
                 + ", isAppLimited=" + isAppLimited 
                 + ", " + limit 

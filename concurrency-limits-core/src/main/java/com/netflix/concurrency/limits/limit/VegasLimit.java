@@ -28,6 +28,7 @@ public class VegasLimit implements Limit {
         private int maxConcurrency = 1000;
         private int alpha = 3;
         private int beta = 6;
+        private double tolerance = 1.0;
         private double backoffRatio = 0.9;
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private boolean fastStartEnabled = false;
@@ -62,6 +63,26 @@ public class VegasLimit implements Limit {
             return this;
         }
         
+        /**
+         * Tolerance multiple of the windowed RTT measurement when adjusting the limit down.
+         * A value of 1 means little tolerance for changes in window RTT and the sample is used as 
+         * is to determine queuing.  A value of 2 means that the window RTT may be double the 
+         * absolute minimum before being considered 
+         * @param tolerance
+         * @return
+         */
+        public Builder tolerance(double tolerance) {
+            Preconditions.checkArgument(tolerance >= 1, "Tolerance must be >= 1");
+            this.tolerance = tolerance;
+            return this;
+        }
+        
+        /**
+         * When enabled allows for exponential limit growth to quickly discover
+         * the limit at startup.
+         * @param fastStartEnabled
+         * @return Chainable builder
+         */
         public Builder fastStartEnabled(boolean fastStartEnabled) {
             this.fastStartEnabled = fastStartEnabled;
             return this;
@@ -96,6 +117,7 @@ public class VegasLimit implements Limit {
      */
     private final int maxLimit; 
     
+    private final double tolerance;
     private final int alpha;
     private final int beta;
     private final double backoffRatio;
@@ -107,6 +129,7 @@ public class VegasLimit implements Limit {
         this.beta = builder.beta;
         this.backoffRatio = builder.backoffRatio;
         this.fastStart = builder.fastStartEnabled;
+        this.tolerance = builder.tolerance;
         builder.registry.registerGauge(MetricIds.MIN_RTT_GUAGE_NAME, () -> rtt_noload);
     }
 
@@ -115,7 +138,7 @@ public class VegasLimit implements Limit {
         Preconditions.checkArgument(rtt > 0, "rtt must be >0 but got " + rtt);
         
         if (rtt_noload == 0 || rtt < rtt_noload) {
-            LOG.info("MinRTT {}", rtt);
+            LOG.debug("New MinRTT {}", rtt);
             rtt_noload = rtt;
         }
         
@@ -124,7 +147,8 @@ public class VegasLimit implements Limit {
             fastStart = false;
         } else {
             int newLimit = estimatedLimit;
-            int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / rtt));
+            long adjusted_rtt = rtt < (rtt_noload * tolerance) ? rtt_noload : rtt; 
+            int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / adjusted_rtt));
             if (queueSize <= alpha) {
                 if (fastStart) {
                     newLimit = Math.min(maxLimit, estimatedLimit * 2);
@@ -138,8 +162,12 @@ public class VegasLimit implements Limit {
             
             newLimit = Math.max(1, Math.min(maxLimit, newLimit));
             if (newLimit != estimatedLimit) {
-                LOG.info("Limit {}", estimatedLimit);
                 estimatedLimit = newLimit;
+                LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={}", 
+                        estimatedLimit, 
+                        TimeUnit.NANOSECONDS.toMicros(rtt_noload), 
+                        TimeUnit.NANOSECONDS.toMicros(rtt),
+                        queueSize);
             }
         }
     }
