@@ -15,6 +15,6 @@ public final class EmptyMetricRegistry implements MetricRegistry {
     }
 
     @Override
-    public void registerGuage(String id, Supplier<Number> supplier, String... tagNameValuePairs) {
+    public void registerGauge(String id, Supplier<Number> supplier, String... tagNameValuePairs) {
     }
 }

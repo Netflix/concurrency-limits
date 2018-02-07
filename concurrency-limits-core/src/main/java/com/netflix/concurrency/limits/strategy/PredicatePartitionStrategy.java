@@ -65,7 +65,7 @@ public final class PredicatePartitionStrategy<T> implements Strategy<T> {
         this.partitions = new ArrayList<>(builder.partitions);
         this.partitions.forEach(partition -> partition.createMetrics(builder.registry));
         
-        builder.registry.registerGuage(MetricIds.LIMIT_GUAGE_NAME, this::getLimit);
+        builder.registry.registerGauge(MetricIds.LIMIT_GUAGE_NAME, this::getLimit);
     }
     
     @Override
@@ -116,7 +116,7 @@ public final class PredicatePartitionStrategy<T> implements Strategy<T> {
         
         public void createMetrics(MetricRegistry registry) {
             this.inflightDistribution = registry.registerDistribution(MetricIds.INFLIGHT_GUAGE_NAME, PARTITION_TAG_NAME, name);
-            registry.registerGuage(MetricIds.PARTITION_LIMIT_GUAGE_NAME, this::getLimit, PARTITION_TAG_NAME, name);
+            registry.registerGauge(MetricIds.PARTITION_LIMIT_GUAGE_NAME, this::getLimit, PARTITION_TAG_NAME, name);
         }
         
         public void updateLimit(int totalLimit) {

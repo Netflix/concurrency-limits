@@ -25,7 +25,7 @@ public final class SimpleStrategy<T> implements Strategy<T> {
     
     public SimpleStrategy(MetricRegistry registry) {
         this.inflightMetric = registry.registerDistribution(MetricIds.INFLIGHT_GUAGE_NAME);
-        registry.registerGuage(MetricIds.LIMIT_GUAGE_NAME, this::getLimit);
+        registry.registerGauge(MetricIds.LIMIT_GUAGE_NAME, this::getLimit);
     }
     
     @Override

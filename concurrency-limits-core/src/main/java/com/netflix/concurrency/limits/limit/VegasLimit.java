@@ -74,7 +74,7 @@ public class VegasLimit implements Limit {
      */
     private volatile int estimatedLimit;
     
-    private long rtt_noload;
+    private volatile long rtt_noload;
     
     private boolean didDrop = false;
     
