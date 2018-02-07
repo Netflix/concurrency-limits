@@ -41,7 +41,7 @@ public final class GrpcClientLimiterBuilder extends AbstractLimiterBuilder<GrpcC
     }
     
     public Limiter<GrpcClientRequestContext> build() {
-        Limiter<GrpcClientRequestContext> limiter = new DefaultLimiter<>(limit, getFinalStrategy());
+        Limiter<GrpcClientRequestContext> limiter = DefaultLimiter.newBuilder().limit(limit).build(getFinalStrategy());
         if (blockOnLimit) {
             limiter = BlockingLimiter.wrap(limiter);
         }

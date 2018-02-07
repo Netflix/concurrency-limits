@@ -88,6 +88,6 @@ public final class ServletLimiterBuilder extends AbstractLimiterBuilder<ServletL
     }
     
     public Limiter<HttpServletRequest> build() {
-        return new DefaultLimiter<>(limit, getFinalStrategy());
+        return DefaultLimiter.newBuilder().limit(limit).build(getFinalStrategy());
     }
 }

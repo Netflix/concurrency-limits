@@ -12,7 +12,7 @@ public class BlockingLimiterTest {
     @Test
     public void test() {
         SettableLimit limit = SettableLimit.startingAt(10);
-        BlockingLimiter<Void> limiter = BlockingLimiter.wrap(new DefaultLimiter<>(limit, new SimpleStrategy()));
+        BlockingLimiter<Void> limiter = BlockingLimiter.wrap(DefaultLimiter.newBuilder().limit(limit).build(new SimpleStrategy<>()));
         
         LinkedList<Limiter.Listener> listeners = new LinkedList<>();
         for (int i = 0; i < 10; i++) {

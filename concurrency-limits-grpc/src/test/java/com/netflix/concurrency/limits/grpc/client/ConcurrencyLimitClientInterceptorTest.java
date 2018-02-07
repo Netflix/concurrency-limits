@@ -24,8 +24,12 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 public class ConcurrencyLimitClientInterceptorTest {
-    private static final MethodDescriptor<String, String> METHOD_DESCRIPTOR = MethodDescriptor.create(
-            MethodType.UNARY, "service/method", StringMarshaller.INSTANCE, StringMarshaller.INSTANCE);
+    private static final MethodDescriptor<String, String> METHOD_DESCRIPTOR = MethodDescriptor.<String, String>newBuilder()
+            .setType(MethodType.UNARY)
+            .setFullMethodName("service/method")
+            .setRequestMarshaller(StringMarshaller.INSTANCE)
+            .setResponseMarshaller(StringMarshaller.INSTANCE)
+            .build();
     
     @Test
     @Ignore
