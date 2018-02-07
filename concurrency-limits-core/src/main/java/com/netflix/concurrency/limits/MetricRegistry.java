@@ -26,12 +26,20 @@ public interface MetricRegistry {
     SampleListener registerDistribution(String id, String... tagNameValuePairs);
     
     /**
-     * Register a guage using the provided supplier.  The supplier will be polled whenever the guage
+     * Register a gauge using the provided supplier.  The supplier will be polled whenever the guage
      * value is flushed by the registry.
      * 
      * @param id
      * @param tagNameValuePairs Pairs of tag name and tag value.  Number of parameters must be a multiple of 2.
      * @param supplier
      */
-    void registerGuage(String id, Supplier<Number> supplier, String... tagNameValuePairs);
+    void registerGauge(String id, Supplier<Number> supplier, String... tagNameValuePairs);
+    
+    /**
+     * @deprecated Call MetricRegistry#registerGauge
+     */
+    @Deprecated
+    default void registerGuage(String id, Supplier<Number> supplier, String... tagNameValuePairs) {
+        registerGauge(id, supplier, tagNameValuePairs);
+    }
 }

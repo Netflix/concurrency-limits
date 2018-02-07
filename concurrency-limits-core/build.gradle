@@ -5,5 +5,7 @@ plugins {
 sourceCompatibility = JavaVersion.VERSION_1_8
 
 dependencies {
+    compile "org.slf4j:slf4j-api:1.7.+"
+    
     testCompile 'junit:junit-dep:4.10'
 }

@@ -12,7 +12,7 @@ public class SpectatorMetricRegistryTest {
         DefaultRegistry registry = new DefaultRegistry();
         SpectatorMetricRegistry metricRegistry = new SpectatorMetricRegistry(registry, registry.createId("foo"));
         
-        metricRegistry.registerGuage("bar", () -> 10);
+        metricRegistry.registerGauge("bar", () -> 10);
         
         PolledMeter.update(registry);
         

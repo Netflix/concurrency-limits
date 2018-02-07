@@ -8,6 +8,9 @@ import com.netflix.spectator.api.patterns.PolledMeter;
 
 import java.util.function.Supplier;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public final class SpectatorMetricRegistry implements MetricRegistry {
     private final Registry registry;
     private final Id baseId;
@@ -24,10 +27,10 @@ public final class SpectatorMetricRegistry implements MetricRegistry {
     }
 
     @Override
-    public void registerGuage(String id, Supplier<Number> supplier, String... tagNameValuePairs) {
+    public void registerGauge(String id, Supplier<Number> supplier, String... tagNameValuePairs) {
         PolledMeter.using(registry)
             .withId(suffixBaseId(id).withTags(tagNameValuePairs))
-            .monitorValue(this, o -> supplier.get().doubleValue());
+            .monitorValue(supplier, ignore -> supplier.get().doubleValue());
     }
     
     private Id suffixBaseId(String suffix) {
