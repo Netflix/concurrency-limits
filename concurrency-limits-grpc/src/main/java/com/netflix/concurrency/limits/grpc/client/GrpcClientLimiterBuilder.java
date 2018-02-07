@@ -3,7 +3,6 @@ package com.netflix.concurrency.limits.grpc.client;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limiter.AbstractLimiterBuilder;
 import com.netflix.concurrency.limits.limiter.BlockingLimiter;
-import com.netflix.concurrency.limits.limiter.DefaultLimiter;
 import com.netflix.concurrency.limits.strategy.LookupPartitionStrategy;
 
 import io.grpc.CallOptions;
@@ -41,7 +40,7 @@ public final class GrpcClientLimiterBuilder extends AbstractLimiterBuilder<GrpcC
     }
     
     public Limiter<GrpcClientRequestContext> build() {
-        Limiter<GrpcClientRequestContext> limiter = DefaultLimiter.newBuilder().limit(limit).build(getFinalStrategy());
+        Limiter<GrpcClientRequestContext> limiter = buildLimiter();
         if (blockOnLimit) {
             limiter = BlockingLimiter.wrap(limiter);
         }
