@@ -2,7 +2,6 @@ package com.netflix.concurrency.limits.servlet;
 
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limiter.AbstractLimiterBuilder;
-import com.netflix.concurrency.limits.limiter.DefaultLimiter;
 import com.netflix.concurrency.limits.strategy.LookupPartitionStrategy;
 
 import java.security.Principal;
@@ -88,6 +87,6 @@ public final class ServletLimiterBuilder extends AbstractLimiterBuilder<ServletL
     }
     
     public Limiter<HttpServletRequest> build() {
-        return DefaultLimiter.newBuilder().limit(limit).build(getFinalStrategy());
+        return buildLimiter();
     }
 }

@@ -1,6 +1,7 @@
 package com.netflix.concurrency.limits.limiter;
 
 import com.netflix.concurrency.limits.Limit;
+import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.Strategy;
 import com.netflix.concurrency.limits.internal.Preconditions;
 import com.netflix.concurrency.limits.limit.VegasLimit;
@@ -20,7 +21,7 @@ import java.util.function.Function;
 public abstract class AbstractLimiterBuilder<BuilderT extends AbstractLimiterBuilder<BuilderT, ContextT>, ContextT> {
     protected Strategy<ContextT> strategy;
     protected Builder<ContextT> builder;
-    protected Limit limit = VegasLimit.newDefault();
+    private DefaultLimiter.Builder limiterBuilder = DefaultLimiter.newBuilder();
     
     /**
      * Configure the strategy for partitioning the limit.  
@@ -55,13 +56,23 @@ public abstract class AbstractLimiterBuilder<BuilderT extends AbstractLimiterBui
      * Set the limit algorithm to use.  Default is {@link VegasLimit}
      * @param limit Limit algorithm to use
      * @return Chainable builder
+     * @deprecated Use {@link AbstractLimiterBuilder#limiter(Consumer)}
      */
+    @Deprecated
     public BuilderT limit(Limit limit) {
-        this.limit = limit;
+        return limiter(builder -> builder.limit(limit));
+    }
+    
+    public BuilderT limiter(Consumer<DefaultLimiter.Builder> consumer) {
+        consumer.accept(this.limiterBuilder);
         return self();
     }
     
-    protected Strategy<ContextT> getFinalStrategy() {
+    protected Limiter<ContextT> buildLimiter() {
+        return limiterBuilder.build(getFinalStrategy());
+    }
+    
+    private Strategy<ContextT> getFinalStrategy() {
         if (builder != null) {
             return builder.build();
         } else if (strategy != null) {
