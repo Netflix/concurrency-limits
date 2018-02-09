@@ -166,11 +166,13 @@ public class VegasLimit implements Limit {
         newLimit = (int) ((1 - smoothing) * estimatedLimit + smoothing * newLimit);
         if ((int)newLimit != (int)estimatedLimit) {
             estimatedLimit = newLimit;
-            LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={}", 
-                    estimatedLimit, 
-                    TimeUnit.NANOSECONDS.toMicros(rtt_noload), 
-                    TimeUnit.NANOSECONDS.toMicros(rtt),
-                    queueSize);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={}", 
+                        estimatedLimit, 
+                        TimeUnit.NANOSECONDS.toMicros(rtt_noload), 
+                        TimeUnit.NANOSECONDS.toMicros(rtt),
+                        queueSize);
+            }
         }
         estimatedLimit = newLimit;
     }
