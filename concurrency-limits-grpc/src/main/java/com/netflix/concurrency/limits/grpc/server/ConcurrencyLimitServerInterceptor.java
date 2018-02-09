@@ -1,5 +1,8 @@
 package com.netflix.concurrency.limits.grpc.server;
 
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import com.netflix.concurrency.limits.Limiter;
 
 import io.grpc.ForwardingServerCall;
@@ -10,10 +13,6 @@ import io.grpc.ServerCall.Listener;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.grpc.Status;
-import io.grpc.Status.Code;
-
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * {@link ServerInterceptor} that enforces per service and/or per method concurrent request limits and returns
@@ -54,6 +53,7 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
         return new ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(
                 next.startCall(
                         new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
+                            @Override
                             public void close(Status status, Metadata trailers) {
                                 try {
                                     super.close(status, trailers);
@@ -61,8 +61,6 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
                                     if (done.compareAndSet(false, true)) {
                                         if (status.isOk()) {
                                             listener.get().onSuccess();
-                                        } else if (Code.UNAVAILABLE == status.getCode()) {
-                                            listener.get().onDropped();
                                         } else {
                                             listener.get().onIgnore();
                                         }

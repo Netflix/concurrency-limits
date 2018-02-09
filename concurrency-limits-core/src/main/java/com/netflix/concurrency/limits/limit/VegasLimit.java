@@ -1,6 +1,7 @@
 package com.netflix.concurrency.limits.limit;
 
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,13 +13,14 @@ import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
 
 /**
- * Limiter based on TCP Vegas where the limit increases by 1 if the queue_use is small ({@literal <} alpha)
- * and decreases by 1 if the queue_use is large ({@literal >} beta).
+ * Limiter based on TCP Vegas where the limit increases by alpha if the queue_use is small ({@literal <} alpha)
+ * and decreases by alpha if the queue_use is large ({@literal >} beta).
  * 
  * Queue size is calculated using the formula, 
  *  queue_use = limit − BWE×RTTnoLoad = limit × (1 − RTTnoLoad/RTTactual)
  *
- * alpha is typically 2-3 and beta is typically 4-6
+ * For traditional TCP Vegas alpha is typically 2-3 and beta is typically 4-6.  To allow for better growth and 
+ * stability at higher limits we set alpha=Max(3, 10% of the current limit) and beta=Max(6, 20% of the current limit)
  */
 public class VegasLimit implements Limit {
     private static final Logger LOG = LoggerFactory.getLogger(VegasLimit.class);
@@ -26,20 +28,29 @@ public class VegasLimit implements Limit {
     public static class Builder {
         private int initialLimit = 20;
         private int maxConcurrency = 1000;
-        private int alpha = 3;
-        private int beta = 6;
+        private Function<Integer, Integer> alpha = (limit) -> Math.max(3, limit / 10);
+        private Function<Integer, Integer> beta = (limit) -> Math.max(6, limit / 5);
         private double tolerance = 1.0;
         private double backoffRatio = 0.9;
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
-        private boolean fastStartEnabled = false;
         
         public Builder alpha(int alpha) {
+            this.alpha = (ignore) -> alpha;
+            return this;
+        }
+        
+        public Builder alpha(Function<Integer, Integer> alpha) {
             this.alpha = alpha;
             return this;
         }
         
-        public Builder beta(int beta) {
+        public Builder beta(Function<Integer, Integer> beta) {
             this.beta = beta;
+            return this;
+        }
+        
+        public Builder beta(int beta) {
+            this.beta = (ignore) -> beta;
             return this;
         }
         
@@ -77,14 +88,8 @@ public class VegasLimit implements Limit {
             return this;
         }
         
-        /**
-         * When enabled allows for exponential limit growth to quickly discover
-         * the limit at startup.
-         * @param fastStartEnabled
-         * @return Chainable builder
-         */
+        @Deprecated
         public Builder fastStartEnabled(boolean fastStartEnabled) {
-            this.fastStartEnabled = fastStartEnabled;
             return this;
         }
         
@@ -106,29 +111,26 @@ public class VegasLimit implements Limit {
      */
     private volatile int estimatedLimit;
     
-    private volatile long rtt_noload;
+    private volatile long rtt_noload = 0;
     
     private boolean didDrop = false;
     
-    private boolean fastStart;
-
     /**
      * Maximum allowed limit providing an upper bound failsafe
      */
     private final int maxLimit; 
     
     private final double tolerance;
-    private final int alpha;
-    private final int beta;
+    private final Function<Integer, Integer> alphaFunc;
+    private final Function<Integer, Integer> betaFunc;
     private final double backoffRatio;
 
     private VegasLimit(Builder builder) {
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
-        this.alpha = builder.alpha;
-        this.beta = builder.beta;
+        this.alphaFunc = builder.alpha;
+        this.betaFunc = builder.beta;
         this.backoffRatio = builder.backoffRatio;
-        this.fastStart = builder.fastStartEnabled;
         this.tolerance = builder.tolerance;
         builder.registry.registerGauge(MetricIds.MIN_RTT_GUAGE_NAME, () -> rtt_noload);
     }
@@ -144,20 +146,16 @@ public class VegasLimit implements Limit {
         
         if (didDrop) {
             didDrop = false;
-            fastStart = false;
         } else {
             int newLimit = estimatedLimit;
             long adjusted_rtt = rtt < (rtt_noload * tolerance) ? rtt_noload : rtt; 
+            int alpha = alphaFunc.apply(estimatedLimit);
+            int beta = betaFunc.apply(estimatedLimit);
             int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / adjusted_rtt));
             if (queueSize <= alpha) {
-                if (fastStart) {
-                    newLimit = Math.min(maxLimit, estimatedLimit * 2);
-                } else {
-                    newLimit ++;
-                }
+                newLimit += alpha;
             } else if (queueSize > beta) {
-                fastStart = false;
-                newLimit --;
+                newLimit -= alpha;
             }
             
             newLimit = Math.max(1, Math.min(maxLimit, newLimit));
