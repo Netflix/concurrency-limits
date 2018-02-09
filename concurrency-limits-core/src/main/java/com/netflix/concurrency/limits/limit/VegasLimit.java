@@ -76,6 +76,11 @@ public class VegasLimit implements Limit {
             return this;
         }
         
+        @Deprecated
+        public Builder tolerance(double tolerance) {
+            return this;
+        }
+        
         public Builder maxConcurrency(int maxConcurrency) {
             this.maxConcurrency = maxConcurrency;
             return this;
