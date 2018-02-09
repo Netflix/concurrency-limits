@@ -21,7 +21,6 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     private final Supplier<Long> nanoClock = System::nanoTime;
     
     private final static long DEFAULT_MIN_WINDOW_TIME = TimeUnit.MILLISECONDS.toNanos(200);
-    private final static int DEFAULT_WINDOW_SIZE = 100;
     private final static int DEFAULT_WINDOW_SIZE = 10;
     
     /**
