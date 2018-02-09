@@ -2,6 +2,7 @@ package com.netflix.concurrency.limits.executor;
 
 import com.netflix.concurrency.limits.executors.BlockingAdaptiveExecutor;
 import com.netflix.concurrency.limits.limit.AIMDLimit;
+import com.netflix.concurrency.limits.limit.GradientLimit;
 import com.netflix.concurrency.limits.limit.VegasLimit;
 import com.netflix.concurrency.limits.limiter.DefaultLimiter;
 import com.netflix.concurrency.limits.strategy.SimpleStrategy;
@@ -32,6 +33,13 @@ public class BlockingAdaptiveExecutorSimulation {
         DefaultLimiter<Void> limiter = DefaultLimiter.newBuilder().limit(VegasLimit.newBuilder().initialLimit(100).build()).build(new SimpleStrategy<>());
         Executor executor = new BlockingAdaptiveExecutor(limiter);
         run(10000, 50, executor, randomLatency(50, 150));
+    }
+    
+    @Test
+    public void testGradient() {
+        DefaultLimiter<Void> limiter = DefaultLimiter.newBuilder().limit(GradientLimit.newBuilder().initialLimit(100).build()).build(new SimpleStrategy<>());
+        Executor executor = new BlockingAdaptiveExecutor(limiter);
+        run(100000, 50, executor, randomLatency(50, 150));
     }
     
     public void run(int iterations, int limit, Executor executor, Supplier<Long> latency) {

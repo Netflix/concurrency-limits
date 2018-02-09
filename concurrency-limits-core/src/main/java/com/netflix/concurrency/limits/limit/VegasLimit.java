@@ -1,16 +1,16 @@
 package com.netflix.concurrency.limits.limit;
 
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
+
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Limiter based on TCP Vegas where the limit increases by alpha if the queue_use is small ({@literal <} alpha)
@@ -94,7 +94,9 @@ public class VegasLimit implements Limit {
         }
         
         public VegasLimit build() {
-            return new VegasLimit(this);
+            VegasLimit limit = new VegasLimit(this);
+            registry.registerGauge(MetricIds.MIN_RTT_GUAGE_NAME, limit::getRttNoLoad);
+            return limit;
         }
     }
     
@@ -132,7 +134,6 @@ public class VegasLimit implements Limit {
         this.betaFunc = builder.beta;
         this.backoffRatio = builder.backoffRatio;
         this.tolerance = builder.tolerance;
-        builder.registry.registerGauge(MetricIds.MIN_RTT_GUAGE_NAME, () -> rtt_noload);
     }
 
     @Override
@@ -183,6 +184,10 @@ public class VegasLimit implements Limit {
         return estimatedLimit;
     }
 
+    long getRttNoLoad() {
+        return rtt_noload;
+    }
+    
     @Override
     public String toString() {
         return "VegasLimit [limit=" + estimatedLimit + 
