@@ -44,13 +44,13 @@ public class VegasLimit implements Limit {
             return this;
         }
         
-        public Builder beta(Function<Integer, Integer> beta) {
-            this.beta = beta;
+        public Builder beta(int beta) {
+            this.beta = (ignore) -> beta;
             return this;
         }
         
-        public Builder beta(int beta) {
-            this.beta = (ignore) -> beta;
+        public Builder beta(Function<Integer, Integer> beta) {
+            this.beta = beta;
             return this;
         }
         
