@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * for tracking total usage.
  */
 public final class SimpleStrategy<T> implements Strategy<T> {
-
+    
     private final AtomicInteger busy = new AtomicInteger();
     private volatile int limit = 1;
     private final SampleListener inflightMetric;
@@ -30,7 +30,9 @@ public final class SimpleStrategy<T> implements Strategy<T> {
     
     @Override
     public Optional<Token> tryAcquire(T context) {
-        if (busy.get() >= limit) {
+        int currentBusy = busy.get();
+        if (currentBusy >= limit) {
+            inflightMetric.addSample(currentBusy);
             return Optional.empty();
         }
         

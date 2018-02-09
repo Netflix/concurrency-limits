@@ -43,11 +43,11 @@ public class BlockingAdaptiveExecutorSimulation {
             System.out.println("" + counter.incrementAndGet() + " total=" + requests.getAndSet(0) + " busy=" + busy.get());
         }, 1, 1, TimeUnit.SECONDS);
 
-        Semaphore sem = new Semaphore(limit);
+        Semaphore sem = new Semaphore(limit, true);
         for (int i = 0; i < iterations; i++) {
             requests.incrementAndGet();
+            busy.incrementAndGet();
             executor.execute(() -> {
-                busy.incrementAndGet();
                 try {
                     sem.acquire();
                     TimeUnit.MILLISECONDS.sleep(latency.get()); 

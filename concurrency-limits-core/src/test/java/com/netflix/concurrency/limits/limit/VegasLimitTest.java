@@ -26,16 +26,16 @@ public class VegasLimitTest {
     public void increaseLimit() {
         VegasLimit limit = create();
         limit.update(TimeUnit.MILLISECONDS.toNanos(10));
-        Assert.assertEquals(11, limit.getLimit());
+        Assert.assertEquals(13, limit.getLimit());
         limit.update(TimeUnit.MILLISECONDS.toNanos(10));
-        Assert.assertEquals(12, limit.getLimit());
+        Assert.assertEquals(16, limit.getLimit());
     }
     
     @Test
     public void decreaseLimit() {
         VegasLimit limit = create();
         limit.update(TimeUnit.MILLISECONDS.toNanos(10));
-        Assert.assertEquals(11, limit.getLimit());
+        Assert.assertEquals(13, limit.getLimit());
         limit.update(TimeUnit.MILLISECONDS.toNanos(50));
         Assert.assertEquals(10, limit.getLimit());
     }
@@ -44,8 +44,8 @@ public class VegasLimitTest {
     public void noChangeIfWithinThresholds() {
         VegasLimit limit = create();
         limit.update(TimeUnit.MILLISECONDS.toNanos(10));
-        Assert.assertEquals(11, limit.getLimit());
+        Assert.assertEquals(13, limit.getLimit());
         limit.update(TimeUnit.MILLISECONDS.toNanos(14));
-        Assert.assertEquals(11, limit.getLimit());
+        Assert.assertEquals(13, limit.getLimit());
     }
 }
