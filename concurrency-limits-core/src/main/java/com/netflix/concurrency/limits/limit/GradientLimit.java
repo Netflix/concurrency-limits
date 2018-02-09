@@ -108,19 +108,19 @@ public final class GradientLimit implements Limit {
             rtt_noload = rtt;
         }
 
-        final double queueSize = this.queueSize.apply((int) Math.ceil(this.estimatedLimit));
+        final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
         final double gradient = (double)rtt_noload / rtt;
         double newLimit;
         if (didDrop) {
-            newLimit = estimatedLimit * (1-smoothing) + smoothing*(estimatedLimit/2);
+            newLimit = estimatedLimit/2;
             didDrop = false;
         } else {
-            newLimit = estimatedLimit * (1-smoothing) + smoothing*(gradient * estimatedLimit + queueSize);
+            newLimit = estimatedLimit * gradient + queueSize;
         }
         
         newLimit = Math.max(1, Math.min(maxLimit, newLimit));
+        newLimit = estimatedLimit * (1-smoothing) + smoothing*(newLimit);
         if ((int)newLimit != (int)estimatedLimit) {
-            estimatedLimit = newLimit;
             if (LOG.isDebugEnabled()) {
                 LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={} gradient={}", 
                         (int)estimatedLimit, 
@@ -130,6 +130,7 @@ public final class GradientLimit implements Limit {
                         gradient);
             }
         }
+        estimatedLimit = newLimit;
     }
 
     @Override
@@ -139,7 +140,7 @@ public final class GradientLimit implements Limit {
 
     @Override
     public int getLimit() {
-        return (int)Math.ceil(estimatedLimit);
+        return (int)estimatedLimit;
     }
 
     public long getRttNoLoad() {

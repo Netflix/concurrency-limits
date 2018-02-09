@@ -28,11 +28,13 @@ public class VegasLimit implements Limit {
     public static class Builder {
         private int initialLimit = 20;
         private int maxConcurrency = 1000;
-        private Function<Integer, Integer> alpha = (limit) -> Math.max(3, limit / 10);
-        private Function<Integer, Integer> beta = (limit) -> Math.max(6, limit / 5);
-        private double tolerance = 1.0;
-        private double backoffRatio = 0.9;
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
+        private double smoothing = 0.2;
+        
+        private Function<Integer, Integer> alpha = (limit) -> 3;
+        private Function<Integer, Integer> beta = (limit) -> 6;
+        private Function<Integer, Integer> increaseFunc = (limit) -> limit + 1;
+        private Function<Integer, Integer> decreaseFunc = (limit) -> limit / 2;
         
         public Builder alpha(int alpha) {
             this.alpha = (ignore) -> alpha;
@@ -54,6 +56,21 @@ public class VegasLimit implements Limit {
             return this;
         }
         
+        public Builder increase(Function<Integer, Integer> increase) {
+            this.increaseFunc = increase;
+            return this;
+        }
+        
+        public Builder decrease(Function<Integer, Integer> decrease) {
+            this.decreaseFunc = decrease;
+            return this;
+        }
+        
+        public Builder smoothing(double smoothing) {
+            this.smoothing = smoothing;
+            return this;
+        }
+        
         public Builder initialLimit(int initialLimit) {
             this.initialLimit = initialLimit;
             return this;
@@ -65,31 +82,11 @@ public class VegasLimit implements Limit {
         }
         
         public Builder backoffRatio(double ratio) {
-            this.backoffRatio = ratio;
             return this;
         }
         
         public Builder metricRegistry(MetricRegistry registry) {
             this.registry = registry;
-            return this;
-        }
-        
-        /**
-         * Tolerance multiple of the windowed RTT measurement when adjusting the limit down.
-         * A value of 1 means little tolerance for changes in window RTT and the sample is used as 
-         * is to determine queuing.  A value of 2 means that the window RTT may be double the 
-         * absolute minimum before being considered 
-         * @param tolerance
-         * @return
-         */
-        public Builder tolerance(double tolerance) {
-            Preconditions.checkArgument(tolerance >= 1, "Tolerance must be >= 1");
-            this.tolerance = tolerance;
-            return this;
-        }
-        
-        @Deprecated
-        public Builder fastStartEnabled(boolean fastStartEnabled) {
             return this;
         }
         
@@ -111,7 +108,7 @@ public class VegasLimit implements Limit {
     /**
      * Estimated concurrency limit based on our algorithm
      */
-    private volatile int estimatedLimit;
+    private volatile double estimatedLimit;
     
     private volatile long rtt_noload = 0;
     
@@ -122,18 +119,20 @@ public class VegasLimit implements Limit {
      */
     private final int maxLimit; 
     
-    private final double tolerance;
+    private final double smoothing;
     private final Function<Integer, Integer> alphaFunc;
     private final Function<Integer, Integer> betaFunc;
-    private final double backoffRatio;
+    private final Function<Integer, Integer> increaseFunc;
+    private final Function<Integer, Integer> decreaseFunc;
 
     private VegasLimit(Builder builder) {
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
         this.alphaFunc = builder.alpha;
         this.betaFunc = builder.beta;
-        this.backoffRatio = builder.backoffRatio;
-        this.tolerance = builder.tolerance;
+        this.increaseFunc = builder.increaseFunc;
+        this.decreaseFunc = builder.decreaseFunc;
+        this.smoothing = builder.smoothing;
     }
 
     @Override
@@ -145,43 +144,47 @@ public class VegasLimit implements Limit {
             rtt_noload = rtt;
         }
         
+        double newLimit;
+        final int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / rtt));
         if (didDrop) {
+            newLimit = decreaseFunc.apply((int)estimatedLimit);
             didDrop = false;
         } else {
-            int newLimit = estimatedLimit;
-            long adjusted_rtt = rtt < (rtt_noload * tolerance) ? rtt_noload : rtt; 
-            int alpha = alphaFunc.apply(estimatedLimit);
-            int beta = betaFunc.apply(estimatedLimit);
-            int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / adjusted_rtt));
-            if (queueSize <= alpha) {
-                newLimit += alpha;
-            } else if (queueSize > beta) {
-                newLimit -= alpha;
-            }
+            int alpha = alphaFunc.apply((int)estimatedLimit);
+            int beta = betaFunc.apply((int)estimatedLimit);
             
-            newLimit = Math.max(1, Math.min(maxLimit, newLimit));
-            if (newLimit != estimatedLimit) {
-                estimatedLimit = newLimit;
-                LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={}", 
-                        estimatedLimit, 
-                        TimeUnit.NANOSECONDS.toMicros(rtt_noload), 
-                        TimeUnit.NANOSECONDS.toMicros(rtt),
-                        queueSize);
+            if (queueSize <= alpha) {
+                newLimit = increaseFunc.apply((int)estimatedLimit);
+            } else if (queueSize > beta) {
+                newLimit = decreaseFunc.apply((int)estimatedLimit);
+            } else {
+                return;
             }
         }
+
+        newLimit = Math.max(1, Math.min(maxLimit, newLimit));
+        newLimit = (int) ((1 - smoothing) * estimatedLimit + smoothing * newLimit);
+        if ((int)newLimit != (int)estimatedLimit) {
+            estimatedLimit = newLimit;
+            LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={}", 
+                    estimatedLimit, 
+                    TimeUnit.NANOSECONDS.toMicros(rtt_noload), 
+                    TimeUnit.NANOSECONDS.toMicros(rtt),
+                    queueSize);
+        }
+        estimatedLimit = newLimit;
     }
 
     @Override
     public synchronized void drop() {
         if (!didDrop) {
             didDrop = true;
-            estimatedLimit = Math.max(1, Math.min(estimatedLimit - 1, (int) (estimatedLimit * backoffRatio)));
         }
     }
 
     @Override
     public int getLimit() {
-        return estimatedLimit;
+        return (int)estimatedLimit;
     }
 
     long getRttNoLoad() {
