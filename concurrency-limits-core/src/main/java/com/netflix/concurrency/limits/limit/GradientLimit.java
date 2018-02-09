@@ -121,12 +121,14 @@ public final class GradientLimit implements Limit {
         newLimit = Math.max(1, Math.min(maxLimit, newLimit));
         if ((int)newLimit != (int)estimatedLimit) {
             estimatedLimit = newLimit;
-            LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={} gradient={}", 
-                    (int)estimatedLimit, 
-                    TimeUnit.NANOSECONDS.toMicros(rtt_noload), 
-                    TimeUnit.NANOSECONDS.toMicros(rtt),
-                    queueSize,
-                    gradient);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={} gradient={}", 
+                        (int)estimatedLimit, 
+                        TimeUnit.NANOSECONDS.toMicros(rtt_noload), 
+                        TimeUnit.NANOSECONDS.toMicros(rtt),
+                        queueSize,
+                        gradient);
+            }
         }
     }
 
