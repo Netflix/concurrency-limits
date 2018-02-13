@@ -38,7 +38,7 @@ public class VegasLimitTest {
         limit.update(TimeUnit.MILLISECONDS.toNanos(10));
         Assert.assertEquals(11, limit.getLimit());
         limit.update(TimeUnit.MILLISECONDS.toNanos(50));
-        Assert.assertEquals(5, limit.getLimit());
+        Assert.assertEquals(10, limit.getLimit());
     }
     
     @Test
