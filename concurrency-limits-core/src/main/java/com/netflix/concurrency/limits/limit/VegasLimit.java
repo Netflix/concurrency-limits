@@ -34,7 +34,7 @@ public class VegasLimit implements Limit {
         private Function<Integer, Integer> alpha = (limit) -> 3;
         private Function<Integer, Integer> beta = (limit) -> 6;
         private Function<Integer, Integer> increaseFunc = (limit) -> limit + 1;
-        private Function<Integer, Integer> decreaseFunc = (limit) -> limit / 2;
+        private Function<Integer, Integer> decreaseFunc = (limit) -> limit - 1;
         
         public Builder alpha(int alpha) {
             this.alpha = (ignore) -> alpha;
@@ -86,6 +86,7 @@ public class VegasLimit implements Limit {
             return this;
         }
         
+        @Deprecated
         public Builder backoffRatio(double ratio) {
             return this;
         }
@@ -158,7 +159,7 @@ public class VegasLimit implements Limit {
             int alpha = alphaFunc.apply((int)estimatedLimit);
             int beta = betaFunc.apply((int)estimatedLimit);
             
-            if (queueSize <= alpha) {
+            if (queueSize < alpha) {
                 newLimit = increaseFunc.apply((int)estimatedLimit);
             } else if (queueSize > beta) {
                 newLimit = decreaseFunc.apply((int)estimatedLimit);
@@ -169,15 +170,12 @@ public class VegasLimit implements Limit {
 
         newLimit = Math.max(1, Math.min(maxLimit, newLimit));
         newLimit = (int) ((1 - smoothing) * estimatedLimit + smoothing * newLimit);
-        if ((int)newLimit != (int)estimatedLimit) {
-            estimatedLimit = newLimit;
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={}", 
-                        estimatedLimit, 
-                        TimeUnit.NANOSECONDS.toMicros(rtt_noload), 
-                        TimeUnit.NANOSECONDS.toMicros(rtt),
-                        queueSize);
-            }
+        if ((int)newLimit != (int)estimatedLimit && LOG.isDebugEnabled()) {
+            LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={}", 
+                    estimatedLimit, 
+                    TimeUnit.NANOSECONDS.toMicros(rtt_noload), 
+                    TimeUnit.NANOSECONDS.toMicros(rtt),
+                    queueSize);
         }
         estimatedLimit = newLimit;
     }
