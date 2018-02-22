@@ -1,11 +1,9 @@
 package com.netflix.concurrency.limits.strategy;
 
-import com.netflix.concurrency.limits.Strategy.Token;
-
-import java.util.Optional;
-
 import org.junit.Assert;
 import org.junit.Test;
+
+import com.netflix.concurrency.limits.Strategy.Token;
 
 public class PercentageStrategyTest {
     @Test
@@ -28,11 +26,11 @@ public class PercentageStrategyTest {
                 .build();
         strategy.setLimit(10);
         for (int i = 0; i < 10; i++) {
-            Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
+            Assert.assertTrue(strategy.tryAcquire("batch").isAcquired());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(0));
         }
         
-        Assert.assertFalse(strategy.tryAcquire("batch").isPresent());
+        Assert.assertFalse(strategy.tryAcquire("batch").isAcquired());
     }
     
     @Test
@@ -44,18 +42,18 @@ public class PercentageStrategyTest {
         
         strategy.setLimit(10);
         for (int i = 0; i < 10; i++) {
-            Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
+            Assert.assertTrue(strategy.tryAcquire("batch").isAcquired());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(0));
         }
         
-        Assert.assertFalse(strategy.tryAcquire("batch").isPresent());
+        Assert.assertFalse(strategy.tryAcquire("batch").isAcquired());
         
         for (int i = 0; i < 7; i++) {
-            Assert.assertTrue(strategy.tryAcquire("live").isPresent());
+            Assert.assertTrue(strategy.tryAcquire("live").isAcquired());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(1));
         }
 
-        Assert.assertFalse(strategy.tryAcquire("live").isPresent());
+        Assert.assertFalse(strategy.tryAcquire("live").isAcquired());
     }
 
     @Test
@@ -67,19 +65,19 @@ public class PercentageStrategyTest {
         
         strategy.setLimit(10);
         for (int i = 0; i < 3; i++) {
-            Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
+            Assert.assertTrue(strategy.tryAcquire("batch").isAcquired());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(0));
             Assert.assertEquals(i+1, strategy.getBusyCount());
         }
         
         for (int i = 0; i < 7; i++) {
-            Assert.assertTrue(strategy.tryAcquire("live").isPresent());
+            Assert.assertTrue(strategy.tryAcquire("live").isAcquired());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(1));
             Assert.assertEquals(i+4, strategy.getBusyCount());
         }
 
-        Assert.assertFalse(strategy.tryAcquire("batch").isPresent());
-        Assert.assertFalse(strategy.tryAcquire("live").isPresent());
+        Assert.assertFalse(strategy.tryAcquire("batch").isAcquired());
+        Assert.assertFalse(strategy.tryAcquire("live").isAcquired());
     }
 
     @Test
@@ -90,21 +88,21 @@ public class PercentageStrategyTest {
                 .build();
         
         strategy.setLimit(10);
-        Optional<Token> completion = strategy.tryAcquire("batch");
+        Token completion = strategy.tryAcquire("batch");
         for (int i = 1; i < 10; i++) {
-            Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
+            Assert.assertTrue(strategy.tryAcquire("batch").isAcquired());
             Assert.assertEquals(i+1, strategy.getBinBusyCount(0));
         }
     
         Assert.assertEquals(10, strategy.getBusyCount());
         
-        Assert.assertFalse(strategy.tryAcquire("batch").isPresent());
+        Assert.assertFalse(strategy.tryAcquire("batch").isAcquired());
         
-        completion.get().release();
+        completion.release();
         Assert.assertEquals(9, strategy.getBinBusyCount(0));
         Assert.assertEquals(9, strategy.getBusyCount());
         
-        Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
+        Assert.assertTrue(strategy.tryAcquire("batch").isAcquired());
         Assert.assertEquals(10, strategy.getBinBusyCount(0));
         Assert.assertEquals(10, strategy.getBusyCount());
     }
@@ -118,7 +116,7 @@ public class PercentageStrategyTest {
         
         strategy.setLimit(10);
         Assert.assertEquals(3, strategy.getBinLimit(0));
-        Assert.assertTrue(strategy.tryAcquire("batch").isPresent());
+        Assert.assertTrue(strategy.tryAcquire("batch").isAcquired());
         Assert.assertEquals(1, strategy.getBinBusyCount(0));
         Assert.assertEquals(1, strategy.getBusyCount());
         

@@ -23,7 +23,7 @@ public final class FixedLimit implements Limit {
     }
 
     @Override
-    public void update(long rtt) {
+    public void update(long rtt, int maxInFlight) {
     }
 
     @Override

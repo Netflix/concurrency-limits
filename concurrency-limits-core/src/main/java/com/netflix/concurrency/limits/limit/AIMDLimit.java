@@ -46,10 +46,10 @@ public final class AIMDLimit implements Limit {
     }
 
     @Override
-    public synchronized void update(long rtt) {
+    public synchronized void update(long rtt, int maxInFlight) {
         if (didDrop) {
             didDrop = false;
-        } else {
+        } else if (maxInFlight >= limit){
             limit = limit + 1;
         }
     }

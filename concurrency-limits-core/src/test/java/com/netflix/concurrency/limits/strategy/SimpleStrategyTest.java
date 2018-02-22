@@ -1,10 +1,8 @@
 package com.netflix.concurrency.limits.strategy;
 
-import com.netflix.concurrency.limits.Strategy.Token;
-
-import java.util.Optional;
-
 import org.junit.Test;
+
+import com.netflix.concurrency.limits.Strategy.Token;
 
 import junit.framework.Assert;
 
@@ -28,30 +26,30 @@ public class SimpleStrategyTest {
     public void acquireIncrementsBusy() {
         SimpleStrategy<Void> strategy = new SimpleStrategy<Void>();
         Assert.assertEquals(0, strategy.getBusyCount());
-        Assert.assertTrue(strategy.tryAcquire(null).isPresent());
+        Assert.assertTrue(strategy.tryAcquire(null).isAcquired());
         Assert.assertEquals(1, strategy.getBusyCount());
     }
 
     @Test
     public void exceedingLimitReturnsFalse() {
         SimpleStrategy<Void> strategy = new SimpleStrategy<Void>();
-        Assert.assertTrue(strategy.tryAcquire(null).isPresent());
-        Assert.assertFalse(strategy.tryAcquire(null).isPresent());
+        Assert.assertTrue(strategy.tryAcquire(null).isAcquired());
+        Assert.assertFalse(strategy.tryAcquire(null).isAcquired());
         Assert.assertEquals(1, strategy.getBusyCount());
     }
 
     @Test
     public void acquireAndRelease() {
         SimpleStrategy<Void> strategy = new SimpleStrategy<Void>();
-        Optional<Token> completion = strategy.tryAcquire(null);
-        Assert.assertTrue(completion.isPresent());
+        Token completion = strategy.tryAcquire(null);
+        Assert.assertTrue(completion.isAcquired());
         Assert.assertEquals(1, strategy.getBusyCount());
         
-        completion.ifPresent(Token::release);
+        completion.release();
         
         Assert.assertEquals(0, strategy.getBusyCount());
 
-        Assert.assertTrue(strategy.tryAcquire(null).isPresent());
+        Assert.assertTrue(strategy.tryAcquire(null).isAcquired());
         Assert.assertEquals(1, strategy.getBusyCount());
     }
 }

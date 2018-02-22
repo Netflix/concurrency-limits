@@ -16,7 +16,7 @@ public class AIMDLimitTest {
     @Test
     public void increaseOnSuccess() {
         AIMDLimit limiter = AIMDLimit.newBuilder().initialLimit(10).build();
-        limiter.update(TimeUnit.MILLISECONDS.toNanos(1));
+        limiter.update(TimeUnit.MILLISECONDS.toNanos(1), 10);
         Assert.assertEquals(11, limiter.getLimit());
     }
 
@@ -24,7 +24,7 @@ public class AIMDLimitTest {
     public void decreaseOnDrops() {
         AIMDLimit limiter = AIMDLimit.newBuilder().initialLimit(10).build();
         limiter.drop();
-        limiter.update(TimeUnit.MILLISECONDS.toNanos(1));
+        limiter.update(TimeUnit.MILLISECONDS.toNanos(1), 10);
         Assert.assertEquals(9, limiter.getLimit());
     }
 }
