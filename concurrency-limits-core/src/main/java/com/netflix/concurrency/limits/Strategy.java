@@ -1,7 +1,5 @@
 package com.netflix.concurrency.limits;
 
-import java.util.Optional;
-
 /**
  * Contract for enforcing a concurrency limit with optional partitioning 
  * of the limit.
@@ -14,9 +12,56 @@ public interface Strategy<ContextT> {
      */
     interface Token {
         /**
+         * @return true if acquired or false if limit has been reached
+         */
+        boolean isAcquired();
+        
+        /**
+         * @return Get number of pending requests
+         */
+        int getInFlightCount();
+        
+        /**
          * Release the acquired token and decrement the current inflight count.
          */
         void release();
+        
+        public static Token newNotAcquired(int inFlight) {
+            return new Token() {
+                @Override
+                public boolean isAcquired() {
+                    return false;
+                }
+
+                @Override
+                public int getInFlightCount() {
+                    return inFlight;
+                }
+
+                @Override
+                public void release() {
+                }
+            };
+        }
+        
+        public static Token newAcquired(int inFlight, Runnable release) {
+            return new Token() {
+                @Override
+                public boolean isAcquired() {
+                    return true;
+                }
+
+                @Override
+                public int getInFlightCount() {
+                    return inFlight;
+                }
+
+                @Override
+                public void release() {
+                    release.run();
+                }
+            };
+        }
     }
     
     /**
@@ -26,7 +71,7 @@ public interface Strategy<ContextT> {
      * @return Optional.empty() if limit exceeded or a {@link Token} that must be released when
      *  the operation completes.
      */
-    Optional<Token> tryAcquire(ContextT context);
+    Token tryAcquire(ContextT context);
     
     /**
      * Update the strategy with a new limit

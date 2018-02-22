@@ -1,16 +1,15 @@
 package com.netflix.concurrency.limits.strategy;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Predicate;
+
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.Strategy;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.function.Predicate;
 
 /**
  * Concurrency limiter that guarantees a certain percentage of the limit to specific callers
@@ -69,21 +68,21 @@ public final class PredicatePartitionStrategy<T> implements Strategy<T> {
     }
     
     @Override
-    public synchronized Optional<Token> tryAcquire(T type) {
-        for (Partition<T> partition : partitions) {
+    public synchronized Token tryAcquire(T type) {
+        for (final Partition<T> partition : partitions) {
             if (partition.predicate.test(type)) {
                 if (busy >= limit && partition.isLimitExceeded()) {
-                    return Optional.empty();
+                    break;
                 }
                 busy++;
                 partition.acquire();
-                return Optional.of(() -> release(partition));
+                return Token.newAcquired(busy, () -> releasePartition(partition));
             }
         }
-        return Optional.empty();
+        return Token.newNotAcquired(busy);
     }
     
-    private synchronized void release(Partition<T> partition) {
+    private synchronized void releasePartition(Partition<T> partition) {
         busy--;
         partition.release();
     }

@@ -1,16 +1,16 @@
 package com.netflix.concurrency.limits.limit;
 
-import com.netflix.concurrency.limits.Limit;
-import com.netflix.concurrency.limits.MetricIds;
-import com.netflix.concurrency.limits.MetricRegistry;
-import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
-import com.netflix.concurrency.limits.internal.Preconditions;
-
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.netflix.concurrency.limits.Limit;
+import com.netflix.concurrency.limits.MetricIds;
+import com.netflix.concurrency.limits.MetricRegistry;
+import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
+import com.netflix.concurrency.limits.internal.Preconditions;
 
 /**
  * Limiter based on TCP Vegas where the limit increases by alpha if the queue_use is small ({@literal <} alpha)
@@ -142,7 +142,7 @@ public class VegasLimit implements Limit {
     }
 
     @Override
-    public synchronized void update(long rtt) {
+    public synchronized void update(long rtt, int maxInFlight) {
         Preconditions.checkArgument(rtt > 0, "rtt must be >0 but got " + rtt);
         
         if (rtt_noload == 0 || rtt < rtt_noload) {
@@ -155,6 +155,8 @@ public class VegasLimit implements Limit {
         if (didDrop) {
             newLimit = decreaseFunc.apply((int)estimatedLimit);
             didDrop = false;
+        } else if (maxInFlight < estimatedLimit) {
+            return;
         } else {
             int alpha = alphaFunc.apply((int)estimatedLimit);
             int beta = betaFunc.apply((int)estimatedLimit);

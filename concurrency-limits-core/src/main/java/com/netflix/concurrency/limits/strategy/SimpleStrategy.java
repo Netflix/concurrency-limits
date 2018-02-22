@@ -1,13 +1,12 @@
 package com.netflix.concurrency.limits.strategy;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.Strategy;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
-
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Simplest strategy for enforcing a concurrency limit that has a single counter
@@ -29,16 +28,16 @@ public final class SimpleStrategy<T> implements Strategy<T> {
     }
     
     @Override
-    public Optional<Token> tryAcquire(T context) {
-        int currentBusy = busy.get();
+    public Token tryAcquire(T context) {
+        final int currentBusy = busy.get();
         if (currentBusy >= limit) {
             inflightMetric.addSample(currentBusy);
-            return Optional.empty();
+            return Token.newNotAcquired(currentBusy);
         }
         
-        int inflight = busy.incrementAndGet();
+        final int inflight = busy.incrementAndGet();
         inflightMetric.addSample(inflight);
-        return Optional.of(busy::decrementAndGet);
+        return Token.newAcquired(inflight, busy::decrementAndGet);
     }
     
     @Override

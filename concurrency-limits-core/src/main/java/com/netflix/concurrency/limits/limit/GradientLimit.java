@@ -1,16 +1,17 @@
 package com.netflix.concurrency.limits.limit;
 
-import com.netflix.concurrency.limits.Limit;
-import com.netflix.concurrency.limits.MetricIds;
-import com.netflix.concurrency.limits.MetricRegistry;
-import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
-import com.netflix.concurrency.limits.internal.Preconditions;
-
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.netflix.concurrency.limits.Limit;
+import com.netflix.concurrency.limits.MetricIds;
+import com.netflix.concurrency.limits.MetricRegistry;
+import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
+import com.netflix.concurrency.limits.internal.Preconditions;
+import com.netflix.concurrency.limits.limit.functions.SquareRootFunction;
 
 /**
  * Concurrency limit algorithm that adjust the limits based on the gradient of change in the 
@@ -26,7 +27,7 @@ public final class GradientLimit implements Limit {
         private int initialLimit = 20;
         private int maxConcurrency = 1000;
         private double smoothing = 0.2;
-        private Function<Integer, Integer> queueSize = (limit) -> (int)Math.max(4, Math.sqrt(limit));
+        private Function<Integer, Integer> queueSize = SquareRootFunction.create(4);
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         
         public Builder initialLimit(int initialLimit) {
@@ -100,26 +101,30 @@ public final class GradientLimit implements Limit {
     }
 
     @Override
-    public synchronized void update(long rtt) {
+    public synchronized void update(long rtt, int maxInFlight) {
         Preconditions.checkArgument(rtt > 0, "rtt must be >0 but got " + rtt);
         
         if (rtt_noload == 0 || rtt < rtt_noload) {
             LOG.debug("New MinRTT {}", rtt);
             rtt_noload = rtt;
         }
-
+        
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
         final double gradient = (double)rtt_noload / rtt;
         double newLimit;
         if (didDrop) {
             newLimit = estimatedLimit/2;
             didDrop = false;
+        } else if ((estimatedLimit - maxInFlight) > queueSize) {
+            return;
         } else {
             newLimit = estimatedLimit * gradient + queueSize;
         }
         
-        newLimit = Math.max(1, Math.min(maxLimit, newLimit));
-        newLimit = estimatedLimit * (1-smoothing) + smoothing*(newLimit);
+        newLimit = Math.max(queueSize, Math.min(maxLimit, newLimit));
+        if (newLimit < estimatedLimit) {
+            newLimit = estimatedLimit * (1-smoothing) + smoothing*(newLimit);
+        }
         if ((int)newLimit != (int)estimatedLimit) {
             if (LOG.isDebugEnabled()) {
                 LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={} gradient={}", 

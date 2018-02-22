@@ -1,17 +1,17 @@
 package com.netflix.concurrency.limits.strategy;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.Strategy;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
-
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.Function;
 
 /**
  * Strategy for partitioning the limiter by named groups where the allocation of 
@@ -76,18 +76,18 @@ public class LookupPartitionStrategy<T> implements Strategy<T> {
     }
     
     @Override
-    public synchronized Optional<Token> tryAcquire(T type) {
-        Partition partition = partitions.getOrDefault(lookup.apply(type), this.unknownPartition);
+    public synchronized Token tryAcquire(T type) {
+        final Partition partition = partitions.getOrDefault(lookup.apply(type), this.unknownPartition);
         
         if (busy >= limit && partition.isLimitExceeded()) {
-            return Optional.empty();
+            return Token.newNotAcquired(busy);
         }
         busy++;
         partition.acquire();
-        return Optional.of(() -> release(partition));
+        return Token.newAcquired(busy, () -> releasePartition(partition));
     }
 
-    private synchronized void release(Partition partition) {
+    private synchronized void releasePartition(Partition partition) {
         busy--;
         partition.release();
     }

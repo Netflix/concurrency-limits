@@ -14,8 +14,9 @@ public interface Limit {
      * Update the concurrency limit using a new rtt sample
      * 
      * @param rtt Minimum RTT sample for the last window
+     * @param maxInFlight Maximum number of inflight requests observed in the sampling window
      */
-    void update(long rtt);
+    void update(long rtt, int maxInFlight);
     
     /**
      * The request failed and was dropped due to being rejected by an external limit

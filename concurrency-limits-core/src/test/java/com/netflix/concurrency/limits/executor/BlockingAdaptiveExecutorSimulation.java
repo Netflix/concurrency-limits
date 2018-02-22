@@ -1,12 +1,5 @@
 package com.netflix.concurrency.limits.executor;
 
-import com.netflix.concurrency.limits.executors.BlockingAdaptiveExecutor;
-import com.netflix.concurrency.limits.limit.AIMDLimit;
-import com.netflix.concurrency.limits.limit.GradientLimit;
-import com.netflix.concurrency.limits.limit.VegasLimit;
-import com.netflix.concurrency.limits.limiter.DefaultLimiter;
-import com.netflix.concurrency.limits.strategy.SimpleStrategy;
-
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -17,6 +10,13 @@ import java.util.function.Supplier;
 
 import org.junit.Ignore;
 import org.junit.Test;
+
+import com.netflix.concurrency.limits.executors.BlockingAdaptiveExecutor;
+import com.netflix.concurrency.limits.limit.AIMDLimit;
+import com.netflix.concurrency.limits.limit.GradientLimit;
+import com.netflix.concurrency.limits.limit.VegasLimit;
+import com.netflix.concurrency.limits.limiter.DefaultLimiter;
+import com.netflix.concurrency.limits.strategy.SimpleStrategy;
 
 @Ignore("These are simulations and not tests")
 public class BlockingAdaptiveExecutorSimulation {

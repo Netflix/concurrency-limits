@@ -20,7 +20,7 @@ import com.netflix.concurrency.limits.limit.VegasLimit;
 public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     private final Supplier<Long> nanoClock = System::nanoTime;
     
-    private final static long DEFAULT_MIN_WINDOW_TIME = TimeUnit.MILLISECONDS.toNanos(200);
+    private final static long DEFAULT_MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
     private final static int DEFAULT_WINDOW_SIZE = 10;
     
     /**
@@ -34,13 +34,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
      */
     private final AtomicLong RTT_candidate = new AtomicLong(Integer.MAX_VALUE);
     
-    /**
-     * Set to true if the concurrency limit was never reached during a sampling window.
-     * This means that the application was not able to send enough requests to test 
-     * the limit.  Limits are not adjusted when this happens as doing so would cause
-     * the limit to drive infinitely upwards.
-     */
-    private volatile boolean isAppLimited = false;
+    private volatile int maxInFlight = 0;
     
     /**
      * End time for the sampling window at which point the limit should be updated
@@ -130,12 +124,13 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         final long startTime = nanoClock.get();
         
         // Did we exceed the limit
-        final Optional<Token> optionalToken = strategy.tryAcquire(context);
-        if (!optionalToken.isPresent()) {
-            isAppLimited = false;
+        final Token token = strategy.tryAcquire(context);
+        maxInFlight = Math.max(maxInFlight, token.getInFlightCount());
+        if (!token.isAcquired()) {
+            return Optional.empty();
         }
 
-        return optionalToken.map(token -> new Listener() {
+        return Optional.of(new Listener() {
             @Override
             public void onSuccess() {
                 token.release();
@@ -155,10 +150,10 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                 
                 long updateTime = nextUpdateTime.get();
                 if (endTime >= updateTime && nextUpdateTime.compareAndSet(updateTime, endTime + Math.max(minWindowTime, RTT_noload * windowSize))) {
-                    if (!isAppLimited && current != Integer.MAX_VALUE && RTT_candidate.compareAndSet(current, Integer.MAX_VALUE)) {
-                        limit.update(current);
+                    if (current != Integer.MAX_VALUE && RTT_candidate.compareAndSet(current, Integer.MAX_VALUE)) {
+                        limit.update(current, maxInFlight);
                         strategy.setLimit(limit.getLimit());
-                        isAppLimited = true;
+                        maxInFlight = 0;
                     }
                 }
             }
@@ -172,7 +167,6 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
             public void onDropped() {
                 token.release();
                 limit.drop();
-                strategy.setLimit(limit.getLimit());
             }
         });
     }
@@ -192,7 +186,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     public String toString() {
         return "DefaultLimiter [RTT_noload=" + TimeUnit.NANOSECONDS.toMillis(getMinRtt())
                 + ", RTT_candidate=" + TimeUnit.NANOSECONDS.toMillis(RTT_candidate.get()) 
-                + ", isAppLimited=" + isAppLimited 
+                + ", maxInFlight=" + maxInFlight 
                 + ", " + limit 
                 + ", " + strategy
                 + "]";
