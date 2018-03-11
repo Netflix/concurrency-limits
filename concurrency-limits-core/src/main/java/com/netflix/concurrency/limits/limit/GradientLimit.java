@@ -42,7 +42,7 @@ public final class GradientLimit implements Limit {
          * @return Chainable builder
          */
         public Builder minRttThreshold(long minRttTreshold, TimeUnit units) {
-            this.minRttThreshold = units.toMillis(minRttTreshold);
+            this.minRttThreshold = units.toNanos(minRttTreshold);
             return this;
         }
         
