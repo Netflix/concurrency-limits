@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.netflix.concurrency.limits.Limiter;
 
 import io.grpc.ForwardingServerCall;
+import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
 import io.grpc.ServerCall.Listener;
@@ -49,7 +50,8 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
         }
 
         final AtomicBoolean done = new AtomicBoolean(false);
-        return next.startCall(
+        return new ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(
+                next.startCall(
                 new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
                     @Override
                     public void close(Status status, Metadata trailers) {
@@ -66,7 +68,18 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
                         }
                     }
                 },
-                headers);
+                        headers)) {
+            @Override
+            public void onCancel() {
+                try {
+                    super.onCancel();
+                } finally {
+                    if (done.compareAndSet(false, true)) {
+                        listener.get().onIgnore();
+                    }
+                }
+            }
+        };
     }
 
 }
