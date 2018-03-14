@@ -31,6 +31,7 @@ public final class GradientLimit implements Limit {
         private double smoothing = 0.2;
         private Function<Integer, Integer> queueSize = SquareRootFunction.create(4);
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
+        private double rttTolerance = 1.0;
         
         /**
          * Minimum threshold for accepting a new rtt sample.  Any RTT lower than this threshold
@@ -52,6 +53,18 @@ public final class GradientLimit implements Limit {
          */
         public Builder initialLimit(int initialLimit) {
             this.initialLimit = initialLimit;
+            return this;
+        }
+        
+        /**
+         * Tolerance for changes in minimum latency.  
+         * @param rttTolerance Value {@literal >}= 1.0 indicating how much change in minimum latency is acceptable
+         *  before reducing the limit.  For example, a value of 2.0 means that a 2x increase in latency is acceptable. 
+         * @return Chainable builder
+         */
+        public Builder rttTolerance(double rttTolerance) {
+            Preconditions.checkArgument(rttTolerance >= 1.0, "Tolerance must be >= 1.0");
+            this.rttTolerance = rttTolerance;
             return this;
         }
         
@@ -148,12 +161,15 @@ public final class GradientLimit implements Limit {
 
     private final long minRttThreshold;
 
+    private final double rttTolerance; 
+    
     private GradientLimit(Builder builder) {
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
         this.minRttThreshold = builder.minRttThreshold;
+        this.rttTolerance = builder.rttTolerance;
     }
 
     @Override
@@ -175,7 +191,7 @@ public final class GradientLimit implements Limit {
         }
         
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
-        final double gradient = (double)rtt_noload / rtt;
+        final double gradient = Math.max(0.5, Math.min(1.0, rttTolerance * rtt_noload / rtt));
         double newLimit;
         if (didDrop) {
             newLimit = estimatedLimit/2;
