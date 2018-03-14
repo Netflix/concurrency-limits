@@ -1,18 +1,17 @@
 package com.netflix.concurrency.limits.limit;
 
+import com.netflix.concurrency.limits.Limit;
+import com.netflix.concurrency.limits.MetricIds;
+import com.netflix.concurrency.limits.MetricRegistry;
+import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
+import com.netflix.concurrency.limits.internal.Preconditions;
+import com.netflix.concurrency.limits.limit.functions.SquareRootFunction;
+
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.netflix.concurrency.limits.Limit;
-import com.netflix.concurrency.limits.MetricIds;
-import com.netflix.concurrency.limits.MetricRegistry;
-import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
-import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
-import com.netflix.concurrency.limits.internal.Preconditions;
-import com.netflix.concurrency.limits.limit.functions.SquareRootFunction;
 
 /**
  * Concurrency limit algorithm that adjust the limits based on the gradient of change in the 
@@ -25,9 +24,9 @@ public final class GradientLimit implements Limit {
     private static final Logger LOG = LoggerFactory.getLogger(GradientLimit.class);
     
     public static class Builder {
-        private int initialLimit = 20;
+        private int initialLimit = 100;
         private int maxConcurrency = 1000;
-        private long minRttThreshold = TimeUnit.MILLISECONDS.toNanos(1);
+        private long minRttThreshold = TimeUnit.MICROSECONDS.toNanos(200);
         
         private double smoothing = 0.2;
         private Function<Integer, Integer> queueSize = SquareRootFunction.create(4);
@@ -113,6 +112,8 @@ public final class GradientLimit implements Limit {
         public GradientLimit build() {
             GradientLimit limit = new GradientLimit(this);
             registry.registerGauge(MetricIds.MIN_RTT_GUAGE_NAME, limit::getRttNoLoad);
+            registry.registerGauge(MetricIds.WINDOW_MIN_RTT_GUAGE_NAME, limit::getWindowMinRtt);
+            registry.registerGauge(MetricIds.WINDOW_QUEUE_SIZE_GUAGE_NAME, limit::getQueueSize);
             return limit;
         }
     }
@@ -132,6 +133,8 @@ public final class GradientLimit implements Limit {
     
     private volatile long rtt_noload = 0;
     
+    private volatile long windowMinRtt = 0;
+    
     private boolean didDrop = false;
     
     /**
@@ -143,8 +146,6 @@ public final class GradientLimit implements Limit {
     
     private final double smoothing;
 
-    private final SampleListener sampleRttMetric;
-
     private final long minRttThreshold;
 
     private GradientLimit(Builder builder) {
@@ -153,8 +154,6 @@ public final class GradientLimit implements Limit {
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
         this.minRttThreshold = builder.minRttThreshold;
-        
-        this.sampleRttMetric = builder.registry.registerDistribution("sample_rtt");
     }
 
     @Override
@@ -165,12 +164,15 @@ public final class GradientLimit implements Limit {
             return;
         }
         
+        // Track the recent minimum for reporting purposes only
+        if (windowMinRtt == 0 || rtt < windowMinRtt) {
+            windowMinRtt = rtt;
+        }
+        
         if (rtt_noload == 0 || rtt < rtt_noload) {
             LOG.debug("New MinRTT {}", rtt);
             rtt_noload = rtt;
         }
-        
-        sampleRttMetric.addSample(rtt);
         
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
         final double gradient = (double)rtt_noload / rtt;
@@ -213,6 +215,22 @@ public final class GradientLimit implements Limit {
 
     public long getRttNoLoad() {
         return rtt_noload;
+    }
+    
+    /**
+     * Minimum RTT since last reported gauge value.  This is used solely 
+     * for reporting purposes and does not factor into any calculation
+     */
+    private synchronized long getWindowMinRtt() {
+        try {
+            return this.windowMinRtt;
+        } finally {
+            windowMinRtt = 0;
+        }
+    }
+    
+    private synchronized long getQueueSize() {
+        return this.queueSize.apply((int)this.estimatedLimit);
     }
     
     @Override

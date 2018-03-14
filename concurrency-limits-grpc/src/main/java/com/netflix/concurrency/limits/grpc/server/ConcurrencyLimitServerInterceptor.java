@@ -52,22 +52,22 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
         final AtomicBoolean done = new AtomicBoolean(false);
         return new ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(
                 next.startCall(
-                        new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
-                            @Override
-                            public void close(Status status, Metadata trailers) {
-                                try {
-                                    super.close(status, trailers);
-                                } finally {
-                                    if (done.compareAndSet(false, true)) {
-                                        if (status.isOk()) {
-                                            listener.get().onSuccess();
-                                        } else {
-                                            listener.get().onIgnore();
-                                        }
-                                    }
+                new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
+                    @Override
+                    public void close(Status status, Metadata trailers) {
+                        try {
+                            super.close(status, trailers);
+                        } finally {
+                            if (done.compareAndSet(false, true)) {
+                                if (status.isOk()) {
+                                    listener.get().onSuccess();
+                                } else {
+                                    listener.get().onIgnore();
                                 }
                             }
-                        },
+                        }
+                    }
+                },
                         headers)) {
             @Override
             public void onCancel() {
