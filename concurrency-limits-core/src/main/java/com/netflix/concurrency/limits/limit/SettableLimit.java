@@ -37,6 +37,6 @@ public class SettableLimit implements Limit {
 
     @Override
     public String toString() {
-        return "FixedLimit [limit=" + limit + "]";
+        return "SettableLimit [limit=" + limit + "]";
     }
 }
