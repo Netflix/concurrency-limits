@@ -23,7 +23,7 @@ A quick note on using minimum latency. Not all requests are the same and can hav
 
 Delay based algorithm where the bottleneck queue is estimated as 
 
-    `L * (1 - minRTT/sampleRtt)`
+    L * (1 - minRTT/sampleRtt)
     
 At the end of each sampling window the limit is increased by 1 if the queue is less than alpha (typically a value between 2-3) or decreased by 1 if the queue is greater than beta (typically a value between 4-6 requests)
 
