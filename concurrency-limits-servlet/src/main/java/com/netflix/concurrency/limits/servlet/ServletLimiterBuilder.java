@@ -39,7 +39,7 @@ public final class ServletLimiterBuilder extends AbstractLimiterBuilder<ServletL
      */
     public ServletLimiterBuilder partitionByUserPrincipal(Function<Principal, String> principalToGroup, Consumer<LookupPartitionStrategy.Builder<HttpServletRequest>> configurer) {
         return partitionByLookup(
-                request -> Optional.ofNullable(request.getUserPrincipal()).map(principalToGroup) .orElse(null),
+                request -> Optional.ofNullable(request.getUserPrincipal()).map(principalToGroup).orElse(null),
                 configurer);
     }
     
@@ -77,7 +77,7 @@ public final class ServletLimiterBuilder extends AbstractLimiterBuilder<ServletL
      */
     public ServletLimiterBuilder partitionByPathInfo(Function<String, String> pathToGroup, Consumer<LookupPartitionStrategy.Builder<HttpServletRequest>> configurer) {
         return partitionByLookup(
-                request -> Optional.ofNullable(request.getPathInfo()).orElse(null),
+                request -> Optional.ofNullable(request.getPathInfo()).map(pathToGroup).orElse(null),
                 configurer);
     }
     
