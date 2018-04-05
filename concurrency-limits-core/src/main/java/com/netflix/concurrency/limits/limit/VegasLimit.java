@@ -29,12 +29,12 @@ public class VegasLimit implements Limit {
         private int initialLimit = 20;
         private int maxConcurrency = 1000;
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
-        private double smoothing = 0.2;
+        private double smoothing = 1.0;
         
         private Function<Integer, Integer> alpha = (limit) -> 3;
         private Function<Integer, Integer> beta = (limit) -> 6;
-        private Function<Integer, Integer> increaseFunc = (limit) -> limit + 1;
-        private Function<Integer, Integer> decreaseFunc = (limit) -> limit - 1;
+        private Function<Double, Double> increaseFunc = (limit) -> limit + 1;
+        private Function<Double, Double> decreaseFunc = (limit) -> limit - 1;
         
         public Builder alpha(int alpha) {
             this.alpha = (ignore) -> alpha;
@@ -56,12 +56,12 @@ public class VegasLimit implements Limit {
             return this;
         }
         
-        public Builder increase(Function<Integer, Integer> increase) {
+        public Builder increase(Function<Double, Double> increase) {
             this.increaseFunc = increase;
             return this;
         }
         
-        public Builder decrease(Function<Integer, Integer> decrease) {
+        public Builder decrease(Function<Double, Double> decrease) {
             this.decreaseFunc = decrease;
             return this;
         }
@@ -128,8 +128,8 @@ public class VegasLimit implements Limit {
     private final double smoothing;
     private final Function<Integer, Integer> alphaFunc;
     private final Function<Integer, Integer> betaFunc;
-    private final Function<Integer, Integer> increaseFunc;
-    private final Function<Integer, Integer> decreaseFunc;
+    private final Function<Double, Double> increaseFunc;
+    private final Function<Double, Double> decreaseFunc;
 
     private VegasLimit(Builder builder) {
         this.estimatedLimit = builder.initialLimit;
@@ -153,25 +153,25 @@ public class VegasLimit implements Limit {
         double newLimit;
         final int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / rtt));
         if (didDrop) {
-            newLimit = decreaseFunc.apply((int)estimatedLimit);
+            newLimit = decreaseFunc.apply(estimatedLimit);
             didDrop = false;
-        } else if (maxInFlight < estimatedLimit) {
+        } else if (maxInFlight + queueSize < estimatedLimit) {
             return;
         } else {
             int alpha = alphaFunc.apply((int)estimatedLimit);
             int beta = betaFunc.apply((int)estimatedLimit);
             
             if (queueSize < alpha) {
-                newLimit = increaseFunc.apply((int)estimatedLimit);
+                newLimit = increaseFunc.apply(estimatedLimit);
             } else if (queueSize > beta) {
-                newLimit = decreaseFunc.apply((int)estimatedLimit);
+                newLimit = decreaseFunc.apply(estimatedLimit);
             } else {
                 return;
             }
         }
 
         newLimit = Math.max(1, Math.min(maxLimit, newLimit));
-        newLimit = (int) ((1 - smoothing) * estimatedLimit + smoothing * newLimit);
+        newLimit = (1 - smoothing) * estimatedLimit + smoothing * newLimit;
         if ((int)newLimit != (int)estimatedLimit && LOG.isDebugEnabled()) {
             LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={}", 
                     estimatedLimit, 
