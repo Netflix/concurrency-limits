@@ -49,4 +49,47 @@ public class VegasLimitTest {
         limit.update(TimeUnit.MILLISECONDS.toNanos(14), 14);
         Assert.assertEquals(11, limit.getLimit());
     }
+    
+    @Test
+    public void decreaseSmoothing() {
+        VegasLimit limit = VegasLimit.newBuilder()
+            .decrease(current -> current / 2)
+            .smoothing(0.5)
+            .initialLimit(100)
+            .maxConcurrency(200)
+            .build();
+        
+        // Pick up first min-rtt
+        limit.update(TimeUnit.MILLISECONDS.toNanos(10), 100);
+        Assert.assertEquals(100, limit.getLimit());
+        
+        // First decrease
+        limit.update(TimeUnit.MILLISECONDS.toNanos(20), 100);
+        Assert.assertEquals(75, limit.getLimit());
+
+        // Second decrease
+        limit.update(TimeUnit.MILLISECONDS.toNanos(20), 100);
+        Assert.assertEquals(56, limit.getLimit());
+    }
+
+    @Test
+    public void decreaseWithoutSmoothing() {
+        VegasLimit limit = VegasLimit.newBuilder()
+            .decrease(current -> current / 2)
+            .initialLimit(100)
+            .maxConcurrency(200)
+            .build();
+        
+        // Pick up first min-rtt
+        limit.update(TimeUnit.MILLISECONDS.toNanos(10), 100);
+        Assert.assertEquals(101, limit.getLimit());
+        
+        // First decrease
+        limit.update(TimeUnit.MILLISECONDS.toNanos(20), 100);
+        Assert.assertEquals(50, limit.getLimit());
+
+        // Second decrease
+        limit.update(TimeUnit.MILLISECONDS.toNanos(20), 100);
+        Assert.assertEquals(25, limit.getLimit());
+    }
 }
