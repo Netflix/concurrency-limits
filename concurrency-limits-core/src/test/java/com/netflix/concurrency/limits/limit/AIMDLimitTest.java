@@ -4,6 +4,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
+import com.netflix.concurrency.limits.limiter.ImmutableSample;
+
 import junit.framework.Assert;
 
 public class AIMDLimitTest {
@@ -16,15 +18,14 @@ public class AIMDLimitTest {
     @Test
     public void increaseOnSuccess() {
         AIMDLimit limiter = AIMDLimit.newBuilder().initialLimit(10).build();
-        limiter.update(TimeUnit.MILLISECONDS.toNanos(1), 10);
+        limiter.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(1), 10L));
         Assert.assertEquals(11, limiter.getLimit());
     }
 
     @Test
     public void decreaseOnDrops() {
         AIMDLimit limiter = AIMDLimit.newBuilder().initialLimit(10).build();
-        limiter.drop();
-        limiter.update(TimeUnit.MILLISECONDS.toNanos(1), 10);
+        limiter.update(new ImmutableSample().addDroppedSample(1L));
         Assert.assertEquals(9, limiter.getLimit());
     }
 }

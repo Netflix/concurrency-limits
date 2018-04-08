@@ -118,8 +118,6 @@ public class VegasLimit implements Limit {
     
     private volatile long rtt_noload = 0;
     
-    private boolean didDrop = false;
-    
     /**
      * Maximum allowed limit providing an upper bound failsafe
      */
@@ -142,20 +140,20 @@ public class VegasLimit implements Limit {
     }
 
     @Override
-    public synchronized void update(long rtt, int maxInFlight) {
+    public synchronized void update(SampleWindow sample) {
+        long rtt = sample.getCandidateRttNanos();
         Preconditions.checkArgument(rtt > 0, "rtt must be >0 but got " + rtt);
         
         if (rtt_noload == 0 || rtt < rtt_noload) {
-            LOG.debug("New MinRTT {}", rtt);
+            LOG.debug("New MinRTT {}", TimeUnit.NANOSECONDS.toMicros(rtt) / 1000.0);
             rtt_noload = rtt;
         }
         
         double newLimit;
         final int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / rtt));
-        if (didDrop) {
+        if (sample.didDrop()) {
             newLimit = decreaseFunc.apply(estimatedLimit);
-            didDrop = false;
-        } else if (maxInFlight + queueSize < estimatedLimit) {
+        } else if (sample.getMaxInFlight() + queueSize < estimatedLimit) {
             return;
         } else {
             int alpha = alphaFunc.apply((int)estimatedLimit);
@@ -173,20 +171,13 @@ public class VegasLimit implements Limit {
         newLimit = Math.max(1, Math.min(maxLimit, newLimit));
         newLimit = (1 - smoothing) * estimatedLimit + smoothing * newLimit;
         if ((int)newLimit != (int)estimatedLimit && LOG.isDebugEnabled()) {
-            LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={}", 
-                    estimatedLimit, 
-                    TimeUnit.NANOSECONDS.toMicros(rtt_noload), 
-                    TimeUnit.NANOSECONDS.toMicros(rtt),
+            LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={}", 
+                    (int)newLimit, 
+                    TimeUnit.NANOSECONDS.toMicros(rtt_noload) / 1000.0, 
+                    TimeUnit.NANOSECONDS.toMicros(rtt) / 1000.0,
                     queueSize);
         }
         estimatedLimit = newLimit;
-    }
-
-    @Override
-    public synchronized void drop() {
-        if (!didDrop) {
-            didDrop = true;
-        }
     }
 
     @Override
@@ -200,8 +191,8 @@ public class VegasLimit implements Limit {
     
     @Override
     public String toString() {
-        return "VegasLimit [limit=" + estimatedLimit + 
-                ", rtt_noload=" + TimeUnit.NANOSECONDS.toMillis(rtt_noload) +
-                "]";
+        return "VegasLimit [limit=" + getLimit() + 
+                ", rtt_noload=" + TimeUnit.NANOSECONDS.toMicros(rtt_noload) / 1000.0 +
+                " ms]";
     }
 }

@@ -4,6 +4,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
+import com.netflix.concurrency.limits.limiter.ImmutableSample;
+
 import junit.framework.Assert;
 
 public class VegasLimitTest {
@@ -26,27 +28,27 @@ public class VegasLimitTest {
     @Test
     public void increaseLimit() {
         VegasLimit limit = create();
-        limit.update(TimeUnit.MILLISECONDS.toNanos(10), 10);
+        limit.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(10), 10L));
         Assert.assertEquals(11, limit.getLimit());
-        limit.update(TimeUnit.MILLISECONDS.toNanos(10), 11);
+        limit.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(10), 11L));
         Assert.assertEquals(12, limit.getLimit());
     }
     
     @Test
     public void decreaseLimit() {
         VegasLimit limit = create();
-        limit.update(TimeUnit.MILLISECONDS.toNanos(10), 10);
+        limit.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(10), 10L));
         Assert.assertEquals(11, limit.getLimit());
-        limit.update(TimeUnit.MILLISECONDS.toNanos(50), 11);
+        limit.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(50), 11L));
         Assert.assertEquals(10, limit.getLimit());
     }
     
     @Test
     public void noChangeIfWithinThresholds() {
         VegasLimit limit = create();
-        limit.update(TimeUnit.MILLISECONDS.toNanos(10), 10);
+        limit.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(10), 10L));
         Assert.assertEquals(11, limit.getLimit());
-        limit.update(TimeUnit.MILLISECONDS.toNanos(14), 14);
+        limit.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(14), 14L));
         Assert.assertEquals(11, limit.getLimit());
     }
     
@@ -60,15 +62,15 @@ public class VegasLimitTest {
             .build();
         
         // Pick up first min-rtt
-        limit.update(TimeUnit.MILLISECONDS.toNanos(10), 100);
+        limit.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(10), 100L));
         Assert.assertEquals(100, limit.getLimit());
         
         // First decrease
-        limit.update(TimeUnit.MILLISECONDS.toNanos(20), 100);
+        limit.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(20), 100L));
         Assert.assertEquals(75, limit.getLimit());
 
         // Second decrease
-        limit.update(TimeUnit.MILLISECONDS.toNanos(20), 100);
+        limit.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(20), 100L));
         Assert.assertEquals(56, limit.getLimit());
     }
 
@@ -81,15 +83,15 @@ public class VegasLimitTest {
             .build();
         
         // Pick up first min-rtt
-        limit.update(TimeUnit.MILLISECONDS.toNanos(10), 100);
+        limit.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(10), 100L));
         Assert.assertEquals(101, limit.getLimit());
         
         // First decrease
-        limit.update(TimeUnit.MILLISECONDS.toNanos(20), 100);
+        limit.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(20), 100L));
         Assert.assertEquals(50, limit.getLimit());
 
         // Second decrease
-        limit.update(TimeUnit.MILLISECONDS.toNanos(20), 100);
+        limit.update(new ImmutableSample().addSample(TimeUnit.MILLISECONDS.toNanos(20), 100L));
         Assert.assertEquals(25, limit.getLimit());
     }
 }
