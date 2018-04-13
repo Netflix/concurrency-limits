@@ -23,13 +23,9 @@ public final class FixedLimit implements Limit {
     }
 
     @Override
-    public void update(long rtt, int maxInFlight) {
+    public void update(SampleWindow sample) {
     }
-
-    @Override
-    public void drop() {
-    }
-
+    
     @Override
     public String toString() {
         return "FixedLimit [limit=" + limit + "]";

@@ -24,11 +24,7 @@ public class SettableLimit implements Limit {
     }
 
     @Override
-    public void update(long rtt, int maxInFlight) {
-    }
-
-    @Override
-    public void drop() {
+    public void update(SampleWindow sample) {
     }
     
     public synchronized void setLimit(int limit) {

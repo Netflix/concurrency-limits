@@ -1,17 +1,17 @@
 package com.netflix.concurrency.limits.limit;
 
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
 import com.netflix.concurrency.limits.limit.functions.SquareRootFunction;
-
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Concurrency limit algorithm that adjust the limits based on the gradient of change in the 
@@ -148,8 +148,6 @@ public final class GradientLimit implements Limit {
     
     private volatile long windowMinRtt = 0;
     
-    private boolean didDrop = false;
-    
     /**
      * Maximum allowed limit providing an upper bound failsafe
      */
@@ -173,7 +171,8 @@ public final class GradientLimit implements Limit {
     }
 
     @Override
-    public synchronized void update(long rtt, int maxInFlight) {
+    public synchronized void update(SampleWindow sample) {
+        final long rtt = sample.getCandidateRttNanos();
         Preconditions.checkArgument(rtt > 0, "rtt must be >0 but got " + rtt);
         
         if (rtt < minRttThreshold) {
@@ -193,10 +192,9 @@ public final class GradientLimit implements Limit {
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
         final double gradient = Math.max(0.5, Math.min(1.0, rttTolerance * rtt_noload / rtt));
         double newLimit;
-        if (didDrop) {
+        if (sample.didDrop()) {
             newLimit = estimatedLimit/2;
-            didDrop = false;
-        } else if ((estimatedLimit - maxInFlight) > queueSize) {
+        } else if ((estimatedLimit - sample.getMaxInFlight()) > queueSize) {
             return;
         } else {
             newLimit = estimatedLimit * gradient + queueSize;
@@ -208,20 +206,15 @@ public final class GradientLimit implements Limit {
         }
         if ((int)newLimit != (int)estimatedLimit) {
             if (LOG.isDebugEnabled()) {
-                LOG.debug("New limit={} minRtt={} μs winRtt={} μs queueSize={} gradient={}", 
+                LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={}", 
                         (int)estimatedLimit, 
-                        TimeUnit.NANOSECONDS.toMicros(rtt_noload), 
-                        TimeUnit.NANOSECONDS.toMicros(rtt),
+                        TimeUnit.NANOSECONDS.toMicros(rtt_noload)/1000.0, 
+                        TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0,
                         queueSize,
                         gradient);
             }
         }
         estimatedLimit = newLimit;
-    }
-
-    @Override
-    public synchronized void drop() {
-        didDrop = true;
     }
 
     @Override
@@ -252,7 +245,7 @@ public final class GradientLimit implements Limit {
     @Override
     public String toString() {
         return "GradientLimit [limit=" + (int)estimatedLimit + 
-                ", rtt_noload=" + TimeUnit.NANOSECONDS.toMillis(rtt_noload) +
-                "]";
+                ", rtt_noload=" + TimeUnit.MICROSECONDS.toMillis(rtt_noload) / 1000.0+
+                " ms]";
     }
 }

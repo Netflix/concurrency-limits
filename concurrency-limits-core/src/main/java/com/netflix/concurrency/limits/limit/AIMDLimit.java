@@ -32,7 +32,6 @@ public final class AIMDLimit implements Limit {
     }
     
     private volatile int limit;
-    private boolean didDrop = false;
     private final double backoffRatio;
 
     private AIMDLimit(Builder builder) {
@@ -46,24 +45,16 @@ public final class AIMDLimit implements Limit {
     }
 
     @Override
-    public synchronized void update(long rtt, int maxInFlight) {
-        if (didDrop) {
-            didDrop = false;
-        } else if (maxInFlight >= limit){
+    public void update(SampleWindow sample) {
+        if (sample.didDrop()) {
+            limit = Math.max(1, Math.min(limit - 1, (int) (limit * backoffRatio)));
+        } else if (sample.getMaxInFlight() >= limit) {
             limit = limit + 1;
         }
     }
 
     @Override
-    public synchronized void drop() {
-        if (!didDrop) {
-            didDrop = true;
-            limit = Math.max(1, Math.min(limit - 1, (int) (limit * backoffRatio)));
-        }
-    }
-
-    @Override
     public String toString() {
-        return "AIMDLimit [limit=" + limit + ", didDrop=" + didDrop + "]";
+        return "AIMDLimit [limit=" + limit + "]";
     }
 }
