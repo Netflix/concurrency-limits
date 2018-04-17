@@ -2,6 +2,7 @@ package com.netflix.concurrency.limits.limiter;
 
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -21,8 +22,18 @@ import com.netflix.concurrency.limits.limit.VegasLimit;
 public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     private final Supplier<Long> nanoClock = System::nanoTime;
     
-    private final static long DEFAULT_MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
-    private final static int DEFAULT_WINDOW_SIZE = 10;
+    private static final long DEFAULT_MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
+    private static final int DEFAULT_WINDOW_SIZE = 10;
+
+    /**
+     * Minimum observed samples to filter out sample windows with not enough significant samples
+     */
+    private static final int MIN_WINDOW_SAMPLE_COUNT = 10;
+    
+    /**
+     * Minimum observed max inflight to filter out sample windows with not enough significant data
+     */
+    private static final int MIN_WINDOW_MAX_INFLIGHT = 1;
     
     /**
      * End time for the sampling window at which point the limit should be updated
@@ -58,7 +69,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     /**
      * Counter tracking the current number of inflight requests
      */
-    private final AtomicLong inFlight = new AtomicLong();
+    private final AtomicInteger inFlight = new AtomicInteger();
 
     public static class Builder {
         private Limit limit = VegasLimit.newDefault();
@@ -127,7 +138,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
             return Optional.empty();
         }
         
-        long currentMaxInFlight = inFlight.incrementAndGet();
+        int currentMaxInFlight = inFlight.incrementAndGet();
 
         return Optional.of(new Listener() {
             @Override
@@ -145,7 +156,9 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                     long nextUpdate = endTime + Math.max(minWindowTime, rtt * windowSize);
                     if (nextUpdateTime.compareAndSet(updateTime, nextUpdate)) {
                         ImmutableSample last = sample.getAndUpdate(ImmutableSample::reset);
-                        if (last.getCandidateRttNanos() < Integer.MAX_VALUE) {
+                        if (last.getCandidateRttNanos() < Integer.MAX_VALUE
+                            && last.getSampleCount() > MIN_WINDOW_SAMPLE_COUNT
+                            && last.getMaxInFlight() > MIN_WINDOW_MAX_INFLIGHT) {
                             limit.update(last);
                             strategy.setLimit(limit.getLimit());
                         }
