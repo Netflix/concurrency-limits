@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
+import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
 
@@ -97,9 +98,7 @@ public class VegasLimit implements Limit {
         }
         
         public VegasLimit build() {
-            VegasLimit limit = new VegasLimit(this);
-            registry.registerGauge(MetricIds.MIN_RTT_GUAGE_NAME, limit::getRttNoLoad);
-            return limit;
+            return new VegasLimit(this);
         }
     }
     
@@ -128,6 +127,7 @@ public class VegasLimit implements Limit {
     private final Function<Integer, Integer> betaFunc;
     private final Function<Double, Double> increaseFunc;
     private final Function<Double, Double> decreaseFunc;
+    private final SampleListener rttSampleListener;
 
     private VegasLimit(Builder builder) {
         this.estimatedLimit = builder.initialLimit;
@@ -137,6 +137,9 @@ public class VegasLimit implements Limit {
         this.increaseFunc = builder.increaseFunc;
         this.decreaseFunc = builder.decreaseFunc;
         this.smoothing = builder.smoothing;
+        
+        this.rttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
+
     }
 
     @Override
@@ -148,6 +151,8 @@ public class VegasLimit implements Limit {
             LOG.debug("New MinRTT {}", TimeUnit.NANOSECONDS.toMicros(rtt) / 1000.0);
             rtt_noload = rtt;
         }
+        
+        rttSampleListener.addSample(rtt_noload);
         
         double newLimit;
         final int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / rtt));
@@ -185,10 +190,6 @@ public class VegasLimit implements Limit {
         return (int)estimatedLimit;
     }
 
-    long getRttNoLoad() {
-        return rtt_noload;
-    }
-    
     @Override
     public String toString() {
         return "VegasLimit [limit=" + getLimit() + 

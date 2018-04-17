@@ -25,12 +25,6 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     private final static int DEFAULT_WINDOW_SIZE = 10;
     
     /**
-     * Ideal RTT when no queuing occurs.  For simplicity we assume the lowest latency
-     * ever observed is the ideal RTT.
-     */
-    private final AtomicLong RTT_noload = new AtomicLong(Long.MAX_VALUE);
-    
-    /**
      * End time for the sampling window at which point the limit should be updated
      */
     private final AtomicLong nextUpdateTime = new AtomicLong();
@@ -144,19 +138,17 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                 final long endTime = nanoClock.get();
                 final long rtt = endTime - startTime;
                 
-                // Keep track of the absolute minimum RTT seen
-                if (rtt < RTT_noload.get()) {
-                    RTT_noload.set(rtt);
-                }
-                
                 sample.getAndUpdate(current -> current.addSample(rtt, currentMaxInFlight));
                 
                 long updateTime = nextUpdateTime.get();
-                if (endTime >= updateTime && nextUpdateTime.compareAndSet(updateTime, endTime + Math.max(minWindowTime, RTT_noload.get() * windowSize))) {
-                    ImmutableSample last = sample.getAndUpdate(ImmutableSample::reset);
-                    if (last.getCandidateRttNanos() < Integer.MAX_VALUE) {
-                        limit.update(last);
-                        strategy.setLimit(limit.getLimit());
+                if (endTime >= updateTime) {
+                    long nextUpdate = endTime + Math.max(minWindowTime, rtt * windowSize);
+                    if (nextUpdateTime.compareAndSet(updateTime, nextUpdate)) {
+                        ImmutableSample last = sample.getAndUpdate(ImmutableSample::reset);
+                        if (last.getCandidateRttNanos() < Integer.MAX_VALUE) {
+                            limit.update(last);
+                            strategy.setLimit(limit.getLimit());
+                        }
                     }
                 }
             }
@@ -180,18 +172,9 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         return limit.getLimit();
     }
     
-    /**
-     * @return Return the minimum observed RTT time or 0 if none found yet
-     */
-    protected long getMinRtt() {
-        long current = RTT_noload.get();
-        return current == Long.MAX_VALUE ? 0 : current;
-    }
-
     @Override
     public String toString() {
-        return "DefaultLimiter [RTT_noload=" + TimeUnit.NANOSECONDS.toMicros(getMinRtt()) / 1000.0
-                + ", RTT_candidate=" + TimeUnit.NANOSECONDS.toMicros(sample.get().getCandidateRttNanos()) / 1000.0
+        return "DefaultLimiter [RTT_candidate=" + TimeUnit.NANOSECONDS.toMicros(sample.get().getCandidateRttNanos()) / 1000.0
                 + ", maxInFlight=" + inFlight 
                 + ", " + limit 
                 + ", " + strategy
