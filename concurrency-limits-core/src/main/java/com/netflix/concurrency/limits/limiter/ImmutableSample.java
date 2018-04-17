@@ -7,8 +7,8 @@ import com.netflix.concurrency.limits.Limit;
  */
 public class ImmutableSample implements Limit.SampleWindow {
     final long minRtt;
-    final long maxInFlight;
-    final long sampleCount;
+    final int maxInFlight;
+    final int sampleCount;
     final boolean didDrop;
     
     public ImmutableSample() {
@@ -22,18 +22,18 @@ public class ImmutableSample implements Limit.SampleWindow {
         return new ImmutableSample();
     }
 
-    public ImmutableSample(long minRtt, long maxInFlight, long sampleCount, boolean didDrop) {
+    public ImmutableSample(long minRtt, int maxInFlight, int sampleCount, boolean didDrop) {
         this.minRtt = minRtt;
         this.maxInFlight = maxInFlight;
         this.sampleCount = sampleCount;
         this.didDrop = didDrop;
     }
     
-    public ImmutableSample addSample(long rtt, long maxInFlight) {
+    public ImmutableSample addSample(long rtt, int maxInFlight) {
         return new ImmutableSample(Math.min(rtt, minRtt), Math.max(maxInFlight, this.maxInFlight), sampleCount+1, didDrop);
     }
     
-    public ImmutableSample addDroppedSample(long maxInFlight) {
+    public ImmutableSample addDroppedSample(int maxInFlight) {
         return new ImmutableSample(minRtt, Math.max(maxInFlight, this.maxInFlight), sampleCount+1, true);
     }
     
@@ -43,12 +43,12 @@ public class ImmutableSample implements Limit.SampleWindow {
     }
 
     @Override
-    public long getMaxInFlight() {
+    public int getMaxInFlight() {
         return maxInFlight;
     }
 
     @Override
-    public long getSampleCount() {
+    public int getSampleCount() {
         return sampleCount;
     }
 

@@ -17,12 +17,12 @@ public interface Limit {
         /**
          * @return Maximum number of inflight observed during the sample window
          */
-        long getMaxInFlight();
+        int getMaxInFlight();
         
         /**
          * @return Number of observed RTTs in the sample window
          */
-        long getSampleCount();
+        int getSampleCount();
         
         /**
          * @return True if there was a timeout
