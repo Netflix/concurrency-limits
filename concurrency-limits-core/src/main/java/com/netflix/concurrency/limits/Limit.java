@@ -38,8 +38,7 @@ public interface Limit {
     /**
      * Update the concurrency limit using a new rtt sample
      * 
-     * @param rtt Minimum RTT sample for the last window
-     * @param maxInFlight Maximum number of inflight requests observed in the sampling window
+     * @param sample Data from the last sampling window such as RTT
      */
     void update(SampleWindow sample);
 }
