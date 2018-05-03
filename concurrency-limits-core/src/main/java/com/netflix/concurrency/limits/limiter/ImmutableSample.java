@@ -1,5 +1,7 @@
 package com.netflix.concurrency.limits.limiter;
 
+import java.util.concurrent.TimeUnit;
+
 import com.netflix.concurrency.limits.Limit;
 
 /**
@@ -55,5 +57,13 @@ public class ImmutableSample implements Limit.SampleWindow {
     @Override
     public boolean didDrop() {
         return didDrop;
+    }
+
+    @Override
+    public String toString() {
+        return "ImmutableSample [minRtt=" + TimeUnit.NANOSECONDS.toMillis(minRtt) 
+                + ", maxInFlight=" + maxInFlight 
+                + ", sampleCount=" + sampleCount
+                + ", didDrop=" + didDrop + "]";
     }
 }
