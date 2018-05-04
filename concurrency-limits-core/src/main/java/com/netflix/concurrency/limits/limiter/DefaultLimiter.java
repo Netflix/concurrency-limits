@@ -79,7 +79,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
          * Minimum window duration for sampling a new minRtt
          */
         public Builder minWindowTime(long minWindowTime, TimeUnit units) {
-            Preconditions.checkArgument(minWindowTime >= units.toMillis(100), "minWindowTime must be >= 100 ms");
+            Preconditions.checkArgument(units.toMillis(minWindowTime) >= 100, "minWindowTime must be >= 100 ms");
             this.minWindowTime = units.toNanos(minWindowTime);
             return this;
         }
@@ -143,14 +143,13 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
 
     @Override
     public Optional<Listener> acquire(final ContextT context) {
-        final long startTime = nanoClock.get();
-        
         // Did we exceed the limit
         final Token token = strategy.tryAcquire(context);
         if (!token.isAcquired()) {
             return Optional.empty();
         }
         
+        final long startTime = nanoClock.get();
         int currentMaxInFlight = inFlight.incrementAndGet();
 
         return Optional.of(new Listener() {
