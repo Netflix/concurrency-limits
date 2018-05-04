@@ -1,8 +1,8 @@
 package com.netflix.concurrency.limits.limiter;
 
-import java.util.concurrent.TimeUnit;
-
 import com.netflix.concurrency.limits.Limit;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * Class used to track immutable samples in an AtomicReference
@@ -14,16 +14,12 @@ public class ImmutableSample implements Limit.SampleWindow {
     final boolean didDrop;
     
     public ImmutableSample() {
-        this.minRtt = Integer.MAX_VALUE;
+        this.minRtt = Long.MAX_VALUE;
         this.maxInFlight = 0;
         this.sampleCount = 0;
         this.didDrop = false;
     }
     
-    public ImmutableSample reset() {
-        return new ImmutableSample();
-    }
-
     public ImmutableSample(long minRtt, int maxInFlight, int sampleCount, boolean didDrop) {
         this.minRtt = minRtt;
         this.maxInFlight = maxInFlight;
@@ -36,7 +32,7 @@ public class ImmutableSample implements Limit.SampleWindow {
     }
     
     public ImmutableSample addDroppedSample(int maxInFlight) {
-        return new ImmutableSample(minRtt, Math.max(maxInFlight, this.maxInFlight), sampleCount+1, true);
+        return new ImmutableSample(minRtt, Math.max(maxInFlight, this.maxInFlight), sampleCount, true);
     }
     
     @Override
@@ -61,9 +57,7 @@ public class ImmutableSample implements Limit.SampleWindow {
 
     @Override
     public String toString() {
-        return "ImmutableSample [minRtt=" + TimeUnit.NANOSECONDS.toMillis(minRtt) 
-                + ", maxInFlight=" + maxInFlight 
-                + ", sampleCount=" + sampleCount
+        return "ImmutableSample [minRtt=" + TimeUnit.NANOSECONDS.toMicros(minRtt) / 1000.0 + ", maxInFlight=" + maxInFlight + ", sampleCount=" + sampleCount
                 + ", didDrop=" + didDrop + "]";
     }
 }

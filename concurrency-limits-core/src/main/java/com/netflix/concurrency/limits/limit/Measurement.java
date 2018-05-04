@@ -1,5 +1,7 @@
 package com.netflix.concurrency.limits.limit;
 
+import java.util.function.Function;
+
 /**
  * Contract for tracking a measurement such as a minimum or average of a sample set
  */
@@ -10,6 +12,8 @@ public interface Measurement {
      * @return True if internal state was updated
      */
     boolean add(long sample);
+    
+    long update(Function<Long, Long> func);
     
     /**
      * @return Return the current value
