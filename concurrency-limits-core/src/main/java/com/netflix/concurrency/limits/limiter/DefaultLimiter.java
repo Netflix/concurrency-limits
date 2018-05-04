@@ -1,18 +1,17 @@
 package com.netflix.concurrency.limits.limiter;
 
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
-
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.Strategy;
 import com.netflix.concurrency.limits.Strategy.Token;
 import com.netflix.concurrency.limits.internal.Preconditions;
 import com.netflix.concurrency.limits.limit.VegasLimit;
+
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * {@link Limiter} that combines a plugable limit algorithm and enforcement strategy to 
@@ -23,42 +22,31 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     private final Supplier<Long> nanoClock = System::nanoTime;
     
     private static final long DEFAULT_MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
-    private static final int DEFAULT_WINDOW_SIZE = 10;
-
+    private static final long DEFAULT_MAX_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
+    
     /**
      * Minimum observed samples to filter out sample windows with not enough significant samples
      */
-    private static final int MIN_WINDOW_SAMPLE_COUNT = 10;
+    private static final int DEFAULT_WINDOW_SIZE = 10;
     
     /**
      * Minimum observed max inflight to filter out sample windows with not enough significant data
      */
-    private static final int MIN_WINDOW_MAX_INFLIGHT = 1;
+    private static final int MIN_WINDOW_MAX_INFLIGHT = 2;
     
     /**
      * End time for the sampling window at which point the limit should be updated
      */
-    private final AtomicLong nextUpdateTime = new AtomicLong();
+    private volatile long nextUpdateTime = 0;
 
-    /**
-     * Algorithm used to determine the new limit based on the current limit and minimum
-     * measured RTT in the sample window
-     */
     private final Limit limit;
 
-    /**
-     * Strategy for enforcing the limit
-     */
     private final Strategy<ContextT> strategy;
     
-    /**
-     * Minimum window size in nanonseconds for sampling a new minRtt
-     */
     private final long minWindowTime;
     
-    /**
-     * Sampling window size in multiple of the measured minRtt
-     */
+    private final long maxWindowTime;
+    
     private final int windowSize;
     
     /**
@@ -73,27 +61,50 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
 
     public static class Builder {
         private Limit limit = VegasLimit.newDefault();
+        private long maxWindowTime = DEFAULT_MAX_WINDOW_TIME;
         private long minWindowTime = DEFAULT_MIN_WINDOW_TIME;
         private int windowSize = DEFAULT_WINDOW_SIZE;
         
+        /**
+         * Algorithm used to determine the new limit based on the current limit and minimum
+         * measured RTT in the sample window
+         */
         public Builder limit(Limit limit) {
             Preconditions.checkArgument(limit != null, "Algorithm may not be null");
             this.limit = limit;
             return this;
         }
         
+        /**
+         * Minimum window duration for sampling a new minRtt
+         */
         public Builder minWindowTime(long minWindowTime, TimeUnit units) {
             Preconditions.checkArgument(minWindowTime >= units.toMillis(100), "minWindowTime must be >= 100 ms");
             this.minWindowTime = units.toNanos(minWindowTime);
             return this;
         }
         
+        /**
+         * Maximum window duration for sampling a new minRtt
+         */
+        public Builder maxWindowTime(long maxWindowTime, TimeUnit units) {
+            Preconditions.checkArgument(maxWindowTime >= units.toMillis(100), "minWindowTime must be >= 100 ms");
+            this.maxWindowTime = units.toNanos(maxWindowTime);
+            return this;
+        }
+        
+        /**
+         * Minimum sampling window size for finding a new minimum rtt
+         */
         public Builder windowSize(int windowSize) {
             Preconditions.checkArgument(windowSize >= 10, "Window size must be >= 10");
             this.windowSize = windowSize;
             return this;
         }
         
+        /**
+         * @param strategy Strategy for enforcing the limit
+         */
         public <ContextT> DefaultLimiter<ContextT> build(Strategy<ContextT> strategy) {
             Preconditions.checkArgument(strategy != null, "Strategy may not be null");
             return new DefaultLimiter<ContextT>(this, strategy);
@@ -117,12 +128,14 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         this.strategy = strategy;
         this.windowSize = DEFAULT_WINDOW_SIZE;
         this.minWindowTime = DEFAULT_MIN_WINDOW_TIME;
+        this.maxWindowTime = DEFAULT_MAX_WINDOW_TIME;
         strategy.setLimit(limit.getLimit());
     }
     
     private DefaultLimiter(Builder builder, Strategy<ContextT> strategy) {
         this.limit = builder.limit;
         this.minWindowTime = builder.minWindowTime;
+        this.maxWindowTime = builder.maxWindowTime;
         this.windowSize = builder.windowSize;
         this.strategy = strategy;
         strategy.setLimit(limit.getLimit());
@@ -151,16 +164,17 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                 
                 sample.getAndUpdate(current -> current.addSample(rtt, currentMaxInFlight));
                 
-                long updateTime = nextUpdateTime.get();
-                if (endTime >= updateTime) {
-                    long nextUpdate = endTime + Math.max(minWindowTime, rtt * windowSize);
-                    if (nextUpdateTime.compareAndSet(updateTime, nextUpdate)) {
-                        ImmutableSample last = sample.getAndUpdate(ImmutableSample::reset);
-                        if (last.getCandidateRttNanos() < Integer.MAX_VALUE
-                            && last.getSampleCount() > MIN_WINDOW_SAMPLE_COUNT
-                            && last.getMaxInFlight() > MIN_WINDOW_MAX_INFLIGHT) {
-                            limit.update(last);
-                            strategy.setLimit(limit.getLimit());
+                if (endTime >= nextUpdateTime) {
+                    synchronized (this) {
+                        // Double check inside the lock
+                        if (endTime >= nextUpdateTime) {
+                            ImmutableSample last = sample.get();
+                            if (isSampleReady(last)) {
+                                nextUpdateTime = endTime + Math.min(Math.max(last.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
+                                sample.set(new ImmutableSample());
+                                limit.update(last);
+                                strategy.setLimit(limit.getLimit());
+                            }
                         }
                     }
                 }
@@ -179,6 +193,12 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                 sample.getAndUpdate(current -> current.addDroppedSample(currentMaxInFlight));
             }
         });
+    }
+    
+    private boolean isSampleReady(ImmutableSample sample) {
+        return sample.getCandidateRttNanos() < Long.MAX_VALUE
+                && sample.getSampleCount() > windowSize
+                && sample.getMaxInFlight() > MIN_WINDOW_MAX_INFLIGHT;
     }
     
     protected int getLimit() {

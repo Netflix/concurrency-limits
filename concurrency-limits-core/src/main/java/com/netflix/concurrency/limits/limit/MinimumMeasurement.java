@@ -1,5 +1,7 @@
 package com.netflix.concurrency.limits.limit;
 
+import java.util.function.Function;
+
 public class MinimumMeasurement implements Measurement {
     private long value = 0;
     
@@ -22,4 +24,9 @@ public class MinimumMeasurement implements Measurement {
         value = 0;
     }
 
+    @Override
+    public long update(Function<Long, Long> func) {
+        value = func.apply(value);
+        return value;
+    }
 }
