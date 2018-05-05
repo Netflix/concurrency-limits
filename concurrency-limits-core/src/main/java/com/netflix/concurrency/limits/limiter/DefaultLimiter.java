@@ -1,17 +1,17 @@
 package com.netflix.concurrency.limits.limiter;
 
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.Strategy;
 import com.netflix.concurrency.limits.Strategy.Token;
 import com.netflix.concurrency.limits.internal.Preconditions;
 import com.netflix.concurrency.limits.limit.VegasLimit;
-
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 /**
  * {@link Limiter} that combines a plugable limit algorithm and enforcement strategy to 
@@ -28,11 +28,6 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
      * Minimum observed samples to filter out sample windows with not enough significant samples
      */
     private static final int DEFAULT_WINDOW_SIZE = 10;
-    
-    /**
-     * Minimum observed max inflight to filter out sample windows with not enough significant data
-     */
-    private static final int MIN_WINDOW_MAX_INFLIGHT = 2;
     
     /**
      * End time for the sampling window at which point the limit should be updated
@@ -52,13 +47,15 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     /**
      * Object tracking stats for the current sample window
      */
-    private final AtomicReference<ImmutableSample> sample = new AtomicReference<>(new ImmutableSample());
+    private final AtomicReference<ImmutableSampleWindow> sample = new AtomicReference<>(new ImmutableSampleWindow());
     
     /**
      * Counter tracking the current number of inflight requests
      */
     private final AtomicInteger inFlight = new AtomicInteger();
 
+    private final Object lock = new Object();
+    
     public static class Builder {
         private Limit limit = VegasLimit.newDefault();
         private long maxWindowTime = DEFAULT_MAX_WINDOW_TIME;
@@ -161,26 +158,29 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                 final long endTime = nanoClock.get();
                 final long rtt = endTime - startTime;
                 
-                sample.getAndUpdate(current -> current.addSample(rtt, currentMaxInFlight));
-                
-                if (endTime >= nextUpdateTime) {
-                    synchronized (this) {
-                        // Double check inside the lock
-                        if (endTime >= nextUpdateTime) {
-                            ImmutableSample last = sample.get();
-                            if (isSampleReady(last)) {
-                                nextUpdateTime = endTime + Math.min(Math.max(last.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
-                                sample.set(new ImmutableSample());
-                                limit.update(last);
+                do {
+                    ImmutableSampleWindow current = sample.get();
+                    if (endTime > nextUpdateTime && isWindowReady(current)) {
+                        synchronized (lock) {
+                            if (sample.compareAndSet(current, new ImmutableSampleWindow())) {
+                                current = current.addSample(rtt, currentMaxInFlight);
+                                
+                                nextUpdateTime = endTime + Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
+                                limit.update(current);
                                 strategy.setLimit(limit.getLimit());
+                                return;
                             }
                         }
+                    } else if (sample.compareAndSet(current, current.addSample(rtt, currentMaxInFlight))) {
+                        return;
                     }
-                }
+                    // Got preempted so try again
+                } while(true);
             }
             
             @Override
             public void onIgnore() {
+                inFlight.decrementAndGet();
                 token.release();
             }
 
@@ -194,10 +194,8 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         });
     }
     
-    private boolean isSampleReady(ImmutableSample sample) {
-        return sample.getCandidateRttNanos() < Long.MAX_VALUE
-                && sample.getSampleCount() > windowSize
-                && sample.getMaxInFlight() > MIN_WINDOW_MAX_INFLIGHT;
+    private boolean isWindowReady(ImmutableSampleWindow sample) {
+        return sample.getCandidateRttNanos() < Long.MAX_VALUE && sample.getSampleCount() > windowSize;
     }
     
     protected int getLimit() {

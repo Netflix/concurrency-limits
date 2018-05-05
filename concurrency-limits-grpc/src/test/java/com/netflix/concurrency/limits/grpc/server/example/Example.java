@@ -61,6 +61,7 @@ public class Example {
     
     public static void main(String[] args) throws IOException {
         GradientLimit limit = GradientLimit.newBuilder()
+                .probeNoLoadRtt(30, 60)
                 .build();
         
         // Create a server
@@ -90,25 +91,26 @@ public class Example {
                 .usePlaintext(true)
                 .build();
 
-        while (true) {
-            Uninterruptibles.sleepUninterruptibly(6, TimeUnit.MILLISECONDS);
-            ClientCalls.asyncUnaryCall(channel.newCall(METHOD_DESCRIPTOR, CallOptions.DEFAULT.withWaitForReady()), "request",
-                new StreamObserver<String>() {
-                    @Override
-                    public void onNext(String value) {
-                    }
+        DriverBuilder.newBuilder()
+            .exponential(5, 5, TimeUnit.SECONDS)
+            .run(1, TimeUnit.HOURS, () -> {
+                ClientCalls.asyncUnaryCall(channel.newCall(METHOD_DESCRIPTOR, CallOptions.DEFAULT.withWaitForReady()), "request",
+                        new StreamObserver<String>() {
+                            @Override
+                            public void onNext(String value) {
+                            }
 
-                    @Override
-                    public void onError(Throwable t) {
-                        dropCount.incrementAndGet();
-                    }
+                            @Override
+                            public void onError(Throwable t) {
+                                dropCount.incrementAndGet();
+                            }
 
-                    @Override
-                    public void onCompleted() {
-                        successCount.incrementAndGet();
-                    }
-                
+                            @Override
+                            public void onCompleted() {
+                                successCount.incrementAndGet();
+                            }
+                        
+                    });
             });
-        }
     }
 }
