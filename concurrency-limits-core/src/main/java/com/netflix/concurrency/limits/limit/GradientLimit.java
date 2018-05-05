@@ -1,13 +1,5 @@
 package com.netflix.concurrency.limits.limit;
 
-import com.netflix.concurrency.limits.Limit;
-import com.netflix.concurrency.limits.MetricIds;
-import com.netflix.concurrency.limits.MetricRegistry;
-import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
-import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
-import com.netflix.concurrency.limits.internal.Preconditions;
-import com.netflix.concurrency.limits.limit.functions.SquareRootFunction;
-
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -15,6 +7,14 @@ import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.netflix.concurrency.limits.Limit;
+import com.netflix.concurrency.limits.MetricIds;
+import com.netflix.concurrency.limits.MetricRegistry;
+import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
+import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
+import com.netflix.concurrency.limits.internal.Preconditions;
+import com.netflix.concurrency.limits.limit.functions.SquareRootFunction;
 
 /**
  * Concurrency limit algorithm that adjust the limits based on the gradient of change in the 
@@ -215,25 +215,24 @@ public final class GradientLimit implements Limit {
             return;
         }
 
+        final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
+        queueSizeSampleListener.addSample(queueSize);
+
         // Reset or probe for a new RTT and a new estimatedLimit.  It's necessary to cut the limit
         // in half to avoid having the limit drift upwards when the RTT is probed during heavy load.
         // To avoid decreasing the limit too much we don't allow it to go lower than the queueSize.
         if (resetRttCounter != DISABLED && resetRttCounter-- <= 0) {
             resetRttCounter = this.resetRttCounterSupplier.get();
-            long currrentQueueSize = this.queueSize.apply((int)this.estimatedLimit);
-            estimatedLimit = currrentQueueSize;
-            long nextRttNoLoad = rttNoLoad.update(value -> value * 2);
-            LOG.debug("Probe MinRTT {}", TimeUnit.NANOSECONDS.toMicros(nextRttNoLoad)/1000.0);
+            
+            estimatedLimit = Math.max(estimatedLimit - queueSize, queueSize);
+            
+            long nextRttNoLoad = rttNoLoad.update(current -> Math.min(current * 2, Math.max(current, rtt)));
+            LOG.debug("Probe MinRTT {} limit={}", TimeUnit.NANOSECONDS.toMicros(nextRttNoLoad)/1000.0, getLimit());
             return;
+        } else if (rttNoLoad.add(rtt)) {
+            LOG.debug("New MinRTT {} limit={}", TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0, getLimit());
         }
         
-        final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
-        queueSizeSampleListener.addSample(queueSize);
-        
-        if (rttNoLoad.add(rtt)) {
-            LOG.debug("New MinRTT {}", TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0);
-            return;
-        }
         minRttSampleListener.addSample(rttNoLoad.get());
         
         final double gradient = Math.max(0.5, Math.min(1.0, rttTolerance * rttNoLoad.get() / rtt));
