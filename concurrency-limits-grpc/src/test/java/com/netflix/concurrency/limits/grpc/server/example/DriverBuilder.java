@@ -67,7 +67,6 @@ public class DriverBuilder {
         long endTime = System.nanoTime() + units.toNanos(runtime);
         while (true) {
             for (DriverBuilder.Segment segment : segments) {
-                System.out.println(segment.name());
                 long segmentEndTime = System.nanoTime() + segment.duration();
                 while (true) {
                     long currentTime = System.nanoTime();

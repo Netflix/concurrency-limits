@@ -3,7 +3,6 @@ package com.netflix.concurrency.limits.limit;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,12 +37,8 @@ public final class GradientLimit implements Limit {
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private double rttTolerance = 1.0;
         
-        private Supplier<Integer> resetRttCounterSupplier;
+        private int probeMultiplier = 30;
         
-        private Builder() {
-            probeNoLoadRtt(500, 1000);
-        }
-
         /**
          * Minimum threshold for accepting a new rtt sample.  Any RTT lower than this threshold
          * will be discarded.
@@ -134,15 +129,13 @@ public final class GradientLimit implements Limit {
         }
         
         /**
-         * Probe for a new no_load RTT randomly in the range of [minUpdate, maxUpdates]
-         * update intervals.  Default is [1000, 2000].
-         * @param minUpdates
-         * @param maxUpdates
+         * The limiter will probe for a new noload RTT every probeMultiplier * current limit
+         * iterations.  Default value is 30.  
+         * @param probeMultiplier 
          * @return Chinable builder
          */
-        public Builder probeNoLoadRtt(int minUpdates, int maxUpdates) {
-            Preconditions.checkArgument(minUpdates < maxUpdates, "minUpdates must be < maxUpdates");
-            resetRttCounterSupplier = () -> ThreadLocalRandom.current().nextInt(minUpdates, maxUpdates);
+        public Builder probeMultiplier(int probeMultiplier) {
+            this.probeMultiplier = probeMultiplier;
             return this;
         }
         
@@ -185,7 +178,7 @@ public final class GradientLimit implements Limit {
 
     private final SampleListener queueSizeSampleListener;
     
-    private final Supplier<Integer> resetRttCounterSupplier;
+    private final int probeMultiplier;
     
     private int resetRttCounter;
     
@@ -196,12 +189,17 @@ public final class GradientLimit implements Limit {
         this.smoothing = builder.smoothing;
         this.minRttThreshold = builder.minRttThreshold;
         this.rttTolerance = builder.rttTolerance;
-        this.resetRttCounterSupplier = builder.resetRttCounterSupplier;
-        this.resetRttCounter = resetRttCounterSupplier.get();
+        this.probeMultiplier = builder.probeMultiplier;
+        this.resetRttCounter = nextProbeCountdown();
         
         this.minRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
         this.minWindowRttSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_MIN_RTT_NAME);
         this.queueSizeSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_QUEUE_SIZE_NAME);
+    }
+
+    private int nextProbeCountdown() {
+        int max = (int) (probeMultiplier * estimatedLimit);
+        return ThreadLocalRandom.current().nextInt(max / 2, max);
     }
 
     @Override
@@ -222,7 +220,7 @@ public final class GradientLimit implements Limit {
         // in half to avoid having the limit drift upwards when the RTT is probed during heavy load.
         // To avoid decreasing the limit too much we don't allow it to go lower than the queueSize.
         if (resetRttCounter != DISABLED && resetRttCounter-- <= 0) {
-            resetRttCounter = this.resetRttCounterSupplier.get();
+            resetRttCounter = nextProbeCountdown();
             
             estimatedLimit = Math.max(estimatedLimit - queueSize, queueSize);
             
