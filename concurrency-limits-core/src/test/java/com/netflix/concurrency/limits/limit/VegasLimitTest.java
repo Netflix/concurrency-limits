@@ -29,27 +29,27 @@ public class VegasLimitTest {
     public void increaseLimit() {
         VegasLimit limit = create();
         limit.update(new ImmutableSampleWindow().addSample(TimeUnit.MILLISECONDS.toNanos(10), 10));
-        Assert.assertEquals(11, limit.getLimit());
+        Assert.assertEquals(10, limit.getLimit());
         limit.update(new ImmutableSampleWindow().addSample(TimeUnit.MILLISECONDS.toNanos(10), 11));
-        Assert.assertEquals(12, limit.getLimit());
+        Assert.assertEquals(16, limit.getLimit());
     }
     
     @Test
     public void decreaseLimit() {
         VegasLimit limit = create();
         limit.update(new ImmutableSampleWindow().addSample(TimeUnit.MILLISECONDS.toNanos(10), 10));
-        Assert.assertEquals(11, limit.getLimit());
-        limit.update(new ImmutableSampleWindow().addSample(TimeUnit.MILLISECONDS.toNanos(50), 11));
         Assert.assertEquals(10, limit.getLimit());
+        limit.update(new ImmutableSampleWindow().addSample(TimeUnit.MILLISECONDS.toNanos(50), 11));
+        Assert.assertEquals(9, limit.getLimit());
     }
     
     @Test
     public void noChangeIfWithinThresholds() {
         VegasLimit limit = create();
         limit.update(new ImmutableSampleWindow().addSample(TimeUnit.MILLISECONDS.toNanos(10), 10));
-        Assert.assertEquals(11, limit.getLimit());
+        Assert.assertEquals(10, limit.getLimit());
         limit.update(new ImmutableSampleWindow().addSample(TimeUnit.MILLISECONDS.toNanos(14), 14));
-        Assert.assertEquals(11, limit.getLimit());
+        Assert.assertEquals(10, limit.getLimit());
     }
     
     @Test
@@ -84,7 +84,7 @@ public class VegasLimitTest {
         
         // Pick up first min-rtt
         limit.update(new ImmutableSampleWindow().addSample(TimeUnit.MILLISECONDS.toNanos(10), 100));
-        Assert.assertEquals(101, limit.getLimit());
+        Assert.assertEquals(100, limit.getLimit());
         
         // First decrease
         limit.update(new ImmutableSampleWindow().addSample(TimeUnit.MILLISECONDS.toNanos(20), 100));

@@ -4,18 +4,17 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 /**
- * Specialized utility function used by limiters to calculate thredsholds using square root
- * of the current limit.  Here we pre-compute the square root of numbers up to 1000 because
- * the square root operation can be slow.
+ * Function used by limiters to calculate thredsholds using log10 of the current limit.  
+ * Here we pre-compute the log10 of numbers up to 1000 as an optimization.
  */
-public final class SquareRootFunction implements Function<Integer, Integer> {
+public final class Log10RootFunction implements Function<Integer, Integer> {
     static final int[] lookup = new int[1000];
     
     static {
-        IntStream.range(0, 1000).forEach(i -> lookup[i] = Math.max(1, (int)Math.sqrt(i)));
+        IntStream.range(0, 1000).forEach(i -> lookup[i] = Math.max(1, (int)Math.log10(i)));
     }
     
-    private static final SquareRootFunction INSTANCE = new SquareRootFunction();
+    private static final Log10RootFunction INSTANCE = new Log10RootFunction();
     
     /**
      * Create an instance of a function that returns : baseline + sqrt(limit)

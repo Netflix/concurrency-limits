@@ -9,7 +9,7 @@ public class SquareRootFunctionTest {
     @Test
     public void confirm0Index() {
         Function<Integer, Integer> func = SquareRootFunction.create(4);
-        Assert.assertEquals(4, func.apply(0).intValue());
+        Assert.assertEquals(5, func.apply(0).intValue());
     }
     
     @Test
