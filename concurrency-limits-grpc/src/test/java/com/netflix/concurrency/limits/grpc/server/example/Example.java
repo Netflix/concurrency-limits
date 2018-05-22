@@ -76,7 +76,7 @@ public class Example {
     }
     
     public static void main(String[] args) throws IOException {
-        Limit limit = VegasLimit.newBuilder()
+        Limit limit = GradientLimit.newBuilder()
                 .build();
         
         // Create a server
