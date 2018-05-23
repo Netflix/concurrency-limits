@@ -158,24 +158,23 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                 final long endTime = nanoClock.get();
                 final long rtt = endTime - startTime;
                 
-                do {
-                    ImmutableSampleWindow current = sample.get();
-                    if (endTime > nextUpdateTime && isWindowReady(current)) {
-                        synchronized (lock) {
-                            if (sample.compareAndSet(current, new ImmutableSampleWindow())) {
-                                current = current.addSample(rtt, currentMaxInFlight);
+                sample.updateAndGet(window -> window.addSample(rtt, currentMaxInFlight));
+                
+                if (endTime > nextUpdateTime) {
+                    synchronized (lock) {
+                        // Double check under the lock
+                        if (endTime > nextUpdateTime) {
+                            ImmutableSampleWindow current = sample.get();
+                            if (isWindowReady(current)) {
+                                sample.set(new ImmutableSampleWindow());
                                 
                                 nextUpdateTime = endTime + Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
                                 limit.update(current);
                                 strategy.setLimit(limit.getLimit());
-                                return;
                             }
                         }
-                    } else if (sample.compareAndSet(current, current.addSample(rtt, currentMaxInFlight))) {
-                        return;
                     }
-                    // Got preempted so try again
-                } while(true);
+                }
             }
             
             @Override

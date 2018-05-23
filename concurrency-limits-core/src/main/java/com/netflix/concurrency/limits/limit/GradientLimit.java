@@ -130,7 +130,7 @@ public final class GradientLimit implements Limit {
         
         /**
          * The limiter will probe for a new noload RTT every probeMultiplier * current limit
-         * iterations.  Default value is 30.  
+         * iterations.  Default value is 30. Set to -1 to disable 
          * @param probeMultiplier 
          * @return Chinable builder
          */
@@ -198,6 +198,9 @@ public final class GradientLimit implements Limit {
     }
 
     private int nextProbeCountdown() {
+        if (probeMultiplier == DISABLED) {
+            return DISABLED;
+        }
         int max = (int) (probeMultiplier * estimatedLimit);
         return ThreadLocalRandom.current().nextInt(max / 2, max);
     }
@@ -219,13 +222,12 @@ public final class GradientLimit implements Limit {
         // Reset or probe for a new RTT and a new estimatedLimit.  It's necessary to cut the limit
         // in half to avoid having the limit drift upwards when the RTT is probed during heavy load.
         // To avoid decreasing the limit too much we don't allow it to go lower than the queueSize.
-        if (resetRttCounter != DISABLED && resetRttCounter-- <= 0) {
+        if (probeMultiplier != DISABLED && resetRttCounter-- <= 0) {
             resetRttCounter = nextProbeCountdown();
             
             estimatedLimit = Math.max(estimatedLimit - queueSize, queueSize);
-            
-            long nextRttNoLoad = rttNoLoad.update(current -> Math.min(current * 2, Math.max(current, rtt)));
-            LOG.debug("Probe MinRTT {} limit={}", TimeUnit.NANOSECONDS.toMicros(nextRttNoLoad)/1000.0, getLimit());
+            LOG.debug("Probe MinRTT limit={}", getLimit());
+            rttNoLoad.reset();
             return;
         } else if (rttNoLoad.add(rtt)) {
             LOG.debug("New MinRTT {} limit={}", TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0, getLimit());
