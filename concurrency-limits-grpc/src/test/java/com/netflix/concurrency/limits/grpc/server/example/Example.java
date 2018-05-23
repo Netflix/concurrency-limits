@@ -18,7 +18,6 @@ import com.netflix.concurrency.limits.grpc.StringMarshaller;
 import com.netflix.concurrency.limits.grpc.server.ConcurrencyLimitServerInterceptor;
 import com.netflix.concurrency.limits.grpc.server.GrpcServerLimiterBuilder;
 import com.netflix.concurrency.limits.limit.GradientLimit;
-import com.netflix.concurrency.limits.limit.VegasLimit;
 
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -46,20 +45,26 @@ public class Example {
 
     
     public static ServerCallHandler<String, String> createServerHandler(int concurrency) {
-        final ExponentialDistribution distribution = new ExponentialDistribution(10.0);
-        final Supplier<Integer> latency = () -> 100 + (int)distribution.sample();
+        final ExponentialDistribution distribution = new ExponentialDistribution(20.0);
+        final Supplier<Integer> latency = () -> 1 + (int)distribution.sample();
         
         List<Semaphore> semaphores = Arrays.asList(
-                new Semaphore(concurrency, true),
-                new Semaphore(concurrency*2, true),
-                new Semaphore(concurrency*4, true),
-                new Semaphore(concurrency*8, true));
+                new Semaphore(       concurrency,      true),
+                new Semaphore(       concurrency,      true),
+                new Semaphore(       concurrency,      true),
+                new Semaphore(       concurrency,      true),
+                new Semaphore(1, true)
+                );
+        
+        AtomicInteger position = new AtomicInteger(0);
+        Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> {
+            position.updateAndGet(current -> (current + 1) % semaphores.size());
+        }, 10, 10, TimeUnit.SECONDS);
         
         return ServerCalls.asyncUnaryCall(new UnaryMethod<String, String>() {
-            AtomicInteger counter = new AtomicInteger();
             @Override
             public void invoke(String req, StreamObserver<String> observer) {
-                Semaphore sem = semaphores.get((counter.incrementAndGet() / 2000) % semaphores.size());
+                Semaphore sem = semaphores.get(position.get());
                 try {
                     sem.acquire();
                     Uninterruptibles.sleepUninterruptibly(latency.get(), TimeUnit.MILLISECONDS);
@@ -86,7 +91,7 @@ public class Example {
                     .build(), new ConcurrencyLimitServerInterceptor(new GrpcServerLimiterBuilder()
                             .limiter(builder -> builder
                                     .limit(limit)
-                                    .minWindowTime(200, TimeUnit.MILLISECONDS)
+                                    .minWindowTime(1, TimeUnit.SECONDS)
                                     )
                             .build())
                 ))
@@ -96,9 +101,10 @@ public class Example {
         // Report progress
         AtomicInteger dropCount = new AtomicInteger(0);
         AtomicInteger successCount = new AtomicInteger(0);
-        
+        AtomicInteger counter = new AtomicInteger(0);
         Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> {
-            System.out.println(MessageFormat.format("{0}, {1}, {2}", limit.getLimit(), successCount.getAndSet(0), dropCount.getAndSet(0)));
+            System.out.println(MessageFormat.format("{0,number,#}, {1}, {2}, {3}", counter.incrementAndGet(), 
+                    limit.getLimit(), successCount.getAndSet(0), dropCount.getAndSet(0)));
         }, 1, 1, TimeUnit.SECONDS);
         
         // Create a client
@@ -107,7 +113,8 @@ public class Example {
                 .build();
 
         DriverBuilder.newBuilder()
-            .exponential(3, 2, TimeUnit.SECONDS)
+            .exponential(3, 90, TimeUnit.SECONDS)
+            .exponential(1, 5, TimeUnit.SECONDS)
             .run(1, TimeUnit.HOURS, () -> {
                 ClientCalls.asyncUnaryCall(channel.newCall(METHOD_DESCRIPTOR, CallOptions.DEFAULT.withWaitForReady()), "request",
                         new StreamObserver<String>() {

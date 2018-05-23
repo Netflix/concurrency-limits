@@ -3,30 +3,30 @@ package com.netflix.concurrency.limits.limit;
 import java.util.function.Function;
 
 public class MinimumMeasurement implements Measurement {
-    private long value = 0;
+    private Double value = 0.0;
     
     @Override
-    public boolean add(long sample) {
-        if (value == 0 || sample < value) {
-            value = sample;
+    public boolean add(Number sample) {
+        if (value == 0.0 || sample.doubleValue() < value) {
+            value = sample.doubleValue();
             return true;
         }
         return false;
     }
 
     @Override
-    public long get() {
+    public Number get() {
         return value;
     }
 
     @Override
     public void reset() {
-        value = 0;
+        value = 0.0;
     }
 
     @Override
-    public long update(Function<Long, Long> func) {
-        value = func.apply(value);
+    public Number update(Function<Number, Number> func) {
+        value = func.apply(value).doubleValue();
         return value;
     }
 }

@@ -11,14 +11,14 @@ public interface Measurement {
      * @param sample
      * @return True if internal state was updated
      */
-    boolean add(long sample);
+    boolean add(Number sample);
     
-    long update(Function<Long, Long> func);
+    Number update(Function<Number, Number> func);
     
     /**
      * @return Return the current value
      */
-    long get();
+    Number get();
     
     /**
      * Reset the internal state as if no samples were ever added

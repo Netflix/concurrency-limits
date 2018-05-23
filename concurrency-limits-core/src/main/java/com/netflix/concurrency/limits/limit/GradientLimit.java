@@ -28,16 +28,16 @@ public final class GradientLimit implements Limit {
     private static final Logger LOG = LoggerFactory.getLogger(GradientLimit.class);
     
     public static class Builder {
-        private int initialLimit = 100;
+        private int initialLimit = 50;
+        private int minLimit = 1;
         private int maxConcurrency = 1000;
         private long minRttThreshold = TimeUnit.MICROSECONDS.toNanos(1);
         
-        private double smoothing = 0.2;
+        private double smoothing = 0.1;
         private Function<Integer, Integer> queueSize = SquareRootFunction.create(4);
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private double rttTolerance = 1.0;
-        
-        private int probeMultiplier = 30;
+        private int probeMultiplier = 10;
         
         /**
          * Minimum threshold for accepting a new rtt sample.  Any RTT lower than this threshold
@@ -59,6 +59,18 @@ public final class GradientLimit implements Limit {
          */
         public Builder initialLimit(int initialLimit) {
             this.initialLimit = initialLimit;
+            return this;
+        }
+        
+        /**
+         * Minimum concurrency limit allowed.  The minimum helps prevent the algorithm from adjust the limit
+         * too far down.  Note that this limit is not desirable when use as backpressure for batch apps.
+         * 
+         * @param minLimit
+         * @return Chainable builder
+         */
+        public Builder minLimit(int minLimit) {
+            this.minLimit = minLimit;
             return this;
         }
         
@@ -132,13 +144,13 @@ public final class GradientLimit implements Limit {
          * The limiter will probe for a new noload RTT every probeMultiplier * current limit
          * iterations.  Default value is 30. Set to -1 to disable 
          * @param probeMultiplier 
-         * @return Chinable builder
+         * @return Chainable builder
          */
         public Builder probeMultiplier(int probeMultiplier) {
             this.probeMultiplier = probeMultiplier;
             return this;
         }
-        
+
         public GradientLimit build() {
             return new GradientLimit(this);
         }
@@ -157,12 +169,14 @@ public final class GradientLimit implements Limit {
      */
     private volatile double estimatedLimit;
     
-    private Measurement rttNoLoad = new MinimumMeasurement();
+    private final Measurement rttNoLoad;
     
     /**
      * Maximum allowed limit providing an upper bound failsafe
      */
     private final int maxLimit; 
+    
+    private final int minLimit;
     
     private final Function<Integer, Integer> queueSize;
     
@@ -185,12 +199,14 @@ public final class GradientLimit implements Limit {
     private GradientLimit(Builder builder) {
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
+        this.minLimit = builder.minLimit;
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
         this.minRttThreshold = builder.minRttThreshold;
         this.rttTolerance = builder.rttTolerance;
         this.probeMultiplier = builder.probeMultiplier;
         this.resetRttCounter = nextProbeCountdown();
+        this.rttNoLoad = new SmoothingMinimumMeasurement(builder.smoothing);
         
         this.minRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
         this.minWindowRttSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_MIN_RTT_NAME);
@@ -207,27 +223,27 @@ public final class GradientLimit implements Limit {
 
     @Override
     public synchronized void update(SampleWindow sample) {
-        final long rtt = sample.getCandidateRttNanos();
-        minWindowRttSampleListener.addSample(rtt);
+        Preconditions.checkArgument(sample.getCandidateRttNanos() > 0, "rtt must be >0 but got " + sample.getCandidateRttNanos());
         
-        Preconditions.checkArgument(rtt > 0, "rtt must be >0 but got " + rtt);
-        
-        if (rtt < minRttThreshold) {
+        if (sample.getCandidateRttNanos() < minRttThreshold) {
             return;
         }
+        
+        final long rtt = sample.getCandidateRttNanos(); // rttWindowNoLoad.get().longValue();
+        minWindowRttSampleListener.addSample(rtt);
 
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
         queueSizeSampleListener.addSample(queueSize);
 
-        // Reset or probe for a new RTT and a new estimatedLimit.  It's necessary to cut the limit
+        // Reset or probe for a new noload RTT and a new estimatedLimit.  It's necessary to cut the limit
         // in half to avoid having the limit drift upwards when the RTT is probed during heavy load.
         // To avoid decreasing the limit too much we don't allow it to go lower than the queueSize.
         if (probeMultiplier != DISABLED && resetRttCounter-- <= 0) {
             resetRttCounter = nextProbeCountdown();
             
-            estimatedLimit = Math.max(estimatedLimit - queueSize, queueSize);
+            estimatedLimit = Math.max(minLimit, Math.max(estimatedLimit - queueSize, queueSize));
+            rttNoLoad.update(current -> rtt);
             LOG.debug("Probe MinRTT limit={}", getLimit());
-            rttNoLoad.reset();
             return;
         } else if (rttNoLoad.add(rtt)) {
             LOG.debug("New MinRTT {} limit={}", TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0, getLimit());
@@ -235,25 +251,35 @@ public final class GradientLimit implements Limit {
         
         minRttSampleListener.addSample(rttNoLoad.get());
         
-        final double gradient = Math.max(0.5, Math.min(1.0, rttTolerance * rttNoLoad.get() / rtt));
+        final double gradient;
+        // rtt is still higher than rtt_noload because of smoothing rtt noload updates
+        // set to 1.0 to indicate no queueing
+        if (rttNoLoad.get().doubleValue() > rtt) {
+            gradient = 1.0;
+        } else {
+            gradient = Math.max(0.5, rttTolerance * rttNoLoad.get().doubleValue() / rtt);
+        }
+        
         double newLimit;
+        // Reduce the limit aggressively if there was a drop
         if (sample.didDrop()) {
             newLimit = estimatedLimit/2;
+        // Don't grow the limit because we are app limited
         } else if ((estimatedLimit - sample.getMaxInFlight()) > queueSize) {
             return;
+        // Normal update to the limit
         } else {
             newLimit = estimatedLimit * gradient + queueSize;
         }
         
         newLimit = Math.max(queueSize, Math.min(maxLimit, newLimit));
-        if (newLimit < estimatedLimit) {
-            newLimit = estimatedLimit * (1-smoothing) + smoothing*(newLimit);
-        }
+        newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
+        
         if ((int)newLimit != (int)estimatedLimit) {
             if (LOG.isDebugEnabled()) {
                 LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={} resetCounter={}", 
                         (int)newLimit, 
-                        TimeUnit.NANOSECONDS.toMicros(rttNoLoad.get())/1000.0, 
+                        TimeUnit.NANOSECONDS.toMicros(rttNoLoad.get().longValue())/1000.0, 
                         TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0,
                         queueSize,
                         gradient,
@@ -269,13 +295,13 @@ public final class GradientLimit implements Limit {
     }
 
     public long getRttNoLoad() {
-        return rttNoLoad.get();
+        return rttNoLoad.get().longValue();
     }
     
     @Override
     public String toString() {
         return "GradientLimit [limit=" + (int)estimatedLimit + 
-                ", rtt_noload=" + TimeUnit.MICROSECONDS.toMillis(rttNoLoad.get()) / 1000.0+
+                ", rtt_noload=" + TimeUnit.MICROSECONDS.toMillis(rttNoLoad.get().longValue()) / 1000.0+
                 " ms]";
     }
 }
