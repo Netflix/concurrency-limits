@@ -73,7 +73,7 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
     }
     
     /**
-     * @deprecated Use {@link ConcurrencyLimitServerInterceptor#newBuidler(Limiter)}
+     * @deprecated Use {@link ConcurrencyLimitServerInterceptor#newBuilder(Limiter)}
      * @param grpcLimiter
      */
     @Deprecated
