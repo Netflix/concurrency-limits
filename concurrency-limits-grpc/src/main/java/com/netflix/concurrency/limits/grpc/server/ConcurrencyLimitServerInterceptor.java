@@ -68,7 +68,7 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
         }
     }
     
-    public static Builder newBuidler(Limiter<GrpcServerRequestContext> grpcLimiter) {
+    public static Builder newBuilder(Limiter<GrpcServerRequestContext> grpcLimiter) {
         return new Builder(grpcLimiter);
     }
     
