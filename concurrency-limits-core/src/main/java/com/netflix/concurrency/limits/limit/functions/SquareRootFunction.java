@@ -24,7 +24,7 @@ public final class SquareRootFunction implements Function<Integer, Integer> {
      * @return
      */
     public static Function<Integer, Integer> create(int baseline) {
-        return INSTANCE.andThen(t -> t + baseline);
+        return INSTANCE.andThen(t -> Math.max(t, baseline));
     }
     
     @Override

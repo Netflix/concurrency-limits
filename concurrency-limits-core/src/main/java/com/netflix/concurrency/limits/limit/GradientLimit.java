@@ -1,6 +1,5 @@
 package com.netflix.concurrency.limits.limit;
 
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -23,21 +22,19 @@ import com.netflix.concurrency.limits.limit.functions.SquareRootFunction;
  * growth as the limit grows.
  */
 public final class GradientLimit implements Limit {
-    private static final int DISABLED = -1;
-
     private static final Logger LOG = LoggerFactory.getLogger(GradientLimit.class);
     
     public static class Builder {
         private int initialLimit = 50;
         private int minLimit = 1;
-        private int maxConcurrency = 1000;
+        private int maxLimit = 1000;
         private long minRttThreshold = TimeUnit.MICROSECONDS.toNanos(1);
         
         private double smoothing = 0.1;
         private Function<Integer, Integer> queueSize = SquareRootFunction.create(4);
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
-        private double rttTolerance = 1.0;
-        private int probeMultiplier = 10;
+        private int noLoadRttWindow = 1000;
+        private double noLoadRttFilter = 1.1;
         
         /**
          * Minimum threshold for accepting a new rtt sample.  Any RTT lower than this threshold
@@ -80,9 +77,9 @@ public final class GradientLimit implements Limit {
          *  before reducing the limit.  For example, a value of 2.0 means that a 2x increase in latency is acceptable. 
          * @return Chainable builder
          */
+        @Deprecated
         public Builder rttTolerance(double rttTolerance) {
             Preconditions.checkArgument(rttTolerance >= 1.0, "Tolerance must be >= 1.0");
-            this.rttTolerance = rttTolerance;
             return this;
         }
         
@@ -92,11 +89,22 @@ public final class GradientLimit implements Limit {
          * @param maxConcurrency
          * @return Chainable builder
          */
+        @Deprecated
         public Builder maxConcurrency(int maxConcurrency) {
-            this.maxConcurrency = maxConcurrency;
+            return maxLimit(maxConcurrency);
+        }
+
+        /**
+         * Maximum allowable concurrency.  Any estimated concurrency will be capped
+         * at this value
+         * @param maxConcurrency
+         * @return Chainable builder
+         */
+        public Builder maxLimit(int maxLimit) {
+            this.maxLimit = maxLimit;
             return this;
         }
-        
+
         /**
          * Fixed amount the estimated limit can grow while latencies remain low
          * @param queueSize
@@ -146,11 +154,33 @@ public final class GradientLimit implements Limit {
          * @param probeMultiplier 
          * @return Chainable builder
          */
+        @Deprecated
         public Builder probeMultiplier(int probeMultiplier) {
-            this.probeMultiplier = probeMultiplier;
             return this;
         }
 
+        /**
+         * Exponential moving average window size of sample updates for tracking noLoad RTT
+         * Having sample window lets the system adapt to changes in latency characteristics.
+         * @param window
+         * @return Chainable builder
+         */
+        public Builder noLoadRttWindow(int window) {
+            this.noLoadRttWindow = window;
+            return this;
+        }
+        
+        /**
+         * Low pass filter applied to noLoad RTT measurements ensuring that outlier latency
+         * measurements don't have an adverse impact on the noLoad rtt.
+         * @param filter 
+         * @return Chainable builder
+         */
+        public Builder noLoadRttFilter(double filter) {
+            this.noLoadRttFilter = filter;
+            return this;
+        }
+        
         public GradientLimit build() {
             return new GradientLimit(this);
         }
@@ -169,7 +199,9 @@ public final class GradientLimit implements Limit {
      */
     private volatile double estimatedLimit;
     
-    private final Measurement rttNoLoad;
+    private final Measurement rttNoLoadAccumulator;
+    
+    private final double smoothing;
     
     /**
      * Maximum allowed limit providing an upper bound failsafe
@@ -180,112 +212,84 @@ public final class GradientLimit implements Limit {
     
     private final Function<Integer, Integer> queueSize;
     
-    private final double smoothing;
-
     private final long minRttThreshold;
-
-    private final double rttTolerance;
-
+    
     private final SampleListener minRttSampleListener;
 
     private final SampleListener minWindowRttSampleListener;
 
     private final SampleListener queueSizeSampleListener;
     
-    private final int probeMultiplier;
-    
-    private int resetRttCounter;
-    
     private GradientLimit(Builder builder) {
         this.estimatedLimit = builder.initialLimit;
-        this.maxLimit = builder.maxConcurrency;
+        this.maxLimit = builder.maxLimit;
         this.minLimit = builder.minLimit;
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
         this.minRttThreshold = builder.minRttThreshold;
-        this.rttTolerance = builder.rttTolerance;
-        this.probeMultiplier = builder.probeMultiplier;
-        this.resetRttCounter = nextProbeCountdown();
-        this.rttNoLoad = new SmoothingMinimumMeasurement(builder.smoothing);
+        this.rttNoLoadAccumulator = new ExpAvgMeasurement(builder.noLoadRttWindow, builder.noLoadRttFilter);
         
         this.minRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
         this.minWindowRttSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_MIN_RTT_NAME);
         this.queueSizeSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_QUEUE_SIZE_NAME);
     }
 
-    private int nextProbeCountdown() {
-        if (probeMultiplier == DISABLED) {
-            return DISABLED;
-        }
-        int max = (int) (probeMultiplier * estimatedLimit);
-        return ThreadLocalRandom.current().nextInt(max / 2, max);
-    }
-
     @Override
     public synchronized void update(SampleWindow sample) {
         Preconditions.checkArgument(sample.getCandidateRttNanos() > 0, "rtt must be >0 but got " + sample.getCandidateRttNanos());
         
-        if (sample.getCandidateRttNanos() < minRttThreshold) {
+        final long rttSample = sample.getCandidateRttNanos();
+        minWindowRttSampleListener.addSample(rttSample);
+        if (rttSample < minRttThreshold) {
             return;
         }
-        
-        final long rtt = sample.getCandidateRttNanos(); // rttWindowNoLoad.get().longValue();
-        minWindowRttSampleListener.addSample(rtt);
 
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
         queueSizeSampleListener.addSample(queueSize);
 
-        // Reset or probe for a new noload RTT and a new estimatedLimit.  It's necessary to cut the limit
-        // in half to avoid having the limit drift upwards when the RTT is probed during heavy load.
-        // To avoid decreasing the limit too much we don't allow it to go lower than the queueSize.
-        if (probeMultiplier != DISABLED && resetRttCounter-- <= 0) {
-            resetRttCounter = nextProbeCountdown();
-            
-            estimatedLimit = Math.max(minLimit, Math.max(estimatedLimit - queueSize, queueSize));
-            rttNoLoad.update(current -> rtt);
-            LOG.debug("Probe MinRTT limit={}", getLimit());
-            return;
-        } else if (rttNoLoad.add(rtt)) {
-            LOG.debug("New MinRTT {} limit={}", TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0, getLimit());
-        }
+        final double rttNoLoad = rttNoLoadAccumulator.add(rttSample).doubleValue();
+        final double rtt = (double)rttSample;
         
-        minRttSampleListener.addSample(rttNoLoad.get());
+        minRttSampleListener.addSample(rttNoLoad);
         
         final double gradient;
-        // rtt is still higher than rtt_noload because of smoothing rtt noload updates
+        // rtt is lower than rtt_noload because of smoothing rtt noload updates
         // set to 1.0 to indicate no queueing
-        if (rttNoLoad.get().doubleValue() > rtt) {
+        if (rtt < rttNoLoad) {
             gradient = 1.0;
         } else {
-            gradient = Math.max(0.5, rttTolerance * rttNoLoad.get().doubleValue() / rtt);
+            gradient = Math.max(0.5, rttNoLoad / rtt);
         }
         
         double newLimit;
         // Reduce the limit aggressively if there was a drop
         if (sample.didDrop()) {
             newLimit = estimatedLimit/2;
-        // Don't grow the limit because we are app limited
-        } else if ((estimatedLimit - sample.getMaxInFlight()) > queueSize) {
-            return;
         // Normal update to the limit
         } else {
             newLimit = estimatedLimit * gradient + queueSize;
         }
         
-        newLimit = Math.max(queueSize, Math.min(maxLimit, newLimit));
-        newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
-        
         if ((int)newLimit != (int)estimatedLimit) {
+            // Don't grow the limit because we are app limited
+            if (sample.getMaxInFlight() < estimatedLimit / 2) {
+                return;
+            // Apply a smoothing factor when reducing the limit only
+            } else if (newLimit < estimatedLimit) {
+                newLimit = (1-smoothing) * estimatedLimit + smoothing*(newLimit);
+            }
+
             if (LOG.isDebugEnabled()) {
-                LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={} resetCounter={}", 
+                LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={}", 
                         (int)newLimit, 
-                        TimeUnit.NANOSECONDS.toMicros(rttNoLoad.get().longValue())/1000.0, 
-                        TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0,
+                        TimeUnit.NANOSECONDS.toMicros((int)rttNoLoad)/1000.0, 
+                        TimeUnit.NANOSECONDS.toMicros((int)rtt)/1000.0,
                         queueSize,
-                        gradient,
-                        resetRttCounter);
+                        gradient);
             }
         }
+        
+        newLimit = Math.max(Math.max(minLimit, queueSize), Math.min(maxLimit, newLimit));
         estimatedLimit = newLimit;
     }
 
@@ -295,13 +299,13 @@ public final class GradientLimit implements Limit {
     }
 
     public long getRttNoLoad() {
-        return rttNoLoad.get().longValue();
+        return rttNoLoadAccumulator.get().longValue();
     }
     
     @Override
     public String toString() {
         return "GradientLimit [limit=" + (int)estimatedLimit + 
-                ", rtt_noload=" + TimeUnit.MICROSECONDS.toMillis(rttNoLoad.get().longValue()) / 1000.0+
+                ", rtt_noload=" + TimeUnit.MICROSECONDS.toMillis(getRttNoLoad()) / 1000.0+
                 " ms]";
     }
 }
