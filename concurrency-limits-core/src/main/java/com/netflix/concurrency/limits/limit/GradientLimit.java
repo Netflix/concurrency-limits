@@ -97,7 +97,7 @@ public final class GradientLimit implements Limit {
         /**
          * Maximum allowable concurrency.  Any estimated concurrency will be capped
          * at this value
-         * @param maxConcurrency
+         * @param maxLimit
          * @return Chainable builder
          */
         public Builder maxLimit(int maxLimit) {
