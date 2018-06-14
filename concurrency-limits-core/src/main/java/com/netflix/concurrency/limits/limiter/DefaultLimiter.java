@@ -23,7 +23,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     
     private static final long DEFAULT_MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
     private static final long DEFAULT_MAX_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
-    private static final long DEFAULT_MIN_RTT_THRESHOLD = TimeUnit.MICROSECONDS.toNanos(100);
+    private static final long DEFAULT_MIN_RTT_THRESHOLD = TimeUnit.MICROSECONDS.toNanos(500);
     
     /**
      * Minimum observed samples to filter out sample windows with not enough significant samples
@@ -143,7 +143,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         this.limit = builder.limit;
         this.minWindowTime = builder.minWindowTime;
         this.maxWindowTime = builder.maxWindowTime;
-        this.minRttThreshold = DEFAULT_MIN_RTT_THRESHOLD;
+        this.minRttThreshold = builder.minRttThreshold;
         this.windowSize = builder.windowSize;
         this.strategy = strategy;
         strategy.setLimit(limit.getLimit());
