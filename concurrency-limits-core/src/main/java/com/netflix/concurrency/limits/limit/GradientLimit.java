@@ -28,9 +28,8 @@ public final class GradientLimit implements Limit {
         private int initialLimit = 50;
         private int minLimit = 1;
         private int maxLimit = 1000;
-        private long minRttThreshold = TimeUnit.MICROSECONDS.toNanos(1);
         
-        private double smoothing = 0.1;
+        private double smoothing = 0.2;
         private Function<Integer, Integer> queueSize = SquareRootFunction.create(4);
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private int noLoadRttWindow = 1000;
@@ -44,8 +43,8 @@ public final class GradientLimit implements Limit {
          * @param units
          * @return Chainable builder
          */
+        @Deprecated
         public Builder minRttThreshold(long minRttTreshold, TimeUnit units) {
-            this.minRttThreshold = units.toNanos(minRttTreshold);
             return this;
         }
         
@@ -212,8 +211,6 @@ public final class GradientLimit implements Limit {
     
     private final Function<Integer, Integer> queueSize;
     
-    private final long minRttThreshold;
-    
     private final SampleListener minRttSampleListener;
 
     private final SampleListener minWindowRttSampleListener;
@@ -226,7 +223,6 @@ public final class GradientLimit implements Limit {
         this.minLimit = builder.minLimit;
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
-        this.minRttThreshold = builder.minRttThreshold;
         this.rttNoLoadAccumulator = new ExpAvgMeasurement(builder.noLoadRttWindow, builder.noLoadRttFilter);
         
         this.minRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
@@ -240,9 +236,6 @@ public final class GradientLimit implements Limit {
         
         final long rttSample = sample.getCandidateRttNanos();
         minWindowRttSampleListener.addSample(rttSample);
-        if (rttSample < minRttThreshold) {
-            return;
-        }
 
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
         queueSizeSampleListener.addSample(queueSize);
