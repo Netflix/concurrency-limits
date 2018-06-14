@@ -27,13 +27,14 @@ public final class GradientLimit implements Limit {
     public static class Builder {
         private int initialLimit = 50;
         private int minLimit = 1;
-        private int maxLimit = 1000;
+        private int maxLimit = 200;
         
         private double smoothing = 0.2;
         private Function<Integer, Integer> queueSize = SquareRootFunction.create(4);
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private int noLoadRttWindow = 1000;
         private double noLoadRttFilter = 1.1;
+        private double rttTolerance = 2.0;
         
         /**
          * Minimum threshold for accepting a new rtt sample.  Any RTT lower than this threshold
@@ -76,9 +77,9 @@ public final class GradientLimit implements Limit {
          *  before reducing the limit.  For example, a value of 2.0 means that a 2x increase in latency is acceptable. 
          * @return Chainable builder
          */
-        @Deprecated
         public Builder rttTolerance(double rttTolerance) {
             Preconditions.checkArgument(rttTolerance >= 1.0, "Tolerance must be >= 1.0");
+            this.rttTolerance = rttTolerance;
             return this;
         }
         
@@ -209,6 +210,8 @@ public final class GradientLimit implements Limit {
     
     private final int minLimit;
     
+    private final double rttTolerance;
+    
     private final Function<Integer, Integer> queueSize;
     
     private final SampleListener minRttSampleListener;
@@ -223,6 +226,8 @@ public final class GradientLimit implements Limit {
         this.minLimit = builder.minLimit;
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
+        this.rttTolerance = builder.rttTolerance;
+        
         this.rttNoLoadAccumulator = new ExpAvgMeasurement(builder.noLoadRttWindow, builder.noLoadRttFilter);
         
         this.minRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
@@ -234,18 +239,18 @@ public final class GradientLimit implements Limit {
     public synchronized void update(SampleWindow sample) {
         Preconditions.checkArgument(sample.getCandidateRttNanos() > 0, "rtt must be >0 but got " + sample.getCandidateRttNanos());
         
-        final long rttSample = sample.getCandidateRttNanos();
+        final long rttSample = sample.getRttSumNanos() / sample.getSampleCount();
         minWindowRttSampleListener.addSample(rttSample);
 
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
         queueSizeSampleListener.addSample(queueSize);
 
         final double rttNoLoad = rttNoLoadAccumulator.add(rttSample).doubleValue();
-        final double rtt = (double)rttSample;
         
-        minRttSampleListener.addSample(rttNoLoad);
+        minRttSampleListener.addSample(rttSample);
         
         final double gradient;
+        final double rtt = (double)rttSample / rttTolerance;
         // rtt is lower than rtt_noload because of smoothing rtt noload updates
         // set to 1.0 to indicate no queueing
         if (rtt < rttNoLoad) {
@@ -264,23 +269,24 @@ public final class GradientLimit implements Limit {
         }
         
         // Apply a smoothing factor when reducing the limit only
-        newLimit = (1-smoothing) * estimatedLimit + smoothing*(newLimit);
+        if (newLimit < estimatedLimit) {
+            newLimit = (1-smoothing) * estimatedLimit + smoothing*(newLimit);
+        }
+        
         newLimit = Math.max(Math.max(minLimit, queueSize), Math.min(maxLimit, newLimit));
+            
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={}", 
+                    (int)newLimit, 
+                    TimeUnit.NANOSECONDS.toMicros((int)rttNoLoad)/1000.0, 
+                    TimeUnit.NANOSECONDS.toMicros((int)rttSample)/1000.0,
+                    queueSize,
+                    gradient);
+        }
 
-        if ((int)newLimit != (int)estimatedLimit) {
-            // Don't grow the limit if we are app limited
-            if (sample.getMaxInFlight() + queueSize < estimatedLimit) {
-                return;
-            }
-
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={}", 
-                        (int)newLimit, 
-                        TimeUnit.NANOSECONDS.toMicros((int)rttNoLoad)/1000.0, 
-                        TimeUnit.NANOSECONDS.toMicros((int)rtt)/1000.0,
-                        queueSize,
-                        gradient);
-            }
+        // We are app limited, don't increase the limit to prevent upward drift
+        if (sample.getMaxInFlight() * 2 < estimatedLimit) {
+            return;
         }
         
         estimatedLimit = newLimit;
