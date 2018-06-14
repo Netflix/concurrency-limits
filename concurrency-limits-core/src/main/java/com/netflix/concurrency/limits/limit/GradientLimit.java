@@ -275,8 +275,8 @@ public final class GradientLimit implements Limit {
         newLimit = Math.max(Math.max(minLimit, queueSize), Math.min(maxLimit, newLimit));
 
         if ((int)newLimit != (int)estimatedLimit) {
-            // Don't grow the limit because we are app limited
-            if (sample.getMaxInFlight() < estimatedLimit / 2) {
+            // Don't grow the limit if we are app limited
+            if (sample.getMaxInFlight() + queueSize < estimatedLimit) {
                 return;
             }
 
