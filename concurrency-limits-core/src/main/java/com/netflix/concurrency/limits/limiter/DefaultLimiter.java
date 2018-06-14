@@ -21,14 +21,14 @@ import com.netflix.concurrency.limits.limit.VegasLimit;
 public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     private final Supplier<Long> nanoClock = System::nanoTime;
     
-    private static final long DEFAULT_MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
-    private static final long DEFAULT_MAX_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
-    private static final long DEFAULT_MIN_RTT_THRESHOLD = TimeUnit.MICROSECONDS.toNanos(500);
+    private static final long DEFAULT_MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(3);
+    private static final long DEFAULT_MAX_WINDOW_TIME = TimeUnit.SECONDS.toNanos(3);
+    private static final long DEFAULT_MIN_RTT_THRESHOLD = TimeUnit.MICROSECONDS.toNanos(100);
     
     /**
      * Minimum observed samples to filter out sample windows with not enough significant samples
      */
-    private static final int DEFAULT_WINDOW_SIZE = 10;
+    private static final int DEFAULT_WINDOW_SIZE = 100;
     
     /**
      * End time for the sampling window at which point the limit should be updated
@@ -181,7 +181,8 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                             if (isWindowReady(current)) {
                                 sample.set(new ImmutableSampleWindow());
                                 
-                                nextUpdateTime = endTime + Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
+                                long delta = Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
+                                nextUpdateTime = endTime + delta;
                                 limit.update(current);
                                 strategy.setLimit(limit.getLimit());
                             }
