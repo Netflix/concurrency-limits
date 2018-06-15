@@ -1,5 +1,6 @@
 package com.netflix.concurrency.limits.limit;
 
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -35,6 +36,7 @@ public final class GradientLimit implements Limit {
         private int noLoadRttWindow = 1000;
         private double noLoadRttFilter = 1.1;
         private double rttTolerance = 2.0;
+        private int probeInterval = 500;
         
         /**
          * Minimum threshold for accepting a new rtt sample.  Any RTT lower than this threshold
@@ -148,14 +150,19 @@ public final class GradientLimit implements Limit {
             return this;
         }
         
+        @Deprecated
+        public Builder probeMultiplier(int probeIMultiplier) {
+            return this;
+        }
+        
         /**
-         * The limiter will probe for a new noload RTT every probeMultiplier * current limit
-         * iterations.  Default value is 30. Set to -1 to disable 
-         * @param probeMultiplier 
+         * The limiter will probe for a new noload RTT every probeInterval to 
+         * 2 * probeInterval updates.  Default value is 500. 
+         * @param probeInterval 
          * @return Chainable builder
          */
-        @Deprecated
-        public Builder probeMultiplier(int probeMultiplier) {
+        public Builder probeInterval(int probeInterval) {
+            this.probeInterval = probeInterval;
             return this;
         }
 
@@ -199,6 +206,8 @@ public final class GradientLimit implements Limit {
      */
     private volatile double estimatedLimit;
     
+    private int countdownToProbing;
+    
     private final Measurement rttNoLoadAccumulator;
     
     private final double smoothing;
@@ -211,6 +220,8 @@ public final class GradientLimit implements Limit {
     private final int minLimit;
     
     private final double rttTolerance;
+    
+    private final int probeInterval;
     
     private final Function<Integer, Integer> queueSize;
     
@@ -227,12 +238,14 @@ public final class GradientLimit implements Limit {
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
         this.rttTolerance = builder.rttTolerance;
+        this.probeInterval = builder.probeInterval;
         
         this.rttNoLoadAccumulator = new ExpAvgMeasurement(builder.noLoadRttWindow, builder.noLoadRttFilter);
         
         this.minRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
         this.minWindowRttSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_MIN_RTT_NAME);
         this.queueSizeSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_QUEUE_SIZE_NAME);
+        this.countdownToProbing = new Random().nextInt(this.probeInterval) + this.probeInterval;
     }
 
     @Override
@@ -246,8 +259,14 @@ public final class GradientLimit implements Limit {
         queueSizeSampleListener.addSample(queueSize);
 
         final double rttNoLoad = rttNoLoadAccumulator.add(rttSample).doubleValue();
-        
-        minRttSampleListener.addSample(rttSample);
+        minRttSampleListener.addSample(rttNoLoad);
+
+        if (countdownToProbing-- <= 0) {
+            countdownToProbing = new Random().nextInt(this.probeInterval) + this.probeInterval;
+            estimatedLimit = Math.max(minLimit, estimatedLimit / 2);
+            rttNoLoadAccumulator.reset();
+            return;
+        }
         
         final double gradient;
         final double rtt = (double)rttSample / rttTolerance;
