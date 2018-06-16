@@ -15,11 +15,6 @@ public interface Limit {
         long getCandidateRttNanos();
         
         /**
-         * @return Sum of all RTT samples in this window.
-         */
-        long getRttSumNanos();
-        
-        /**
          * @return Maximum number of inflight observed during the sample window
          */
         int getMaxInFlight();

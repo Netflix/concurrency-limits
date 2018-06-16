@@ -21,14 +21,13 @@ import com.netflix.concurrency.limits.limit.VegasLimit;
 public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     private final Supplier<Long> nanoClock = System::nanoTime;
     
-    private static final long DEFAULT_MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(3);
-    private static final long DEFAULT_MAX_WINDOW_TIME = TimeUnit.SECONDS.toNanos(3);
-    private static final long DEFAULT_MIN_RTT_THRESHOLD = TimeUnit.MICROSECONDS.toNanos(100);
+    private static final long DEFAULT_MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
+    private static final long DEFAULT_MAX_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
     
     /**
      * Minimum observed samples to filter out sample windows with not enough significant samples
      */
-    private static final int DEFAULT_WINDOW_SIZE = 100;
+    private static final int DEFAULT_WINDOW_SIZE = 10;
     
     /**
      * End time for the sampling window at which point the limit should be updated
@@ -42,8 +41,6 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     private final long minWindowTime;
     
     private final long maxWindowTime;
-    
-    private final long minRttThreshold;
     
     private final int windowSize;
     
@@ -64,7 +61,6 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         private long maxWindowTime = DEFAULT_MAX_WINDOW_TIME;
         private long minWindowTime = DEFAULT_MIN_WINDOW_TIME;
         private int windowSize = DEFAULT_WINDOW_SIZE;
-        private long minRttThreshold = DEFAULT_MIN_RTT_THRESHOLD;
         
         /**
          * Algorithm used to determine the new limit based on the current limit and minimum
@@ -103,11 +99,6 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
             return this;
         }
         
-        public Builder minRttThreshold(long minRttThreshold, TimeUnit units) {
-            this.minRttThreshold = units.toNanos(minRttThreshold);
-            return this;
-        }
-        
         /**
          * @param strategy Strategy for enforcing the limit
          */
@@ -135,7 +126,6 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         this.windowSize = DEFAULT_WINDOW_SIZE;
         this.minWindowTime = DEFAULT_MIN_WINDOW_TIME;
         this.maxWindowTime = DEFAULT_MAX_WINDOW_TIME;
-        this.minRttThreshold = DEFAULT_MIN_RTT_THRESHOLD;
         strategy.setLimit(limit.getLimit());
     }
     
@@ -143,7 +133,6 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         this.limit = builder.limit;
         this.minWindowTime = builder.minWindowTime;
         this.maxWindowTime = builder.maxWindowTime;
-        this.minRttThreshold = builder.minRttThreshold;
         this.windowSize = builder.windowSize;
         this.strategy = strategy;
         strategy.setLimit(limit.getLimit());
@@ -169,9 +158,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                 final long endTime = nanoClock.get();
                 final long rtt = endTime - startTime;
                 
-                if (rtt > minRttThreshold) {
-                    sample.updateAndGet(window -> window.addSample(rtt, currentMaxInFlight));
-                }
+                sample.updateAndGet(window -> window.addSample(rtt, currentMaxInFlight));
                 
                 if (endTime > nextUpdateTime) {
                     synchronized (lock) {
@@ -181,8 +168,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                             if (isWindowReady(current)) {
                                 sample.set(new ImmutableSampleWindow());
                                 
-                                long delta = Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
-                                nextUpdateTime = endTime + delta;
+                                nextUpdateTime = endTime + Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
                                 limit.update(current);
                                 strategy.setLimit(limit.getLimit());
                             }
