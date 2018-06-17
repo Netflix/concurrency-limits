@@ -1,12 +1,5 @@
 package com.netflix.concurrency.limits.limit;
 
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
@@ -14,6 +7,13 @@ import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
 import com.netflix.concurrency.limits.limit.functions.SquareRootFunction;
+
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Concurrency limit algorithm that adjust the limits based on the gradient of change in the 
@@ -33,11 +33,11 @@ public final class GradientLimit implements Limit {
         private int maxConcurrency = 1000;
         private long minRttThreshold = TimeUnit.MICROSECONDS.toNanos(1);
         
-        private double smoothing = 0.1;
+        private double smoothing = 0.2;
         private Function<Integer, Integer> queueSize = SquareRootFunction.create(4);
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
-        private double rttTolerance = 1.0;
-        private int probeMultiplier = 10;
+        private double rttTolerance = 2.0;
+        private int probeInterval = 1000;
         
         /**
          * Minimum threshold for accepting a new rtt sample.  Any RTT lower than this threshold
@@ -140,17 +140,22 @@ public final class GradientLimit implements Limit {
             return this;
         }
         
-        /**
-         * The limiter will probe for a new noload RTT every probeMultiplier * current limit
-         * iterations.  Default value is 30. Set to -1 to disable 
-         * @param probeMultiplier 
-         * @return Chainable builder
-         */
+        @Deprecated
         public Builder probeMultiplier(int probeMultiplier) {
-            this.probeMultiplier = probeMultiplier;
             return this;
         }
 
+        /**
+         * The limiter will probe for a new noload RTT every probeInterval
+         * updates.  Default value is 1000. Set to -1 to disable 
+         * @param probeInterval 
+         * @return Chainable builder
+         */
+        public Builder probeInterval(int probeInterval) {
+            this.probeInterval = probeInterval;
+            return this;
+        }
+        
         public GradientLimit build() {
             return new GradientLimit(this);
         }
@@ -192,7 +197,7 @@ public final class GradientLimit implements Limit {
 
     private final SampleListener queueSizeSampleListener;
     
-    private final int probeMultiplier;
+    private final int probeInterval;
     
     private int resetRttCounter;
     
@@ -204,7 +209,7 @@ public final class GradientLimit implements Limit {
         this.smoothing = builder.smoothing;
         this.minRttThreshold = builder.minRttThreshold;
         this.rttTolerance = builder.rttTolerance;
-        this.probeMultiplier = builder.probeMultiplier;
+        this.probeInterval = builder.probeInterval;
         this.resetRttCounter = nextProbeCountdown();
         this.rttNoLoad = new SmoothingMinimumMeasurement(builder.smoothing);
         
@@ -214,22 +219,21 @@ public final class GradientLimit implements Limit {
     }
 
     private int nextProbeCountdown() {
-        if (probeMultiplier == DISABLED) {
+        if (probeInterval == DISABLED) {
             return DISABLED;
         }
-        int max = (int) (probeMultiplier * estimatedLimit);
-        return ThreadLocalRandom.current().nextInt(max / 2, max);
+        return probeInterval + ThreadLocalRandom.current().nextInt(probeInterval);
     }
 
     @Override
     public synchronized void update(SampleWindow sample) {
         Preconditions.checkArgument(sample.getCandidateRttNanos() > 0, "rtt must be >0 but got " + sample.getCandidateRttNanos());
         
-        if (sample.getCandidateRttNanos() < minRttThreshold) {
+        final long rtt = sample.getAverateRttNanos();
+        if (rtt < minRttThreshold) {
             return;
         }
         
-        final long rtt = sample.getCandidateRttNanos(); // rttWindowNoLoad.get().longValue();
         minWindowRttSampleListener.addSample(rtt);
 
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
@@ -238,7 +242,7 @@ public final class GradientLimit implements Limit {
         // Reset or probe for a new noload RTT and a new estimatedLimit.  It's necessary to cut the limit
         // in half to avoid having the limit drift upwards when the RTT is probed during heavy load.
         // To avoid decreasing the limit too much we don't allow it to go lower than the queueSize.
-        if (probeMultiplier != DISABLED && resetRttCounter-- <= 0) {
+        if (probeInterval != DISABLED && resetRttCounter-- <= 0) {
             resetRttCounter = nextProbeCountdown();
             
             estimatedLimit = Math.max(minLimit, Math.max(estimatedLimit - queueSize, queueSize));
@@ -265,15 +269,16 @@ public final class GradientLimit implements Limit {
         if (sample.didDrop()) {
             newLimit = estimatedLimit/2;
         // Don't grow the limit because we are app limited
-        } else if ((estimatedLimit - sample.getMaxInFlight()) > queueSize) {
+        } else if (sample.getMaxInFlight() + queueSize < estimatedLimit) {
             return;
         // Normal update to the limit
         } else {
             newLimit = estimatedLimit * gradient + queueSize;
         }
         
+        if (newLimit < estimatedLimit) 
+            newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
         newLimit = Math.max(queueSize, Math.min(maxLimit, newLimit));
-        newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
         
         if ((int)newLimit != (int)estimatedLimit) {
             if (LOG.isDebugEnabled()) {
