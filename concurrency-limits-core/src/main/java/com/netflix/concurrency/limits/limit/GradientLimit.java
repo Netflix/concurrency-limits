@@ -250,16 +250,13 @@ public final class GradientLimit implements Limit {
         }
         
         minRttSampleListener.addSample(rttNoLoad.get());
-        
-        final double gradient;
-        // rtt is still higher than rtt_noload because of smoothing rtt noload updates
-        // set to 1.0 to indicate no queueing
-        if (rttNoLoad.get().doubleValue() > rtt) {
-            gradient = 1.0;
-        } else {
-            gradient = Math.max(0.5, rttTolerance * rttNoLoad.get().doubleValue() / rtt);
-        }
-        
+
+        updateEstimatedLimit(sample, rtt, queueSize);
+    }
+
+    private void updateEstimatedLimit(SampleWindow sample, long rtt, double queueSize) {
+        final double gradient = calcGradient(rtt);
+
         double newLimit;
         // Reduce the limit aggressively if there was a drop
         if (sample.didDrop()) {
@@ -271,15 +268,15 @@ public final class GradientLimit implements Limit {
         } else {
             newLimit = estimatedLimit * gradient + queueSize;
         }
-        
+
         newLimit = Math.max(queueSize, Math.min(maxLimit, newLimit));
         newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
-        
+
         if ((int)newLimit != (int)estimatedLimit) {
             if (LOG.isDebugEnabled()) {
-                LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={} resetCounter={}", 
-                        (int)newLimit, 
-                        TimeUnit.NANOSECONDS.toMicros(rttNoLoad.get().longValue())/1000.0, 
+                LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={} resetCounter={}",
+                        (int)newLimit,
+                        TimeUnit.NANOSECONDS.toMicros(rttNoLoad.get().longValue())/1000.0,
                         TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0,
                         queueSize,
                         gradient,
@@ -287,6 +284,18 @@ public final class GradientLimit implements Limit {
             }
         }
         estimatedLimit = newLimit;
+    }
+
+    private double calcGradient(long rtt) {
+        final double gradient;
+        // rtt is still higher than rtt_noload because of smoothing rtt noload updates
+        // set to 1.0 to indicate no queueing
+        if (rttNoLoad.get().doubleValue() > rtt) {
+            gradient = 1.0;
+        } else {
+            gradient = Math.max(0.5, rttTolerance * rttNoLoad.get().doubleValue() / rtt);
+        }
+        return gradient;
     }
 
     @Override
