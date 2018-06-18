@@ -276,8 +276,7 @@ public final class GradientLimit implements Limit {
             newLimit = estimatedLimit * gradient + queueSize;
         }
         
-        if (newLimit < estimatedLimit) 
-            newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
+        newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
         newLimit = Math.max(queueSize, Math.min(maxLimit, newLimit));
         
         if ((int)newLimit != (int)estimatedLimit) {
