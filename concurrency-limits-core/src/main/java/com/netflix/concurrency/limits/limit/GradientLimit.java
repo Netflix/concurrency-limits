@@ -272,16 +272,14 @@ public final class GradientLimit implements Limit {
         newLimit = Math.max(queueSize, Math.min(maxLimit, newLimit));
         newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
 
-        if ((int)newLimit != (int)estimatedLimit) {
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={} resetCounter={}",
-                        (int)newLimit,
-                        TimeUnit.NANOSECONDS.toMicros(rttNoLoad.get().longValue())/1000.0,
-                        TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0,
-                        queueSize,
-                        gradient,
-                        resetRttCounter);
-            }
+        if ((int) newLimit != (int) estimatedLimit && LOG.isDebugEnabled()) {
+            LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={} resetCounter={}",
+                    (int) newLimit,
+                    TimeUnit.NANOSECONDS.toMicros(rttNoLoad.get().longValue()) / 1000.0,
+                    TimeUnit.NANOSECONDS.toMicros(rtt) / 1000.0,
+                    queueSize,
+                    gradient,
+                    resetRttCounter);
         }
         estimatedLimit = newLimit;
     }
