@@ -183,9 +183,7 @@ public class VegasLimit implements Limit {
     public synchronized void update(SampleWindow sample) {
         long rtt = sample.getCandidateRttNanos();
         Preconditions.checkArgument(rtt > 0, "rtt must be >0 but got " + rtt);
-        
-        final int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / rtt));
-        
+
         if (probeCountdown != DISABLED && probeCountdown-- <= 0) {
             LOG.debug("Probe MinRTT {}", TimeUnit.NANOSECONDS.toMicros(rtt) / 1000.0);
             probeCountdown = nextProbeCountdown();
@@ -200,7 +198,13 @@ public class VegasLimit implements Limit {
         }
         
         rttSampleListener.addSample(rtt_noload);
-        
+
+        updateEstimatedLimit(sample, rtt);
+    }
+
+    private void updateEstimatedLimit(SampleWindow sample, long rtt) {
+        final int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / rtt));
+
         double newLimit;
         // Treat any drop (i.e timeout) as needing to reduce the limit
         if (sample.didDrop()) {
@@ -212,7 +216,7 @@ public class VegasLimit implements Limit {
             int alpha = alphaFunc.apply((int)estimatedLimit);
             int beta = betaFunc.apply((int)estimatedLimit);
             int threshold = this.thresholdFunc.apply((int)estimatedLimit);
-            
+
             // Aggressive increase when no queuing
             if (queueSize <= threshold) {
                 newLimit = estimatedLimit + beta;
@@ -231,9 +235,9 @@ public class VegasLimit implements Limit {
         newLimit = Math.max(1, Math.min(maxLimit, newLimit));
         newLimit = (1 - smoothing) * estimatedLimit + smoothing * newLimit;
         if ((int)newLimit != (int)estimatedLimit && LOG.isDebugEnabled()) {
-            LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={}", 
-                    (int)newLimit, 
-                    TimeUnit.NANOSECONDS.toMicros(rtt_noload) / 1000.0, 
+            LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={}",
+                    (int)newLimit,
+                    TimeUnit.NANOSECONDS.toMicros(rtt_noload) / 1000.0,
                     TimeUnit.NANOSECONDS.toMicros(rtt) / 1000.0,
                     queueSize);
         }
