@@ -23,11 +23,12 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     
     private static final long DEFAULT_MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
     private static final long DEFAULT_MAX_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
-    
+    private static final long DEFAULT_MIN_RTT_THRESHOLD = TimeUnit.MICROSECONDS.toNanos(100);
+
     /**
      * Minimum observed samples to filter out sample windows with not enough significant samples
      */
-    private static final int DEFAULT_WINDOW_SIZE = 10;
+    private static final int DEFAULT_WINDOW_SIZE = 100;
     
     /**
      * End time for the sampling window at which point the limit should be updated
@@ -43,6 +44,8 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
     private final long maxWindowTime;
     
     private final int windowSize;
+    
+    private final long minRttThreshold;
     
     /**
      * Object tracking stats for the current sample window
@@ -61,6 +64,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         private long maxWindowTime = DEFAULT_MAX_WINDOW_TIME;
         private long minWindowTime = DEFAULT_MIN_WINDOW_TIME;
         private int windowSize = DEFAULT_WINDOW_SIZE;
+        private long minRttThreshold = DEFAULT_MIN_RTT_THRESHOLD;
         
         /**
          * Algorithm used to determine the new limit based on the current limit and minimum
@@ -99,6 +103,11 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
             return this;
         }
         
+        public Builder minRttThreshold(long threshold, TimeUnit units) {
+            this.minRttThreshold = units.toNanos(threshold);
+            return this;
+        }
+        
         /**
          * @param strategy Strategy for enforcing the limit
          */
@@ -126,6 +135,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         this.windowSize = DEFAULT_WINDOW_SIZE;
         this.minWindowTime = DEFAULT_MIN_WINDOW_TIME;
         this.maxWindowTime = DEFAULT_MAX_WINDOW_TIME;
+        this.minRttThreshold = DEFAULT_MIN_RTT_THRESHOLD;
         strategy.setLimit(limit.getLimit());
     }
     
@@ -135,6 +145,7 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
         this.maxWindowTime = builder.maxWindowTime;
         this.windowSize = builder.windowSize;
         this.strategy = strategy;
+        this.minRttThreshold = builder.minRttThreshold;
         strategy.setLimit(limit.getLimit());
     }
 
@@ -158,6 +169,9 @@ public final class DefaultLimiter<ContextT> implements Limiter<ContextT> {
                 final long endTime = nanoClock.get();
                 final long rtt = endTime - startTime;
                 
+                if (rtt < minRttThreshold) {
+                    return;
+                }
                 sample.updateAndGet(window -> window.addSample(rtt, currentMaxInFlight));
                 
                 if (endTime > nextUpdateTime) {

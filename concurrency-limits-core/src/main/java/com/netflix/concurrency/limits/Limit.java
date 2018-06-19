@@ -15,6 +15,11 @@ public interface Limit {
         long getCandidateRttNanos();
         
         /**
+         * @return Average RTT in the sample window.  Excludes timeouts and dropped rtt.
+         */
+        long getAverateRttNanos();
+        
+        /**
          * @return Maximum number of inflight observed during the sample window
          */
         int getMaxInFlight();
