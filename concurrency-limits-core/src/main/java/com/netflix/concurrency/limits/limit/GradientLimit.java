@@ -247,17 +247,16 @@ public final class GradientLimit implements Limit {
             return;
         }
         
-        final double noLoadRtt = rttNoLoadMeasurement.add(rtt).doubleValue();
-        minRttSampleListener.addSample(rttNoLoadMeasurement.get());
+        final long rttNoLoad = rttNoLoadMeasurement.add(rtt).longValue();
+        minRttSampleListener.addSample(rttNoLoad);
         
-        final double gradient;
-        // rtt is still higher than rtt_noload because of smoothing rtt noload updates
-        // set to 1.0 to indicate no queuing
-        if (noLoadRtt > rtt) {
-            gradient = 1.0;
-        } else {
-            gradient = Math.max(0.5, rttTolerance * noLoadRtt / rtt);
-        }
+        // Rtt could be higher than rtt_noload because of smoothing rtt noload updates
+        // so set to 1.0 to indicate no queueing.  Otherwise calculate the slope and don't
+        // allow it to be reduced by more than half to avoid eggressive load shedding due to 
+        // outliers.
+        final double gradient = rttNoLoad > rtt 
+                ? 1.0
+                : Math.max(0.5, rttTolerance * rttNoLoad / rtt);
         
         double newLimit;
         // Reduce the limit aggressively if there was a drop
@@ -276,17 +275,16 @@ public final class GradientLimit implements Limit {
         }
         newLimit = Math.max(queueSize, Math.min(maxLimit, newLimit));
         
-        if ((int)newLimit != (int)estimatedLimit) {
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={} resetCounter={}", 
-                        (int)newLimit, 
-                        TimeUnit.NANOSECONDS.toMicros(rttNoLoadMeasurement.get().longValue())/1000.0, 
-                        TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0,
-                        queueSize,
-                        gradient,
-                        resetRttCounter);
-            }
+        if ((int)newLimit != (int)estimatedLimit  && LOG.isDebugEnabled()) {
+            LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={} resetCounter={}", 
+                    (int)newLimit, 
+                    TimeUnit.NANOSECONDS.toMicros(rttNoLoad)/1000.0, 
+                    TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0,
+                    queueSize,
+                    gradient,
+                    resetRttCounter);
         }
+
         estimatedLimit = newLimit;
     }
 
