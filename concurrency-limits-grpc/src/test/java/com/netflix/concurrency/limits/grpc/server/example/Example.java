@@ -85,19 +85,8 @@ public class Example {
                 .build();
         
         // Create a server
-        Server server = NettyServerBuilder.forPort(0)
-            .addService(ServerInterceptors.intercept(ServerServiceDefinition.builder("service")
-                    .addMethod(METHOD_DESCRIPTOR, createServerHandler(10))
-                    .build(), new ConcurrencyLimitServerInterceptor(new GrpcServerLimiterBuilder()
-                            .limiter(builder -> builder
-                                    .limit(limit)
-                                    .minWindowTime(1, TimeUnit.SECONDS)
-                                    )
-                            .build())
-                ))
-            .build()
-            .start();
-        
+        Server server = createServer(limit);
+
         // Report progress
         AtomicInteger dropCount = new AtomicInteger(0);
         AtomicInteger successCount = new AtomicInteger(0);
@@ -108,6 +97,10 @@ public class Example {
         }, 1, 1, TimeUnit.SECONDS);
         
         // Create a client
+        createClient(server, dropCount, successCount);
+    }
+
+    private static void createClient(Server server, AtomicInteger dropCount, AtomicInteger successCount) {
         Channel channel = NettyChannelBuilder.forTarget("localhost:" + server.getPort())
                 .usePlaintext(true)
                 .build();
@@ -131,8 +124,23 @@ public class Example {
                             public void onCompleted() {
                                 successCount.incrementAndGet();
                             }
-                        
+
                     });
             });
+    }
+
+    private static Server createServer(Limit limit) throws IOException {
+        return NettyServerBuilder.forPort(0)
+                .addService(ServerInterceptors.intercept(ServerServiceDefinition.builder("service")
+                        .addMethod(METHOD_DESCRIPTOR, createServerHandler(10))
+                        .build(), new ConcurrencyLimitServerInterceptor(new GrpcServerLimiterBuilder()
+                                .limiter(builder -> builder
+                                        .limit(limit)
+                                        .minWindowTime(1, TimeUnit.SECONDS)
+                                        )
+                                .build())
+                    ))
+                .build()
+                .start();
     }
 }
