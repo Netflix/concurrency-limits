@@ -230,10 +230,6 @@ public final class GradientLimit implements Limit {
         Preconditions.checkArgument(sample.getCandidateRttNanos() > 0, "rtt must be >0 but got " + sample.getCandidateRttNanos());
         
         final long rtt = sample.getAverateRttNanos();
-        if (rtt < minRttThreshold) {
-            return;
-        }
-        
         minWindowRttSampleListener.addSample(rtt);
 
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
@@ -275,7 +271,9 @@ public final class GradientLimit implements Limit {
             newLimit = estimatedLimit * gradient + queueSize;
         }
         
-        newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
+        if (newLimit < estimatedLimit) {
+            newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
+        }
         newLimit = Math.max(queueSize, Math.min(maxLimit, newLimit));
         
         if ((int)newLimit != (int)estimatedLimit) {
