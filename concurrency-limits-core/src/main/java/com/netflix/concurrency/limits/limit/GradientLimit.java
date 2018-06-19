@@ -241,7 +241,7 @@ public final class GradientLimit implements Limit {
         if (probeInterval != DISABLED && resetRttCounter-- <= 0) {
             resetRttCounter = nextProbeCountdown();
             
-            estimatedLimit = Math.max(minLimit, Math.max(estimatedLimit - queueSize, queueSize));
+            estimatedLimit = Math.max(minLimit, queueSize);
             rttNoLoadMeasurement.reset();
             LOG.debug("Probe MinRTT limit={}", getLimit());
             return;
@@ -252,7 +252,7 @@ public final class GradientLimit implements Limit {
         
         final double gradient;
         // rtt is still higher than rtt_noload because of smoothing rtt noload updates
-        // set to 1.0 to indicate no queueing
+        // set to 1.0 to indicate no queuing
         if (noLoadRtt > rtt) {
             gradient = 1.0;
         } else {
