@@ -251,12 +251,10 @@ public final class GradientLimit implements Limit {
         minRttSampleListener.addSample(rttNoLoad);
         
         // Rtt could be higher than rtt_noload because of smoothing rtt noload updates
-        // so set to 1.0 to indicate no queueing.  Otherwise calculate the slope and don't
-        // allow it to be reduced by more than half to avoid eggressive load shedding due to 
+        // so set to 1.0 to indicate no queuing.  Otherwise calculate the slope and don't
+        // allow it to be reduced by more than half to avoid aggressive load-sheding due to 
         // outliers.
-        final double gradient = rttNoLoad > rtt 
-                ? 1.0
-                : Math.max(0.5, rttTolerance * rttNoLoad / rtt);
+        final double gradient = Math.max(0.5, Math.min(1.0, rttTolerance * rttNoLoad / rtt));
         
         double newLimit;
         // Reduce the limit aggressively if there was a drop
