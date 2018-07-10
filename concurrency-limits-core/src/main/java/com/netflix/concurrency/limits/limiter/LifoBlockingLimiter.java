@@ -69,7 +69,7 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
         /**
          * Function to derive the backlog timeout from the request context.  This allows timeouts
          * to be set dynamically based on things like request deadlines. 
-         * @param supplier
+         * @param mapper
          * @param units
          * @return
          */
