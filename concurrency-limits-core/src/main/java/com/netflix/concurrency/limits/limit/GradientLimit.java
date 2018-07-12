@@ -31,7 +31,6 @@ public final class GradientLimit implements Limit {
         private int initialLimit = 50;
         private int minLimit = 1;
         private int maxConcurrency = 1000;
-        private long minRttThreshold = TimeUnit.MICROSECONDS.toNanos(1);
         
         private double smoothing = 0.2;
         private Function<Integer, Integer> queueSize = SquareRootFunction.create(4);
@@ -47,8 +46,8 @@ public final class GradientLimit implements Limit {
          * @param units
          * @return Chainable builder
          */
+        @Deprecated
         public Builder minRttThreshold(long minRttTreshold, TimeUnit units) {
-            this.minRttThreshold = units.toNanos(minRttTreshold);
             return this;
         }
         
@@ -187,8 +186,6 @@ public final class GradientLimit implements Limit {
     
     private final double smoothing;
 
-    private final long minRttThreshold;
-
     private final double rttTolerance;
 
     private final SampleListener minRttSampleListener;
@@ -207,7 +204,6 @@ public final class GradientLimit implements Limit {
         this.minLimit = builder.minLimit;
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
-        this.minRttThreshold = builder.minRttThreshold;
         this.rttTolerance = builder.rttTolerance;
         this.probeInterval = builder.probeInterval;
         this.resetRttCounter = nextProbeCountdown();
@@ -260,8 +256,8 @@ public final class GradientLimit implements Limit {
         // Reduce the limit aggressively if there was a drop
         if (sample.didDrop()) {
             newLimit = estimatedLimit/2;
-        // Don't grow the limit because we are app limited
-        } else if (sample.getMaxInFlight() + queueSize < estimatedLimit) {
+        // Don't grow the limit if we are app limited
+        } else if (sample.getMaxInFlight() < estimatedLimit / 2) {
             return;
         // Normal update to the limit
         } else {
@@ -294,7 +290,7 @@ public final class GradientLimit implements Limit {
     public long getRttNoLoad() {
         return rttNoLoadMeasurement.get().longValue();
     }
-    
+
     @Override
     public String toString() {
         return "GradientLimit [limit=" + (int)estimatedLimit + 
