@@ -44,7 +44,7 @@ public class BlockingLimiterTest {
         SettableLimit limit = SettableLimit.startingAt(1);
         BlockingLimiter<Void> limiter = BlockingLimiter.wrap(DefaultLimiter.newBuilder().limit(limit).build(new SimpleStrategy<>()));
         ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
-        CyclicBarrier barrier = new CyclicBarrier(numThreads);
+        CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
         try {
             IntStream.range(0, numThreads).forEach(x -> executorService.submit(() -> {
                 await(barrier);
