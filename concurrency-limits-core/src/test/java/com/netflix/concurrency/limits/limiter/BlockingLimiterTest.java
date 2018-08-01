@@ -3,11 +3,11 @@ package com.netflix.concurrency.limits.limiter;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limit.SettableLimit;
 import com.netflix.concurrency.limits.strategy.SimpleStrategy;
-import com.netflix.concurrency.limits.util.Barriers;
 import org.junit.Test;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -38,28 +38,34 @@ public class BlockingLimiterTest {
         limiter.acquire(null);
     }
 
-    @Test
-    public void testMultipleBlockedThreads() throws InterruptedException, TimeoutException, ExecutionException {
-        int numThreads = 32;
+    @Test(timeout = 1000)
+    public void testMultipleBlockedThreads() {
+        int numThreads = 8;
         SettableLimit limit = SettableLimit.startingAt(1);
         BlockingLimiter<Void> limiter = BlockingLimiter.wrap(DefaultLimiter.newBuilder().limit(limit).build(new SimpleStrategy<>()));
         ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
-        CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
+        CyclicBarrier barrier = new CyclicBarrier(numThreads);
         try {
-            List<Future<?>> futures = IntStream.range(0, numThreads)
-                    .mapToObj(x -> executorService.submit(() -> {
-                        Barriers.await(barrier);
-                        limiter.acquire(null).get().onSuccess();
-                    }))
-                    .collect(Collectors.toList());
-            Limiter.Listener listener = limiter.acquire(null).get();
-            Barriers.await(barrier);
-            listener.onSuccess();
-            for (Future<?> future : futures) {
-                future.get(1, TimeUnit.SECONDS);
-            }
+            IntStream.range(0, numThreads).forEach(x -> executorService.submit(() -> {
+                await(barrier);
+                limiter.acquire(null).get().onSuccess();
+                await(barrier);
+            }));
+            await(barrier);
+            await(barrier);
         } finally {
             executorService.shutdown();
+        }
+    }
+
+    private static void await(CyclicBarrier barrier) {
+        try {
+            barrier.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (BrokenBarrierException e) {
+            throw new RuntimeException(e);
         }
     }
 }

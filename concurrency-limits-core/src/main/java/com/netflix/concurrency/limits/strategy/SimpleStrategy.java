@@ -29,21 +29,15 @@ public final class SimpleStrategy<T> implements Strategy<T> {
     
     @Override
     public Token tryAcquire(T context) {
-        while (true) {
-            final int currentBusy = busy.get();
-            if (currentBusy >= limit) {
-                inflightMetric.addSample(currentBusy);
-                return Token.newNotAcquired(currentBusy);
-            }
-
-            int inflight = currentBusy + 1;
-            if (!busy.compareAndSet(currentBusy, inflight)) {
-                continue;
-            }
-
-            inflightMetric.addSample(inflight);
-            return Token.newAcquired(inflight, busy::decrementAndGet);
+        final int currentBusy = busy.get();
+        if (currentBusy >= limit) {
+            inflightMetric.addSample(currentBusy);
+            return Token.newNotAcquired(currentBusy);
         }
+        
+        final int inflight = busy.incrementAndGet();
+        inflightMetric.addSample(inflight);
+        return Token.newAcquired(inflight, busy::decrementAndGet);
     }
     
     @Override
