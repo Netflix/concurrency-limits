@@ -6,9 +6,6 @@ import com.netflix.concurrency.limits.strategy.SimpleStrategy;
 import org.junit.Test;
 
 import java.util.LinkedList;
-import java.util.List;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
