@@ -38,34 +38,20 @@ public class BlockingLimiterTest {
         limiter.acquire(null);
     }
 
-    @Test(timeout = 1000)
-    public void testMultipleBlockedThreads() {
+    @Test
+    public void testMultipleBlockedThreads() throws InterruptedException, ExecutionException, TimeoutException {
         int numThreads = 8;
         SettableLimit limit = SettableLimit.startingAt(1);
         BlockingLimiter<Void> limiter = BlockingLimiter.wrap(DefaultLimiter.newBuilder().limit(limit).build(new SimpleStrategy<>()));
         ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
-        CyclicBarrier barrier = new CyclicBarrier(numThreads + 1);
         try {
-            IntStream.range(0, numThreads).forEach(x -> executorService.submit(() -> {
-                await(barrier);
-                limiter.acquire(null).get().onSuccess();
-                await(barrier);
-            }));
-            await(barrier);
-            await(barrier);
+            for (Future<?> future : IntStream.range(0, numThreads)
+                    .mapToObj(x -> executorService.submit(() -> limiter.acquire(null).get().onSuccess()))
+                    .collect(Collectors.toList())) {
+                future.get(1, TimeUnit.SECONDS);
+            }
         } finally {
             executorService.shutdown();
-        }
-    }
-
-    private static void await(CyclicBarrier barrier) {
-        try {
-            barrier.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        } catch (BrokenBarrierException e) {
-            throw new RuntimeException(e);
         }
     }
 }
