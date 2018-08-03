@@ -50,7 +50,7 @@ public final class BlockingLimiter<ContextT> implements Limiter<ContextT> {
     
     private void unblock() {
         synchronized (lock) {
-            lock.notify();
+            lock.notifyAll();
         }
     }
     
