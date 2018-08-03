@@ -13,7 +13,7 @@ import java.util.Optional;
  */
 public final class BlockingLimiter<ContextT> implements Limiter<ContextT> {
     public static <ContextT> BlockingLimiter<ContextT> wrap(Limiter<ContextT> delegate) {
-        return new BlockingLimiter<ContextT>(delegate);
+        return new BlockingLimiter<>(delegate);
     }
 
     private final Limiter<ContextT> delegate;
@@ -22,7 +22,6 @@ public final class BlockingLimiter<ContextT> implements Limiter<ContextT> {
      * Lock used to block and unblock callers as the limit is reached
      */
     private final Object lock = new Object();
-    private boolean blocked = false;
 
     private BlockingLimiter(Limiter<ContextT> limiter) {
         this.delegate = limiter;
@@ -39,7 +38,6 @@ public final class BlockingLimiter<ContextT> implements Limiter<ContextT> {
                 }
                 
                 // We have reached the limit so block until a token is released
-                blocked = true;
                 try {
                     lock.wait();
                 } catch (InterruptedException e) {
@@ -52,40 +50,35 @@ public final class BlockingLimiter<ContextT> implements Limiter<ContextT> {
     
     private void unblock() {
         synchronized (lock) {
-            if (blocked) {
-                blocked = false;
-                lock.notify();
-            }
+            lock.notifyAll();
         }
     }
     
     @Override
     public Optional<Listener> acquire(ContextT context) {
-        return tryAcquire(context).map(delegate -> {
-            return new Listener() {
-                @Override
-                public void onSuccess() {
-                    delegate.onSuccess();
-                    unblock();
-                }
+        return tryAcquire(context).map(delegate -> new Listener() {
+            @Override
+            public void onSuccess() {
+                delegate.onSuccess();
+                unblock();
+            }
 
-                @Override
-                public void onIgnore() {
-                    delegate.onIgnore();
-                    unblock();
-                }
+            @Override
+            public void onIgnore() {
+                delegate.onIgnore();
+                unblock();
+            }
 
-                @Override
-                public void onDropped() {
-                    delegate.onDropped();
-                    unblock();
-                }
-            };
+            @Override
+            public void onDropped() {
+                delegate.onDropped();
+                unblock();
+            }
         });
     }
     
     @Override
     public String toString() {
-        return "BlockingLimiter [blocked=" + blocked + ", " + delegate + "]";
+        return "BlockingLimiter [" + delegate + "]";
     }
 }
