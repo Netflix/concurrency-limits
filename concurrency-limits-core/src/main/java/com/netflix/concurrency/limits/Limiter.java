@@ -40,7 +40,7 @@ public interface Limiter<ContextT> {
      * If acquired the caller must call one of the Listener methods when the operation has been completed
      * to release the count.
      * 
-     * @param context Context for the request. The context is used by advanced startegies such as 
+     * @param context Context for the request. The context is used by advanced strategies such as 
      *                  {@link LookupPartitionStrategy}.
      * @return Optional.empty() if limit exceeded.
      */
