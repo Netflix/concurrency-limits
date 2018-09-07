@@ -1,19 +1,17 @@
 package com.netflix.concurrency.limits.limit;
 
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
 import com.netflix.concurrency.limits.limit.functions.Log10RootFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 /**
  * Limiter based on TCP Vegas where the limit increases by alpha if the queue_use is small ({@literal <} alpha)
@@ -25,7 +23,7 @@ import com.netflix.concurrency.limits.limit.functions.Log10RootFunction;
  * For traditional TCP Vegas alpha is typically 2-3 and beta is typically 4-6.  To allow for better growth and 
  * stability at higher limits we set alpha=Max(3, 10% of the current limit) and beta=Max(6, 20% of the current limit)
  */
-public class VegasLimit implements Limit {
+public class VegasLimit extends AbstractLimit {
     private static final Logger LOG = LoggerFactory.getLogger(VegasLimit.class);
     
     private static final Function<Integer, Integer> LOG10 = Log10RootFunction.create(0);
@@ -160,6 +158,7 @@ public class VegasLimit implements Limit {
     private int probeCountdown;
 
     private VegasLimit(Builder builder) {
+        super(builder.initialLimit);
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
         this.alphaFunc = builder.alphaFunc;
@@ -180,38 +179,37 @@ public class VegasLimit implements Limit {
     }
 
     @Override
-    public synchronized void update(SampleWindow sample) {
-        long rtt = sample.getCandidateRttNanos();
+    protected int _update(long startTime, long rtt, int inflight, boolean didDrop) {
         Preconditions.checkArgument(rtt > 0, "rtt must be >0 but got " + rtt);
 
         if (probeCountdown != DISABLED && probeCountdown-- <= 0) {
             LOG.debug("Probe MinRTT {}", TimeUnit.NANOSECONDS.toMicros(rtt) / 1000.0);
             probeCountdown = nextProbeCountdown();
             rtt_noload = rtt;
-            return;
+            return (int)estimatedLimit;
         }
         
         if (rtt_noload == 0 || rtt < rtt_noload) {
             LOG.debug("New MinRTT {}", TimeUnit.NANOSECONDS.toMicros(rtt) / 1000.0);
             rtt_noload = rtt;
-            return;
+            return (int)estimatedLimit;
         }
         
         rttSampleListener.addSample(rtt_noload);
 
-        updateEstimatedLimit(sample, rtt);
+        return updateEstimatedLimit(rtt, inflight, didDrop);
     }
 
-    private void updateEstimatedLimit(SampleWindow sample, long rtt) {
+    private int updateEstimatedLimit(long rtt, int inflight, boolean didDrop) {
         final int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / rtt));
 
         double newLimit;
         // Treat any drop (i.e timeout) as needing to reduce the limit
-        if (sample.didDrop()) {
+        if (didDrop) {
             newLimit = decreaseFunc.apply(estimatedLimit);
         // Prevent upward drift if not close to the limit
-        } else if (sample.getMaxInFlight() * 2 < estimatedLimit) {
-            return;
+        } else if (inflight * 2 < estimatedLimit) {
+            return (int)estimatedLimit;
         } else {
             int alpha = alphaFunc.apply((int)estimatedLimit);
             int beta = betaFunc.apply((int)estimatedLimit);
@@ -228,7 +226,7 @@ public class VegasLimit implements Limit {
                 newLimit = decreaseFunc.apply(estimatedLimit);
             // We're within he sweet spot so nothing to do
             } else {
-                return;
+                return (int)estimatedLimit;
             }
         }
 
@@ -242,10 +240,6 @@ public class VegasLimit implements Limit {
                     queueSize);
         }
         estimatedLimit = newLimit;
-    }
-
-    @Override
-    public int getLimit() {
         return (int)estimatedLimit;
     }
 

@@ -7,10 +7,8 @@ import com.netflix.concurrency.limits.grpc.client.GrpcClientLimiterBuilder;
 import com.netflix.concurrency.limits.limit.FixedLimit;
 import com.netflix.concurrency.limits.limit.VegasLimit;
 import com.netflix.concurrency.limits.spectator.SpectatorMetricRegistry;
-import com.netflix.concurrency.limits.strategy.SimpleStrategy;
 import com.netflix.spectator.api.DefaultRegistry;
 import com.netflix.spectator.api.Registry;
-
 import io.grpc.CallOptions;
 import io.grpc.Channel;
 import io.grpc.Metadata;
@@ -26,6 +24,8 @@ import io.grpc.stub.ClientCalls;
 import io.grpc.stub.MetadataUtils;
 import io.grpc.stub.ServerCalls;
 import io.grpc.stub.StreamObserver;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.Executor;
@@ -33,9 +33,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
-
-import org.junit.Ignore;
-import org.junit.Test;
 
 public class ConcurrencyLimitServerInterceptorTest {
     private static final MethodDescriptor<String, String> METHOD_DESCRIPTOR = MethodDescriptor.<String, String>newBuilder()
@@ -66,14 +63,15 @@ public class ConcurrencyLimitServerInterceptorTest {
                         observer.onNext("response");
                         observer.onCompleted();
                     }))
-                    .build(), new ConcurrencyLimitServerInterceptor(new GrpcServerLimiterBuilder()
-                            .limit(FixedLimit.of(50))
-                            .partitionByHeader(ID_HEADER, builder -> builder
-                                    .metricRegistry(serverRegistry)
-                                    .assign("0", 0.1)
-                                    .assign("1", 0.2)
-                                    .assign("2", 0.7))
-                            .build())
+                    .build(), ConcurrencyLimitServerInterceptor.newBuilder(
+                            new GrpcServerLimiterBuilder()
+                                .limit(FixedLimit.of(50))
+                                .partitionByHeader(ID_HEADER)
+                                .partition("0", 0.1)
+                                .partition("1", 0.2)
+                                .partition("2", 0.7)
+                                .build())
+                    .build()
                 ))
             .build()
             .start();
@@ -114,7 +112,7 @@ public class ConcurrencyLimitServerInterceptorTest {
                 .usePlaintext(true)
                 .intercept(MetadataUtils.newAttachHeadersInterceptor(headers))
                 .intercept(new ConcurrencyLimitClientInterceptor(new GrpcClientLimiterBuilder()
-                        .strategy(new SimpleStrategy<>(clientRegistry))
+                        .metricRegistry(clientRegistry)
                         .limit(limit)
                         .blockOnLimit(true)
                         .build()))

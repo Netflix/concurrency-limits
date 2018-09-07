@@ -1,26 +1,23 @@
 package com.netflix.concurrency.limits.grpc.client;
 
 import com.netflix.concurrency.limits.Limiter;
-import com.netflix.concurrency.limits.limiter.AbstractLimiterBuilder;
+import com.netflix.concurrency.limits.limiter.AbstractPartitionedLimiter;
 import com.netflix.concurrency.limits.limiter.BlockingLimiter;
-import com.netflix.concurrency.limits.strategy.LookupPartitionStrategy;
-
+import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import io.grpc.CallOptions;
-
-import java.util.function.Consumer;
 
 /**
  * Builder to simplify creating a {@link Limiter} specific to GRPC clients. 
  */
-public final class GrpcClientLimiterBuilder extends AbstractLimiterBuilder<GrpcClientLimiterBuilder, GrpcClientRequestContext> {
+public final class GrpcClientLimiterBuilder extends AbstractPartitionedLimiter.Builder<GrpcClientLimiterBuilder, GrpcClientRequestContext> {
     private boolean blockOnLimit = false;
-    
-    public GrpcClientLimiterBuilder partitionByMethod(Consumer<LookupPartitionStrategy.Builder<GrpcClientRequestContext>> configurer) {
-        return partitionByLookup(context -> context.getMethod().getFullMethodName(), configurer);
+
+    public GrpcClientLimiterBuilder partitionByMethod() {
+        return partitionResolver(context -> context.getMethod().getFullMethodName());
     }
     
-    public GrpcClientLimiterBuilder partitionByCallOption(CallOptions.Key<String> option, Consumer<LookupPartitionStrategy.Builder<GrpcClientRequestContext>> configurer) {
-        return partitionByLookup(context -> context.getCallOptions().getOption(option), configurer);
+    public GrpcClientLimiterBuilder partitionByCallOption(CallOptions.Key<String> option) {
+        return partitionResolver(context -> context.getCallOptions().getOption(option));
     }
     
     /**
@@ -40,7 +37,8 @@ public final class GrpcClientLimiterBuilder extends AbstractLimiterBuilder<GrpcC
     }
     
     public Limiter<GrpcClientRequestContext> build() {
-        Limiter<GrpcClientRequestContext> limiter = buildLimiter();
+        Limiter<GrpcClientRequestContext> limiter = super.build();
+
         if (blockOnLimit) {
             limiter = BlockingLimiter.wrap(limiter);
         }

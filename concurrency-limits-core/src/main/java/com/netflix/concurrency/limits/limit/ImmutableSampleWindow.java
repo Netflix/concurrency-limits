@@ -1,13 +1,11 @@
-package com.netflix.concurrency.limits.limiter;
-
-import com.netflix.concurrency.limits.Limit;
+package com.netflix.concurrency.limits.limit;
 
 import java.util.concurrent.TimeUnit;
 
 /**
  * Class used to track immutable samples in an AtomicReference
  */
-public class ImmutableSampleWindow implements Limit.SampleWindow {
+class ImmutableSampleWindow {
     final long minRtt;
     final int maxInFlight;
     final int sampleCount;
@@ -38,27 +36,22 @@ public class ImmutableSampleWindow implements Limit.SampleWindow {
         return new ImmutableSampleWindow(minRtt, sum, Math.max(maxInFlight, this.maxInFlight), sampleCount, true);
     }
     
-    @Override
     public long getCandidateRttNanos() {
         return minRtt;
     }
 
-    @Override
     public long getAverateRttNanos() {
         return sampleCount == 0 ? 0 : sum / sampleCount;
     }
     
-    @Override
     public int getMaxInFlight() {
         return maxInFlight;
     }
 
-    @Override
     public int getSampleCount() {
         return sampleCount;
     }
 
-    @Override
     public boolean didDrop() {
         return didDrop;
     }
