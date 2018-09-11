@@ -3,10 +3,8 @@ package com.netflix.concurrency.limits;
 import com.netflix.concurrency.limits.executors.BlockingAdaptiveExecutor;
 import com.netflix.concurrency.limits.limit.FixedLimit;
 import com.netflix.concurrency.limits.limit.VegasLimit;
-import com.netflix.concurrency.limits.limiter.DefaultLimiter;
 import com.netflix.concurrency.limits.servlet.ConcurrencyLimitServletFilter;
 import com.netflix.concurrency.limits.servlet.ServletLimiterBuilder;
-import com.netflix.concurrency.limits.strategy.SimpleStrategy;
 
 import java.io.IOException;
 import java.security.Principal;

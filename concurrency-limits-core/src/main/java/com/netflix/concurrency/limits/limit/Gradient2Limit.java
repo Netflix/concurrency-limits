@@ -4,14 +4,11 @@ import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
-import com.netflix.concurrency.limits.internal.Preconditions;
-import com.netflix.concurrency.limits.limit.functions.SquareRootFunction;
+import com.netflix.concurrency.limits.limit.measurement.ExpAvgMeasurement;
 import com.netflix.concurrency.limits.limit.measurement.Measurement;
-import com.netflix.concurrency.limits.limit.measurement.MinimumMeasurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -22,35 +19,22 @@ import java.util.function.Function;
  * small for large limits but still prevents the limit from growing too much by slowing down
  * growth as the limit grows.
  */
-public final class GradientLimit extends AbstractLimit {
+public final class Gradient2Limit extends AbstractLimit {
     private static final int DISABLED = -1;
 
-    private static final Logger LOG = LoggerFactory.getLogger(GradientLimit.class);
-    
+    private static final Logger LOG = LoggerFactory.getLogger(Gradient2Limit.class);
+
     public static class Builder {
-        private int initialLimit = 50;
-        private int minLimit = 1;
+        private int initialLimit = 4;
+        private int minLimit = 4;
         private int maxConcurrency = 1000;
-        
+
         private double smoothing = 0.2;
-        private Function<Integer, Integer> queueSize = SquareRootFunction.create(4);
+        private Function<Integer, Integer> queueSize = concurrency -> 4;
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
-        private double rttTolerance = 2.0;
-        private int probeInterval = 1000;
-        
-        /**
-         * Minimum threshold for accepting a new rtt sample.  Any RTT lower than this threshold
-         * will be discarded.
-         *  
-         * @param minRttTreshold
-         * @param units
-         * @return Chainable builder
-         */
-        @Deprecated
-        public Builder minRttThreshold(long minRttTreshold, TimeUnit units) {
-            return this;
-        }
-        
+        private int shortWindow = 10;
+        private int longWindow = 100;
+
         /**
          * Initial limit used by the limiter
          * @param initialLimit
@@ -60,11 +44,11 @@ public final class GradientLimit extends AbstractLimit {
             this.initialLimit = initialLimit;
             return this;
         }
-        
+
         /**
          * Minimum concurrency limit allowed.  The minimum helps prevent the algorithm from adjust the limit
          * too far down.  Note that this limit is not desirable when use as backpressure for batch apps.
-         * 
+         *
          * @param minLimit
          * @return Chainable builder
          */
@@ -72,19 +56,7 @@ public final class GradientLimit extends AbstractLimit {
             this.minLimit = minLimit;
             return this;
         }
-        
-        /**
-         * Tolerance for changes in minimum latency.  
-         * @param rttTolerance Value {@literal >}= 1.0 indicating how much change in minimum latency is acceptable
-         *  before reducing the limit.  For example, a value of 2.0 means that a 2x increase in latency is acceptable. 
-         * @return Chainable builder
-         */
-        public Builder rttTolerance(double rttTolerance) {
-            Preconditions.checkArgument(rttTolerance >= 1.0, "Tolerance must be >= 1.0");
-            this.rttTolerance = rttTolerance;
-            return this;
-        }
-        
+
         /**
          * Maximum allowable concurrency.  Any estimated concurrency will be capped
          * at this value
@@ -95,7 +67,7 @@ public final class GradientLimit extends AbstractLimit {
             this.maxConcurrency = maxConcurrency;
             return this;
         }
-        
+
         /**
          * Fixed amount the estimated limit can grow while latencies remain low
          * @param queueSize
@@ -116,7 +88,7 @@ public final class GradientLimit extends AbstractLimit {
             this.queueSize = queueSize;
             return this;
         }
-        
+
         /**
          * Smoothing factor to limit how aggressively the estimated limit can shrink
          * when queuing has been detected.
@@ -128,7 +100,7 @@ public final class GradientLimit extends AbstractLimit {
             this.smoothing = smoothing;
             return this;
         }
-        
+
         /**
          * Registry for reporting metrics about the limiter's internal state.
          * @param registry
@@ -138,125 +110,134 @@ public final class GradientLimit extends AbstractLimit {
             this.registry = registry;
             return this;
         }
-        
-        @Deprecated
-        public Builder probeMultiplier(int probeMultiplier) {
+
+        public Builder shortWindow(int n) {
+            this.shortWindow = n;
             return this;
         }
 
-        /**
-         * The limiter will probe for a new noload RTT every probeInterval
-         * updates.  Default value is 1000. Set to -1 to disable 
-         * @param probeInterval 
-         * @return Chainable builder
-         */
-        public Builder probeInterval(int probeInterval) {
-            this.probeInterval = probeInterval;
+        public Builder longWindow(int n) {
+            this.longWindow = n;
             return this;
         }
-        
-        public GradientLimit build() {
-            return new GradientLimit(this);
+
+        public Gradient2Limit build() {
+            return new Gradient2Limit(this);
         }
     }
-    
+
     public static Builder newBuilder() {
         return new Builder();
     }
-    
-    public static GradientLimit newDefault() {
+
+    public static Gradient2Limit newDefault() {
         return newBuilder().build();
     }
-    
+
     /**
      * Estimated concurrency limit based on our algorithm
      */
     private volatile double estimatedLimit;
-    
-    private final Measurement rttNoLoadMeasurement;
-    
+
+    /**
+     * Tracks a measurement of the short time, and more volatile, RTT meant to represent the current system latency
+     */
+    private final Measurement shortRtt;
+
+    /**
+     * Tracks a measurement of the long term, less volatile, RTT meant to represent the baseline latency.  When the system
+     * is under load this number is expect to trend higher.
+     */
+    private final Measurement longRtt;
+
     /**
      * Maximum allowed limit providing an upper bound failsafe
      */
-    private final int maxLimit; 
-    
+    private final int maxLimit;
+
     private final int minLimit;
-    
+
     private final Function<Integer, Integer> queueSize;
-    
+
     private final double smoothing;
 
-    private final double rttTolerance;
+    private final SampleListener longRttSampleListener;
 
-    private final SampleListener minRttSampleListener;
-
-    private final SampleListener minWindowRttSampleListener;
+    private final SampleListener shortRttSampleListener;
 
     private final SampleListener queueSizeSampleListener;
-    
-    private final int probeInterval;
-    
-    private int resetRttCounter;
-    
-    private GradientLimit(Builder builder) {
+
+    private final int maxDriftIntervals;
+
+    private int intervalsAbove = 0;
+
+    private Gradient2Limit(Builder builder) {
         super(builder.initialLimit);
+
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
         this.minLimit = builder.minLimit;
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
-        this.rttTolerance = builder.rttTolerance;
-        this.probeInterval = builder.probeInterval;
-        this.resetRttCounter = nextProbeCountdown();
-        this.rttNoLoadMeasurement = new MinimumMeasurement();
-        
-        this.minRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
-        this.minWindowRttSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_MIN_RTT_NAME);
-        this.queueSizeSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_QUEUE_SIZE_NAME);
-    }
+        this.shortRtt = new ExpAvgMeasurement(builder.shortWindow);
+        this.longRtt = new ExpAvgMeasurement(builder.longWindow);
+        this.maxDriftIntervals = builder.shortWindow * 10;
 
-    private int nextProbeCountdown() {
-        if (probeInterval == DISABLED) {
-            return DISABLED;
-        }
-        return probeInterval + ThreadLocalRandom.current().nextInt(probeInterval);
+        this.longRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
+        this.shortRttSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_MIN_RTT_NAME);
+        this.queueSizeSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_QUEUE_SIZE_NAME);
     }
 
     @Override
     public int _update(final long startTime, final long rtt, final int inflight, final boolean didDrop) {
-        minWindowRttSampleListener.addSample(rtt);
-
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
-        queueSizeSampleListener.addSample(queueSize);
 
-        // Reset or probe for a new noload RTT and a new estimatedLimit.  It's necessary to cut the limit
-        // in half to avoid having the limit drift upwards when the RTT is probed during heavy load.
-        // To avoid decreasing the limit too much we don't allow it to go lower than the queueSize.
-        if (probeInterval != DISABLED && resetRttCounter-- <= 0) {
-            resetRttCounter = nextProbeCountdown();
-            
-            estimatedLimit = Math.max(minLimit, queueSize);
-            rttNoLoadMeasurement.reset();
-            LOG.debug("Probe MinRTT limit={}", getLimit());
+        final double shortRtt = this.shortRtt.add(rtt).doubleValue();
+        final double longRtt = this.longRtt.add(rtt).doubleValue();
+
+        // Under steady state we expect the short and long term RTT to whipsaw.  We can identify that a system is under
+        // long term load when there is no crossover detected for a certain number of internals, normally a multiple of
+        // the short term RTT window.  Since both short and long term RTT trend higher this state results in the limit
+        // slowly trending upwards, increasing the queue and latency.  To mitigate this we drop both the limit and
+        // long term latency value to effectively probe for less queueing and better latency.
+        if (shortRtt < longRtt) {
+            intervalsAbove = 0;
+        } else if (shortRtt > longRtt){
+            intervalsAbove++;
+        }
+
+        if (intervalsAbove > maxDriftIntervals) {
+            intervalsAbove = 0;
+            int newLimit = (int)Math.max(minLimit, queueSize);
+            // This helps prevent an unreasonably low long term RTT
+            if (newLimit * 2 < estimatedLimit) {
+                this.longRtt.update(current -> current.doubleValue() / 2);
+            }
+            estimatedLimit = newLimit;
             return (int)estimatedLimit;
         }
-        
-        final long rttNoLoad = rttNoLoadMeasurement.add(rtt).longValue();
-        minRttSampleListener.addSample(rttNoLoad);
-        
+        // Because we're using lots of averages it's possible for the short term RTT to be substantially lower than
+        // the longer term Rtt.  When that happens we need to 'reset' the long term RTT.  Averaging the short and long
+        // term rtt values smooths out this 'reset'.
+        if (shortRtt < longRtt) {
+            this.longRtt.update(current -> (longRtt + shortRtt) / 2);
+            return (int)estimatedLimit;
+        }
+
+        shortRttSampleListener.addSample(shortRtt);
+        longRttSampleListener.addSample(longRtt);
+        queueSizeSampleListener.addSample(queueSize);
+
         // Rtt could be higher than rtt_noload because of smoothing rtt noload updates
         // so set to 1.0 to indicate no queuing.  Otherwise calculate the slope and don't
         // allow it to be reduced by more than half to avoid aggressive load-sheding due to 
         // outliers.
-        final double gradient = Math.max(0.5, Math.min(1.0, rttTolerance * rttNoLoad / rtt));
+        final double gradient = Math.max(0.5, Math.min(1.0, longRtt / shortRtt));
         
         double newLimit;
-        // Reduce the limit aggressively if there was a drop
-        if (didDrop) {
-            newLimit = estimatedLimit/2;
         // Don't grow the limit if we are app limited
-        } else if (inflight < estimatedLimit / 2) {
-            return (int)estimatedLimit;
+        if (inflight < estimatedLimit / 2) {
+            return (int) estimatedLimit;
         }
 
         newLimit = estimatedLimit * gradient + queueSize;
@@ -264,29 +245,31 @@ public final class GradientLimit extends AbstractLimit {
             newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
         }
         newLimit = Math.max(queueSize, Math.min(maxLimit, newLimit));
-        
-        if ((int)newLimit != (int)estimatedLimit  && LOG.isDebugEnabled()) {
-            LOG.debug("New limit={} minRtt={} ms winRtt={} ms queueSize={} gradient={} resetCounter={}", 
-                    (int)newLimit, 
-                    TimeUnit.NANOSECONDS.toMicros(rttNoLoad)/1000.0, 
-                    TimeUnit.NANOSECONDS.toMicros(rtt)/1000.0,
+
+        if ((int)estimatedLimit != newLimit) {
+            LOG.debug("New limit={} shortRtt={} ms longRtt={} ms queueSize={} gradient={}",
+                    (int) newLimit,
+                    getShortRtt(TimeUnit.MICROSECONDS) / 1000.0,
+                    getLongRtt(TimeUnit.MICROSECONDS) / 1000.0,
                     queueSize,
-                    gradient,
-                    resetRttCounter);
+                    gradient);
         }
 
         estimatedLimit = newLimit;
+
         return (int)estimatedLimit;
     }
 
-    public long getRttNoLoad() {
-        return rttNoLoadMeasurement.get().longValue();
+    public long getShortRtt(TimeUnit units) {
+        return units.convert(shortRtt.get().longValue(), TimeUnit.NANOSECONDS);
+    }
+
+    public long getLongRtt(TimeUnit units) {
+        return units.convert(longRtt.get().longValue(), TimeUnit.NANOSECONDS);
     }
 
     @Override
     public String toString() {
-        return "GradientLimit [limit=" + (int)estimatedLimit + 
-                ", rtt_noload=" + TimeUnit.MICROSECONDS.toMillis(rttNoLoadMeasurement.get().longValue()) / 1000.0+
-                " ms]";
+        return "GradientLimit [limit=" + (int)estimatedLimit + "]";
     }
 }

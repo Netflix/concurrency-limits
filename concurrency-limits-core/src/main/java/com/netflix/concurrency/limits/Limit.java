@@ -1,49 +1,29 @@
 package com.netflix.concurrency.limits;
 
+import java.util.function.Consumer;
+
 /**
  * Contract for an algorithm that calculates a concurrency limit based on 
  * rtt measurements
  */
 public interface Limit {
     /**
-     * Details of the current sample window
-     */
-    interface SampleWindow {
-        /**
-         * @return Candidate RTT in the sample window. This is traditionally the minimum rtt.
-         */
-        long getCandidateRttNanos();
-        
-        /**
-         * @return Average RTT in the sample window.  Excludes timeouts and dropped rtt.
-         */
-        long getAverateRttNanos();
-        
-        /**
-         * @return Maximum number of inflight observed during the sample window
-         */
-        int getMaxInFlight();
-        
-        /**
-         * @return Number of observed RTTs in the sample window
-         */
-        int getSampleCount();
-        
-        /**
-         * @return True if there was a timeout
-         */
-        boolean didDrop();
-    }
-    
-    /**
      * @return Current estimated limit
      */
     int getLimit();
-    
+
     /**
-     * Update the concurrency limit using a new rtt sample
-     * 
-     * @param sample Data from the last sampling window such as RTT
+     * Register a callback to receive notification whenever the limit is updated to a new value
+     * @param consumer
      */
-    void update(SampleWindow sample);
+    void notifyOnChange(Consumer<Integer> consumer);
+
+    /**
+     * Update the limiter with a sample
+     * @param startTime
+     * @param rtt
+     * @param inflight
+     * @param didDrop
+     */
+    void onSample(long startTime, long rtt, int inflight, boolean didDrop);
 }

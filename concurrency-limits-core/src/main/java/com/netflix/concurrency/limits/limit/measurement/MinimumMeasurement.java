@@ -1,4 +1,6 @@
-package com.netflix.concurrency.limits.limit;
+package com.netflix.concurrency.limits.limit.measurement;
+
+import java.util.function.Function;
 
 public class MinimumMeasurement implements Measurement {
     private Double value = 0.0;
@@ -19,5 +21,10 @@ public class MinimumMeasurement implements Measurement {
     @Override
     public void reset() {
         value = 0.0;
+    }
+
+    @Override
+    public void update(Function<Number, Number> operation) {
+        
     }
 }

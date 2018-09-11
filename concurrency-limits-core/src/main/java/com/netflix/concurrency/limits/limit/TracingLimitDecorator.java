@@ -1,11 +1,11 @@
 package com.netflix.concurrency.limits.limit;
 
-import java.util.concurrent.TimeUnit;
-
+import com.netflix.concurrency.limits.Limit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.netflix.concurrency.limits.Limit;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 public class TracingLimitDecorator implements Limit {
     private static final Logger LOG = LoggerFactory.getLogger(TracingLimitDecorator.class);
@@ -26,12 +26,15 @@ public class TracingLimitDecorator implements Limit {
     }
 
     @Override
-    public void update(SampleWindow sample) {
-        LOG.debug("sampleCount={} maxInFlight={} minRtt={} ms", 
-                sample.getSampleCount(),
-                sample.getMaxInFlight(),
-                TimeUnit.NANOSECONDS.toMicros(sample.getCandidateRttNanos()) / 1000.0);
-        delegate.update(sample);
+    public void onSample(long startTime, long rtt, int inflight, boolean didDrop) {
+        LOG.debug("maxInFlight={} minRtt={} ms",
+                inflight,
+                TimeUnit.NANOSECONDS.toMicros(rtt) / 1000.0);
+        delegate.onSample(startTime, rtt, inflight, didDrop);
     }
 
+    @Override
+    public void notifyOnChange(Consumer<Integer> consumer) {
+        delegate.notifyOnChange(consumer);
+    }
 }

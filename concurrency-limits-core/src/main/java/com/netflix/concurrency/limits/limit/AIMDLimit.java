@@ -6,7 +6,7 @@ import com.netflix.concurrency.limits.Limit;
  * Loss based dynamic {@link Limit} that does an additive increment as long as 
  * there are no errors and a multiplicative decrement when there is an error.
  */
-public final class AIMDLimit implements Limit {
+public final class AIMDLimit extends AbstractLimit {
     
     public static class Builder {
         private int initialLimit = 10;
@@ -31,30 +31,26 @@ public final class AIMDLimit implements Limit {
         return new Builder();
     }
     
-    private volatile int limit;
     private final double backoffRatio;
 
     private AIMDLimit(Builder builder) {
-        this.limit = builder.initialLimit;
+        super(builder.initialLimit);
         this.backoffRatio = builder.backoffRatio;
     }
     
     @Override
-    public int getLimit() {
-        return limit;
-    }
-
-    @Override
-    public void update(SampleWindow sample) {
-        if (sample.didDrop()) {
-            limit = Math.max(1, Math.min(limit - 1, (int) (limit * backoffRatio)));
-        } else if (sample.getMaxInFlight() >= limit) {
-            limit = limit + 1;
+    protected int _update(long startTime, long rtt, int inflight, boolean didDrop) {
+        if (didDrop) {
+            return Math.max(1, Math.min(getLimit() - 1, (int) (getLimit() * backoffRatio)));
+        } else if (inflight >= getLimit()) {
+            return getLimit() + 1;
+        } else {
+            return getLimit();
         }
     }
 
     @Override
     public String toString() {
-        return "AIMDLimit [limit=" + limit + "]";
+        return "AIMDLimit [limit=" + getLimit() + "]";
     }
 }
