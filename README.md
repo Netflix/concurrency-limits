@@ -11,7 +11,7 @@ Concurrency limits are very easy to enforce but difficult to determine as they w
 Before applying the algorithm we need to set some ground rules. 
 * We accept that every system has an inherent concurrency limit that is determined by a hard resources, such as number of CPU cores. 
 * We accept that this limit can change as a system auto-scales.  
-* For large and complex distributed systems it's impossible to know all the hard resource.
+* For large and complex distributed systems it's impossible to know all the hard resources.
 * We can use latency measurements to determine when queuing happens.
 * We can use timeouts and rejected requests to aggressively back off.
 
