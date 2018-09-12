@@ -66,6 +66,8 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
         void acquire() {
             busy++;
+            inflightDistribution.addSample(busy);
+
         }
 
         void release() {
