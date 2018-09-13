@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
-    public abstract static class Builder<BuilderT extends Builder<BuilderT, ContextT>, ContextT> {
+    public abstract static class Builder<BuilderT extends Builder<BuilderT>> {
         private Limit limit = VegasLimit.newDefault();
         private Supplier<Long> clock = System::nanoTime;
         protected MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
@@ -53,7 +53,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     private final Limit limitAlgorithm;
     private volatile int limit;
 
-    protected AbstractLimiter(Builder<?, ContextT> builder) {
+    protected AbstractLimiter(Builder<?> builder) {
         this.clock = builder.clock;
         this.limitAlgorithm = builder.limit;
         this.limit = limitAlgorithm.getLimit();

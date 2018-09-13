@@ -17,34 +17,47 @@ package com.netflix.concurrency.limits.limiter;
 
 import com.netflix.concurrency.limits.Limiter;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 
 /**
  * {@link Limiter} that blocks the caller when the limit has been reached.  The caller is
- * blocked until the limiter has been released.  This limiter is commonly used in batch
- * clients that use the limiter as a back-pressure mechanism.
+ * blocked until the limiter has been released, or a timeout is reached.  This limiter is
+ * commonly used in batch clients that use the limiter as a back-pressure mechanism.
  * 
  * @param <ContextT>
  */
 public final class BlockingLimiter<ContextT> implements Limiter<ContextT> {
     public static <ContextT> BlockingLimiter<ContextT> wrap(Limiter<ContextT> delegate) {
-        return new BlockingLimiter<>(delegate);
+        return new BlockingLimiter<>(delegate, Optional.empty());
+    }
+
+    public static <ContextT> BlockingLimiter<ContextT> wrap(Limiter<ContextT> delegate, Duration timeout) {
+        return new BlockingLimiter<>(delegate, Optional.of(timeout));
     }
 
     private final Limiter<ContextT> delegate;
+    private final Optional<Duration> timeout;
     
     /**
      * Lock used to block and unblock callers as the limit is reached
      */
     private final Object lock = new Object();
 
-    private BlockingLimiter(Limiter<ContextT> limiter) {
+    private BlockingLimiter(Limiter<ContextT> limiter, Optional<Duration> timeout) {
         this.delegate = limiter;
+        this.timeout = timeout;
     }
     
     private Optional<Listener> tryAcquire(ContextT context) {
+        Instant deadline = timeout.map(t -> Instant.now().plus(t)).orElse(Instant.MAX);
         synchronized (lock) {
             while (true) {
+                Instant now = Instant.now();
+                if (!now.isBefore(deadline)) {
+                    return Optional.empty();
+                }
                 // Try to acquire a token and return immediately if successful
                 Optional<Listener> listener;
                 listener = delegate.acquire(context);
@@ -54,7 +67,7 @@ public final class BlockingLimiter<ContextT> implements Limiter<ContextT> {
                 
                 // We have reached the limit so block until a token is released
                 try {
-                    lock.wait();
+                    lock.wait(Duration.between(now, deadline).toMillis());
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return Optional.empty();
