@@ -31,7 +31,7 @@ import java.util.function.Function;
 public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimiter<ContextT> {
     private static final String PARTITION_TAG_NAME = "partition";
 
-    public abstract static class Builder<BuilderT extends AbstractLimiter.Builder<BuilderT, ContextT>, ContextT> extends AbstractLimiter.Builder<BuilderT, ContextT> {
+    public abstract static class Builder<BuilderT extends AbstractLimiter.Builder<BuilderT>, ContextT> extends AbstractLimiter.Builder<BuilderT> {
         private List<Function<ContextT, String>> partitionResolvers = new ArrayList<>();
         private final Map<String, Partition> partitions = new LinkedHashMap<>();
 

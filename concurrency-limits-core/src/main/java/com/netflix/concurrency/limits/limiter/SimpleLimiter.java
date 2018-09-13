@@ -18,9 +18,9 @@ package com.netflix.concurrency.limits.limiter;
 import java.util.Optional;
 
 public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
-    public static class Builder<ContextT> extends AbstractLimiter.Builder<Builder<ContextT>, ContextT> {
-        public SimpleLimiter build() {
-            return new SimpleLimiter(this);
+    public static class Builder extends AbstractLimiter.Builder<Builder> {
+        public <ContextT> SimpleLimiter<ContextT> build() {
+            return new SimpleLimiter<>(this);
         }
 
         @Override
@@ -29,17 +29,17 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
         }
     }
 
-    public static <ContextT> Builder<ContextT> newBuilder() {
-        return new Builder<ContextT>();
+    public static Builder newBuilder() {
+        return new Builder();
     }
 
-    public SimpleLimiter(AbstractLimiter.Builder<?, ContextT> builder) {
+    public SimpleLimiter(AbstractLimiter.Builder<?> builder) {
         super(builder);
     }
 
     @Override
     public Optional<Listener> acquire(ContextT context) {
-        if (getInflight() > getLimit()) {
+        if (getInflight() >= getLimit()) {
             return Optional.empty();
         }
         return Optional.of(createListener());
