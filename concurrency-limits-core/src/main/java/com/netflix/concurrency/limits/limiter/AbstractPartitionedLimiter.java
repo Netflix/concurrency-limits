@@ -19,6 +19,8 @@ import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,22 +28,67 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimiter<ContextT> {
+    private static final Logger LOG = LoggerFactory.getLogger(AbstractPartitionedLimiter.class);
     private static final String PARTITION_TAG_NAME = "partition";
 
     public abstract static class Builder<BuilderT extends AbstractLimiter.Builder<BuilderT>, ContextT> extends AbstractLimiter.Builder<BuilderT> {
         private List<Function<ContextT, String>> partitionResolvers = new ArrayList<>();
         private final Map<String, Partition> partitions = new LinkedHashMap<>();
+        private int maxDelayedThreads = 100;
 
+        /**
+         * Add a resolver from context to a partition name.  Multiple resolvers may be added and will be processed in
+         * order with this first non-null value response used as the partition name.  If all resolvers return null then
+         * the unknown partition is used
+         * @param contextToPartition
+         * @return Chainable builder
+         */
         public BuilderT partitionResolver(Function<ContextT, String> contextToPartition) {
             this.partitionResolvers.add(contextToPartition);
             return self();
         }
 
+        /**
+         * Specify percentage of limit guarantees for a partition.  The total sum of partitions must add up to 100%
+         * @param name
+         * @param percent
+         * @return Chainable builder
+         */
         public BuilderT partition(String name, double percent) {
-            partitions.put(name, new Partition(name, percent));
+            Preconditions.checkArgument(name != null, "Partition name may not be null");
+            Preconditions.checkArgument(percent >= 0.0 && percent <= 1.0, "Partition percentage must be in the range [0.0, 1.0]");
+            partitions.computeIfAbsent(name, Partition::new).setPercent(percent);
+            return self();
+        }
+
+        /**
+         * Delay introduced in the form of a sleep to slow down the caller from the server side.  Because this can hold
+         * off RPC threads it is not recommended to set a delay when using a direct executor in an event loop.  Also,
+         * a max of 100 threads may be delayed before immediately returning
+         * @param name
+         * @param duration
+         * @param units
+         * @return Chainable builder
+         */
+        public BuilderT partitionRejectDelay(String name, long duration, TimeUnit units) {
+            partitions.computeIfAbsent(name, Partition::new).setBackoffMillis(units.toMillis(duration));
+            return self();
+        }
+
+        /**
+         * Set the maximum number of threads that can be held up or delayed when rejecting excessive traffic for a partition.
+         * The default value is 100.
+         * @param maxDelayedThreads
+         * @return Chainable builder
+         */
+        public BuilderT maxDelayedThreads(int maxDelayedThreads) {
+            this.maxDelayedThreads = maxDelayedThreads;
             return self();
         }
 
@@ -57,15 +104,26 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
     }
 
     static class Partition {
-        private final double percent;
         private final String name;
-        private int limit;
-        private int busy;
+
+        private double percent = 0.0;
+        private int limit = 0;
+        private int busy = 0;
+        private long backoffMillis = 0;
         private MetricRegistry.SampleListener inflightDistribution;
 
-        Partition(String name, double pct) {
+        Partition(String name) {
             this.name = name;
-            this.percent = pct;
+        }
+
+        Partition setPercent(double percent) {
+            this.percent = percent;
+            return this;
+        }
+
+        Partition setBackoffMillis(long backoffMillis) {
+            this.backoffMillis = backoffMillis;
+            return this;
         }
 
         void updateLimit(int totalLimit) {
@@ -115,6 +173,9 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
     private final Map<String, Partition> partitions;
     private final Partition unknownPartition;
     private final List<Function<ContextT, String>> partitionResolvers;
+    private final ReentrantLock lock = new ReentrantLock();
+    private final AtomicInteger delayedThreads = new AtomicInteger();
+    private final int maxDelayedThreads;
 
     public AbstractPartitionedLimiter(Builder<?, ContextT> builder) {
         super(builder);
@@ -126,11 +187,12 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         this.partitions = new HashMap<>(builder.partitions);
         this.partitions.forEach((name, partition) -> partition.createMetrics(builder.registry));
 
-        this.unknownPartition = new Partition("unknown", 0.0);
+        this.unknownPartition = new Partition("unknown");
         this.unknownPartition.createMetrics(builder.registry);
 
         this.partitionResolvers = builder.partitionResolvers;
-
+        this.maxDelayedThreads = builder.maxDelayedThreads;
+        
         builder.registry.registerGauge(MetricIds.LIMIT_GUAGE_NAME, this::getLimit);
 
         onNewLimit(getLimit());
@@ -150,42 +212,65 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
     }
 
     @Override
-    public synchronized Optional<Listener> acquire(ContextT context) {
+    public Optional<Listener> acquire(ContextT context) {
         final Partition partition = resolvePartition(context);
 
-        if (getInflight() >= getLimit() && partition.isLimitExceeded()) {
-            return Optional.empty();
+        try {
+            lock.lock();
+            if (getInflight() >= getLimit() && partition.isLimitExceeded()) {
+                lock.unlock();
+                if (partition.backoffMillis > 0 && delayedThreads.get() < maxDelayedThreads) {
+                    try {
+                        delayedThreads.incrementAndGet();
+                        TimeUnit.MILLISECONDS.sleep(partition.backoffMillis);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        delayedThreads.decrementAndGet();
+                    }
+                }
+
+                return Optional.empty();
+            }
+
+            partition.acquire();
+            final Listener listener = createListener();
+            return Optional.of(new Listener() {
+                @Override
+                public void onSuccess() {
+                    listener.onSuccess();
+                    releasePartition(partition);
+                }
+
+                @Override
+                public void onIgnore() {
+                    listener.onIgnore();
+                    releasePartition(partition);
+                }
+
+                @Override
+                public void onDropped() {
+                    listener.onDropped();
+                    releasePartition(partition);
+                }
+            });
+        } finally {
+            if (lock.isHeldByCurrentThread())
+                lock.unlock();
         }
-
-        partition.acquire();
-        final Listener listener = createListener();
-        return Optional.of(new Listener() {
-            @Override
-            public void onSuccess() {
-                listener.onSuccess();
-                releasePartition(partition);
-            }
-
-            @Override
-            public void onIgnore() {
-                listener.onIgnore();
-                releasePartition(partition);
-            }
-
-            @Override
-            public void onDropped() {
-                listener.onDropped();
-                releasePartition(partition);
-            }
-        });
     }
 
-    private synchronized void releasePartition(Partition partition) {
-        partition.release();
+    private void releasePartition(Partition partition) {
+        try {
+            lock.lock();
+            partition.release();
+        } finally {
+            lock.unlock();
+        }
     }
 
     @Override
-    protected synchronized void onNewLimit(int newLimit) {
+    protected void onNewLimit(int newLimit) {
         partitions.forEach((name, partition) -> partition.updateLimit(newLimit));
     }
 

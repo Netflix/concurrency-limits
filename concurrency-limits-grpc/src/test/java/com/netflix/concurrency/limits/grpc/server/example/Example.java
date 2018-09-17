@@ -15,10 +15,7 @@ import java.util.function.Consumer;
 
 public class Example {
     public static void main(String[] args) throws IOException {
-        final Gradient2Limit limit = Gradient2Limit.newBuilder()
-                .shortWindow(10)
-                .longWindow(100)
-                .build();
+        final Gradient2Limit limit = Gradient2Limit.newBuilder().build();
         
         // Create a server
         final TestServer server = TestServer.newBuilder()
@@ -34,8 +31,6 @@ public class Example {
                 )
             .build();
 
-        final AtomicInteger successCounter = new AtomicInteger(0);
-        final AtomicInteger dropCounter = new AtomicInteger(0);
         final LatencyCollector latency = new LatencyCollector();
 
         final Driver driver = Driver.newBuilder()
@@ -43,8 +38,6 @@ public class Example {
             .exponentialRps(200, 500, TimeUnit.SECONDS)
             .exponentialRps(100, 500, TimeUnit.SECONDS)
             .exponentialRps(75,  500, TimeUnit.SECONDS)
-            .successAction(successCounter::incrementAndGet)
-            .dropAction(dropCounter::incrementAndGet)
             .latencyAccumulator(latency)
             .runtime(1, TimeUnit.HOURS)
             .port(server.getPort())
@@ -57,8 +50,8 @@ public class Example {
             System.out.println(MessageFormat.format("{0,number,#}, {1,number,#}, {2,number,#}, {3,number,#}, {4,number,#}, {5,number,#}, {6,number,#}",
                     counter.incrementAndGet(), 
                     limit.getLimit(), 
-                    successCounter.getAndSet(0), 
-                    dropCounter.getAndSet(0),
+                    driver.getAndResetSuccessCount(),
+                    driver.getAndResetDropCount(),
                     TimeUnit.NANOSECONDS.toMillis(latency.getAndReset()),
                     limit.getShortRtt(TimeUnit.MILLISECONDS),
                     limit.getLongRtt(TimeUnit.MILLISECONDS)
@@ -67,38 +60,5 @@ public class Example {
         
         // Create a client
         driver.run();
-    }
-    
-    public static class Metrics {
-        long count;
-        long total;
-        
-        public Metrics() {
-            this(0, 0);
-        }
-        
-        public Metrics(long count, long total) {
-            this.count = count;
-            this.total = total;
-        }
-
-        public long average() {
-            if (this.count == 0) 
-                return 0;
-            return this.total / this.count;
-        }
-    }
-    
-    public static class LatencyCollector implements Consumer<Long> {
-        AtomicReference<Metrics> foo = new AtomicReference<Metrics>(new Metrics());
-        
-        @Override
-        public void accept(Long sample) {
-            foo.getAndUpdate(current -> new Metrics(current.count + 1, current.total + sample));
-        }
-        
-        public long getAndReset() {
-            return foo.getAndSet(new Metrics()).average();
-        }
     }
 }

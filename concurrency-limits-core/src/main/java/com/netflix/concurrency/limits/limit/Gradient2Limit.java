@@ -49,6 +49,7 @@ public final class Gradient2Limit extends AbstractLimit {
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private int shortWindow = 10;
         private int longWindow = 100;
+        private int driftMultiplier = 5;
 
         /**
          * Initial limit used by the limiter
@@ -101,6 +102,16 @@ public final class Gradient2Limit extends AbstractLimit {
          */
         public Builder queueSize(Function<Integer, Integer> queueSize) {
             this.queueSize = queueSize;
+            return this;
+        }
+
+        /**
+         * Maximum multiple of the fast window after which we need to reset the limiter
+         * @param multiplier
+         * @return
+         */
+        public Builder driftMultiplier(int multiplier) {
+            this.driftMultiplier = multiplier;
             return this;
         }
 
@@ -194,9 +205,9 @@ public final class Gradient2Limit extends AbstractLimit {
         this.minLimit = builder.minLimit;
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
-        this.shortRtt = new ExpAvgMeasurement(builder.shortWindow);
-        this.longRtt = new ExpAvgMeasurement(builder.longWindow);
-        this.maxDriftIntervals = builder.shortWindow * 10;
+        this.shortRtt = new ExpAvgMeasurement(builder.shortWindow,10, Math::min);
+        this.longRtt = new ExpAvgMeasurement(builder.longWindow,10, Math::min);
+        this.maxDriftIntervals = builder.shortWindow * builder.driftMultiplier;
 
         this.longRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
         this.shortRttSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_MIN_RTT_NAME);
@@ -224,18 +235,14 @@ public final class Gradient2Limit extends AbstractLimit {
         if (intervalsAbove > maxDriftIntervals) {
             intervalsAbove = 0;
             int newLimit = (int)Math.max(minLimit, queueSize);
-            // This helps prevent an unreasonably low long term RTT
-            if (newLimit * 2 < estimatedLimit) {
-                this.longRtt.update(current -> current.doubleValue() / 2);
-            }
+            this.longRtt.reset();
             estimatedLimit = newLimit;
             return (int)estimatedLimit;
         }
         // Because we're using lots of averages it's possible for the short term RTT to be substantially lower than
-        // the longer term Rtt.  When that happens we need to 'reset' the long term RTT.  Averaging the short and long
-        // term rtt values smooths out this 'reset'.
+        // the longer term Rtt.  When that happens we need to 'reset' the long term RTT.
         if (shortRtt < longRtt) {
-            this.longRtt.update(current -> (longRtt + shortRtt) / 2);
+            this.longRtt.reset();
             return (int)estimatedLimit;
         }
 

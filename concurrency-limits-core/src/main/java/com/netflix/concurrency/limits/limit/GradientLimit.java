@@ -46,7 +46,7 @@ public final class GradientLimit extends AbstractLimit {
         private int initialLimit = 50;
         private int minLimit = 1;
         private int maxConcurrency = 1000;
-        
+
         private double smoothing = 0.2;
         private Function<Integer, Integer> queueSize = SquareRootFunction.create(4);
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
@@ -272,9 +272,10 @@ public final class GradientLimit extends AbstractLimit {
         // Don't grow the limit if we are app limited
         } else if (inflight < estimatedLimit / 2) {
             return (int)estimatedLimit;
+        } else {
+            newLimit = estimatedLimit * gradient + queueSize;
         }
 
-        newLimit = estimatedLimit * gradient + queueSize;
         if (newLimit < estimatedLimit) {
             newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
         }

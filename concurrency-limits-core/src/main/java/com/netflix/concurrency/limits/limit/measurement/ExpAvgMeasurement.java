@@ -15,15 +15,20 @@
  */
 package com.netflix.concurrency.limits.limit.measurement;
 
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class ExpAvgMeasurement implements Measurement {
+    private final BiFunction<Double, Double, Double> accumulator;
     private Double value = 0.0;
     private final int window;
+    private final int warmupWindow;
     private int count = 0;
 
-    public ExpAvgMeasurement(int window) {
+    public ExpAvgMeasurement(int window, int warmupWindow, BiFunction<Double, Double, Double> accumulator) {
         this.window = window;
+        this.warmupWindow = warmupWindow;
+        this.accumulator = accumulator;
     }
 
     @Override
@@ -31,10 +36,9 @@ public class ExpAvgMeasurement implements Measurement {
         if (count == 0) {
             count++;
             value = sample.doubleValue();
-        } else if (count < window) {
+        } else if (count < warmupWindow) {
             count++;
-            double factor = factor(count);
-            value = value * (1-factor) + sample.doubleValue() * factor;
+            value = accumulator.apply(value.doubleValue(), sample.doubleValue());
         } else {
             double factor = factor(window);
             value = value * (1-factor) + sample.doubleValue() * factor;
