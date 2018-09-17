@@ -30,7 +30,7 @@ public class WindowedLimit implements Limit {
     /**
      * Minimum observed samples to filter out sample windows with not enough significant samples
      */
-    private static final int DEFAULT_WINDOW_SIZE = 100;
+    private static final int DEFAULT_WINDOW_SIZE = 10;
 
     public static Builder newBuilder() {
         return new Builder();
