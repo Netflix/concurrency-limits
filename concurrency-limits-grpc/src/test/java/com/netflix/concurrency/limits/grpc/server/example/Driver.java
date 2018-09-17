@@ -1,25 +1,34 @@
 package com.netflix.concurrency.limits.grpc.server.example;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
-
+import com.google.common.util.concurrent.Uninterruptibles;
+import com.netflix.concurrency.limits.grpc.client.ConcurrencyLimitClientInterceptor;
+import com.netflix.concurrency.limits.limit.FixedLimit;
+import com.netflix.concurrency.limits.limiter.SimpleLimiter;
+import io.grpc.CallOptions;
+import io.grpc.Channel;
+import io.grpc.ClientInterceptors;
+import io.grpc.Metadata;
+import io.grpc.netty.NettyChannelBuilder;
+import io.grpc.stub.ClientCalls;
+import io.grpc.stub.MetadataUtils;
+import io.grpc.stub.StreamObserver;
 import org.apache.commons.math3.distribution.ExponentialDistribution;
 import org.apache.commons.math3.distribution.NormalDistribution;
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 
-import com.google.common.util.concurrent.Uninterruptibles;
-
-import io.grpc.CallOptions;
-import io.grpc.ManagedChannel;
-import io.grpc.netty.NettyChannelBuilder;
-import io.grpc.stub.ClientCalls;
-import io.grpc.stub.StreamObserver;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class Driver {
-    private static interface Segment {
+    public static final Metadata.Key<String> ID_HEADER = Metadata.Key.of("id", Metadata.ASCII_STRING_MARSHALLER);
+
+    private interface Segment {
         long duration();
         long nextDelay();
         String name();
@@ -33,10 +42,9 @@ public class Driver {
         private List<Driver.Segment> segments = new ArrayList<>();
         private int port;
         private long runtimeSeconds;
-        private Runnable dropAction;
-        private Runnable successAction;
         private Consumer<Long> latencyAccumulator;
-        
+        private String id = "";
+
         public Builder normal(double mean, double sd, long duration, TimeUnit units) {
             final NormalDistribution distribution = new NormalDistribution(mean, sd);
             return add("normal(" + mean + ")", () -> (long)distribution.sample(), duration, units);
@@ -59,19 +67,14 @@ public class Driver {
         public Builder slience(long duration, TimeUnit units) {
             return add("slience()", () -> units.toMillis(duration), duration, units);
         }
-        
+
+        public Builder id(String id) {
+            this.id = id;
+            return this;
+        }
+
         public Builder port(int port) {
             this.port = port;
-            return this;
-        }
-        
-        public Builder dropAction(Runnable action) {
-            this.dropAction = action;
-            return this;
-        }
-        
-        public Builder successAction(Runnable action) {
-            this.successAction = action;
             return this;
         }
         
@@ -111,22 +114,31 @@ public class Driver {
     }
 
     private final List<Segment> segments;
-    private final ManagedChannel channel;
+    private final Channel channel;
     private final long runtime;
-    private final Runnable successAction;
-    private final Runnable dropAction;
     private final Consumer<Long> latencyAccumulator;
-    
+    private final AtomicInteger successCounter = new AtomicInteger(0);
+    private final AtomicInteger dropCounter = new AtomicInteger(0);
+
     public Driver(Builder builder) {
         this.segments = builder.segments;
         this.runtime = builder.runtimeSeconds;
-        this.successAction = builder.successAction;
-        this.dropAction = builder.dropAction;
         this.latencyAccumulator = builder.latencyAccumulator;
-        this.channel = NettyChannelBuilder.forTarget("localhost:" + builder.port)
+
+        Metadata metadata = new Metadata();
+        metadata.put(ID_HEADER, builder.id);
+
+        this.channel = ClientInterceptors.intercept(NettyChannelBuilder.forTarget("localhost:" + builder.port)
                 .usePlaintext(true)
-                .build();
-        
+                .build(),
+                    MetadataUtils.newAttachHeadersInterceptor(metadata));
+    }
+
+    public int getAndResetSuccessCount() { return successCounter.getAndSet(0); }
+    public int getAndResetDropCount() { return dropCounter.getAndSet(0); }
+
+    public CompletableFuture<Void> runAsync() {
+        return CompletableFuture.runAsync(this::run, Executors.newSingleThreadExecutor());
     }
 
     public void run() {
@@ -154,13 +166,13 @@ public class Driver {
 
                                 @Override
                                 public void onError(Throwable t) {
-                                    dropAction.run();
+                                    dropCounter.incrementAndGet();
                                 }
 
                                 @Override
                                 public void onCompleted() {
                                     latencyAccumulator.accept(System.nanoTime() - startTime);
-                                    successAction.run();
+                                    successCounter.incrementAndGet();
                                 }
                         });
                 }

@@ -28,8 +28,12 @@ import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.ServerCalls;
 import io.grpc.stub.ServerCalls.UnaryMethod;
 import io.grpc.stub.StreamObserver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TestServer {
+    private static final Logger LOG = LoggerFactory.getLogger(TestServer.class);
+
     public static final MethodDescriptor<String, String> METHOD_DESCRIPTOR = MethodDescriptor.<String, String>newBuilder()
             .setType(MethodType.UNARY)
             .setFullMethodName("service/method")
@@ -37,7 +41,7 @@ public class TestServer {
             .setResponseMarshaller(StringMarshaller.INSTANCE)
             .build();
 
-    private static interface Segment {
+    private interface Segment {
         long duration();
         long latency();
         String name();
@@ -125,8 +129,9 @@ public class TestServer {
             @Override
             public void invoke(String req, StreamObserver<String> observer) {
                 try {
+                    long delay = builder.segments.get(0).latency();
                     semaphore.acquire();
-                    TimeUnit.MILLISECONDS.sleep(builder.segments.get(0).latency());
+                    TimeUnit.MILLISECONDS.sleep(delay);
                     observer.onNext("response");
                     observer.onCompleted();
                 } catch (InterruptedException e) {
