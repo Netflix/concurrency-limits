@@ -10,7 +10,8 @@ dependencies {
     compile "io.grpc:grpc-core:1.9.0"
     
     testCompile project(":concurrency-limits-spectator")
-    
+
+    testCompile "org.mockito:mockito-core:1.+"
     testCompile "io.grpc:grpc-netty:1.9.0"
     testCompile "io.grpc:grpc-stub:1.9.0"
     testCompile "junit:junit-dep:4.10"
