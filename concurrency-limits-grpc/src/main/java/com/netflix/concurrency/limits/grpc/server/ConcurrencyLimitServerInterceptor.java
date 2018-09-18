@@ -17,6 +17,8 @@ package com.netflix.concurrency.limits.grpc.server;
 
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.netflix.concurrency.limits.Limiter;
@@ -29,13 +31,17 @@ import io.grpc.ServerCall.Listener;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.grpc.Status;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * {@link ServerInterceptor} that enforces per service and/or per method concurrent request limits and returns
  * a Status.UNAVAILABLE when that limit has been reached. 
  */
 public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
-    private static final Status LIMIT_EXCEEDED_STATUS = Status.UNAVAILABLE.withDescription("Concurrency limit reached");
+    private static final Logger LOG = LoggerFactory.getLogger(ConcurrencyLimitServerInterceptor.class);
+
+    private static final Status LIMIT_EXCEEDED_STATUS = Status.UNAVAILABLE.withDescription("Server concurrency limit reached");
 
     private final Limiter<GrpcServerRequestContext> grpcLimiter;
 
@@ -109,54 +115,89 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
                                                       final Metadata headers,
                                                       final ServerCallHandler<ReqT, RespT> next) {
         
-        final Optional<Limiter.Listener> listener = grpcLimiter.acquire(new GrpcServerRequestContext() {
-            @Override
-            public ServerCall<?, ?> getCall() {
-                return call;
-            }
+        return grpcLimiter
+            .acquire(new GrpcServerRequestContext() {
+                @Override
+                public ServerCall<?, ?> getCall() {
+                    return call;
+                }
 
-            @Override
-            public Metadata getHeaders() {
-                return headers;
-            }
-        });
-        
-        if (!listener.isPresent()) {
-            call.close(statusSupplier.get(), trailerSupplier.get());
-            return new ServerCall.Listener<ReqT>() {};
-        }
+                @Override
+                public Metadata getHeaders() {
+                    return headers;
+                }
+            })
+            .map(new Function<Limiter.Listener, Listener<ReqT>>() {
+                final AtomicBoolean done = new AtomicBoolean(false);
 
-        final AtomicBoolean done = new AtomicBoolean(false);
-        return new ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(
-                next.startCall(
-                new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
-                    @Override
-                    public void close(Status status, Metadata trailers) {
+                void safeComplete(Runnable action) {
+                    if (done.compareAndSet(false, true)) {
                         try {
-                            super.close(status, trailers);
-                        } finally {
-                            if (done.compareAndSet(false, true)) {
-                                if (status.isOk()) {
-                                    listener.get().onSuccess();
-                                } else {
-                                    listener.get().onIgnore();
-                                }
-                            }
+                            action.run();
+                        } catch (Throwable t) {
+                            LOG.error("Critical error releasing limit", t);
                         }
                     }
-                },
-                        headers)) {
-            @Override
-            public void onCancel() {
-                try {
-                    super.onCancel();
-                } finally {
-                    if (done.compareAndSet(false, true)) {
-                        listener.get().onIgnore();
-                    }
-                }
-            }
-        };
-    }
+                };
 
+                @Override
+                public Listener<ReqT> apply(Limiter.Listener listener) {
+                    return (ServerCall.Listener<ReqT>) new ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(
+                            next.startCall(
+                                    new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
+                                        @Override
+                                        public void close(Status status, Metadata trailers) {
+                                            try {
+                                                super.close(status, trailers);
+                                            } finally {
+                                                safeComplete(() -> {
+                                                    if (status.isOk()) {
+                                                        listener.onSuccess();
+                                                    } else {
+                                                        listener.onIgnore();
+                                                    }
+                                                });
+                                            }
+                                        }
+                                    },
+                                    headers)) {
+
+                        @Override
+                        public void onMessage(ReqT message) {
+                            try {
+                                super.onMessage(message);
+                            } catch (Throwable t) {
+                                LOG.error("Uncaught exception. Force releasing limit. ", t);
+                                safeComplete(listener::onIgnore);
+                                throw t;
+                            }
+                        }
+
+                        @Override
+                        public void onHalfClose() {
+                            try {
+                                super.onHalfClose();
+                            } catch (Throwable t) {
+                                LOG.error("Uncaught exception. Force releasing limit. ", t);
+                                safeComplete(listener::onIgnore);
+                                throw t;
+                            }
+                        }
+
+                        @Override
+                        public void onCancel() {
+                            try {
+                                super.onCancel();
+                            } finally {
+                                safeComplete(listener::onIgnore);
+                            }
+                        }
+                    };
+                }
+            })
+            .orElseGet(() -> {
+                call.close(statusSupplier.get(), trailerSupplier.get());
+                return new ServerCall.Listener<ReqT>() {};
+            });
+    }
 }
