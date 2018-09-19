@@ -17,6 +17,7 @@ package com.netflix.concurrency.limits.limiter;
 
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.Limiter;
+import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.limit.VegasLimit;
@@ -58,6 +59,8 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         this.limitAlgorithm = builder.limit;
         this.limit = limitAlgorithm.getLimit();
         this.limitAlgorithm.notifyOnChange(this::onNewLimit);
+        
+        builder.registry.registerGauge(MetricIds.LIMIT_GUAGE_NAME, this::getLimit);
     }
 
     protected Listener createListener() {

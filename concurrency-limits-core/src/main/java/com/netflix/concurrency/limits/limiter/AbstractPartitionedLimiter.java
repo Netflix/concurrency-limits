@@ -192,8 +192,6 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
         this.partitionResolvers = builder.partitionResolvers;
         this.maxDelayedThreads = builder.maxDelayedThreads;
-        
-        builder.registry.registerGauge(MetricIds.LIMIT_GUAGE_NAME, this::getLimit);
 
         onNewLimit(getLimit());
     }
