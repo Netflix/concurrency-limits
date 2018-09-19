@@ -28,7 +28,7 @@ public class PartitionedExample {
                         .partition("1", 1.0)
                         .partition("2", 0.0)
 //                        .partition("3", 0.0)
-                        .partitionRejectDelay("2", 1000, TimeUnit.MILLISECONDS)
+//                        .partitionRejectDelay("2", 1000, TimeUnit.MILLISECONDS)
 //                        .partitionRejectDelay("3", 1000, TimeUnit.MILLISECONDS)
                         .limit(WindowedLimit.newBuilder()
                                 .minWindowTime(1, TimeUnit.SECONDS)

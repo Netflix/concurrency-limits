@@ -205,8 +205,8 @@ public final class Gradient2Limit extends AbstractLimit {
         this.minLimit = builder.minLimit;
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
-        this.shortRtt = new ExpAvgMeasurement(builder.shortWindow,10, Math::min);
-        this.longRtt = new ExpAvgMeasurement(builder.longWindow,10, Math::min);
+        this.shortRtt = new ExpAvgMeasurement(builder.shortWindow,10);
+        this.longRtt = new ExpAvgMeasurement(builder.longWindow,10);
         this.maxDriftIntervals = builder.shortWindow * builder.driftMultiplier;
 
         this.longRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
@@ -226,24 +226,17 @@ public final class Gradient2Limit extends AbstractLimit {
         // the short term RTT window.  Since both short and long term RTT trend higher this state results in the limit
         // slowly trending upwards, increasing the queue and latency.  To mitigate this we drop both the limit and
         // long term latency value to effectively probe for less queueing and better latency.
-        if (shortRtt < longRtt) {
-            intervalsAbove = 0;
-        } else if (shortRtt > longRtt){
+        if (shortRtt > longRtt) {
             intervalsAbove++;
-        }
-
-        if (intervalsAbove > maxDriftIntervals) {
+            if (intervalsAbove > maxDriftIntervals) {
+                intervalsAbove = 0;
+                int newLimit = (int) Math.max(minLimit, queueSize);
+                this.longRtt.reset();
+                estimatedLimit = newLimit;
+                return (int) estimatedLimit;
+            }
+        } else {
             intervalsAbove = 0;
-            int newLimit = (int)Math.max(minLimit, queueSize);
-            this.longRtt.reset();
-            estimatedLimit = newLimit;
-            return (int)estimatedLimit;
-        }
-        // Because we're using lots of averages it's possible for the short term RTT to be substantially lower than
-        // the longer term Rtt.  When that happens we need to 'reset' the long term RTT.
-        if (shortRtt < longRtt) {
-            this.longRtt.reset();
-            return (int)estimatedLimit;
         }
 
         shortRttSampleListener.addSample(shortRtt);
