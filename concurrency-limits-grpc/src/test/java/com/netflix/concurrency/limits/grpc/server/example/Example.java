@@ -34,10 +34,10 @@ public class Example {
         final LatencyCollector latency = new LatencyCollector();
 
         final Driver driver = Driver.newBuilder()
-            .exponentialRps(100, 60, TimeUnit.SECONDS)
-            .exponentialRps(200, 500, TimeUnit.SECONDS)
-            .exponentialRps(100, 500, TimeUnit.SECONDS)
-            .exponentialRps(75,  500, TimeUnit.SECONDS)
+            .exponentialRps(75,  200, TimeUnit.SECONDS)
+            .exponentialRps(100, 200, TimeUnit.SECONDS)
+            .exponentialRps(200, 200, TimeUnit.SECONDS)
+            .exponentialRps(100, 200, TimeUnit.SECONDS)
             .latencyAccumulator(latency)
             .runtime(1, TimeUnit.HOURS)
             .port(server.getPort())
