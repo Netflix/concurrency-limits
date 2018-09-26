@@ -43,8 +43,6 @@ public class VegasLimit extends AbstractLimit {
     
     private static final Function<Integer, Integer> LOG10 = Log10RootFunction.create(0);
 
-    private static final int DISABLED = -1;
-    
     public static class Builder {
         private int initialLimit = 20;
         private int maxConcurrency = 1000;
@@ -169,8 +167,9 @@ public class VegasLimit extends AbstractLimit {
     private final Function<Double, Double> increaseFunc;
     private final Function<Double, Double> decreaseFunc;
     private final SampleListener rttSampleListener;
-    private int probeMultiplier;
-    private int probeCountdown;
+    private final int probeMultiplier;
+    private int probeCount = 0;
+    private double probeJitter;
 
     private VegasLimit(Builder builder) {
         super(builder.initialLimit);
@@ -183,23 +182,29 @@ public class VegasLimit extends AbstractLimit {
         this.thresholdFunc = builder.thresholdFunc;
         this.smoothing = builder.smoothing;
         this.probeMultiplier = builder.probeMultiplier;
-        this.probeCountdown = nextProbeCountdown();
-        
+
+        resetProbeJitter();
+
         this.rttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
     }
-    
-    private int nextProbeCountdown() {
-        int max = (int) (probeMultiplier * estimatedLimit);
-        return ThreadLocalRandom.current().nextInt(max / 2, max);
+
+    private void resetProbeJitter() {
+        probeJitter = ThreadLocalRandom.current().nextDouble(0.5, 1);
+    }
+
+    private boolean shouldProbe() {
+        return probeJitter * probeMultiplier * estimatedLimit <= probeCount;
     }
 
     @Override
     protected int _update(long startTime, long rtt, int inflight, boolean didDrop) {
         Preconditions.checkArgument(rtt > 0, "rtt must be >0 but got " + rtt);
 
-        if (probeCountdown != DISABLED && probeCountdown-- <= 0) {
+        probeCount++;
+        if (shouldProbe()) {
             LOG.debug("Probe MinRTT {}", TimeUnit.NANOSECONDS.toMicros(rtt) / 1000.0);
-            probeCountdown = nextProbeCountdown();
+            resetProbeJitter();
+            probeCount = 0;
             rtt_noload = rtt;
             return (int)estimatedLimit;
         }
