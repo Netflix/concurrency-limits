@@ -2,12 +2,14 @@ package com.netflix.concurrency.limits.limiter;
 
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limit.SettableLimit;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedList;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -17,7 +19,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class BlockingLimiterTest {
@@ -62,11 +63,32 @@ public class BlockingLimiterTest {
         Duration timeout = Duration.ofMillis(50);
         SettableLimit limit = SettableLimit.startingAt(1);
         BlockingLimiter<Void> limiter = BlockingLimiter.wrap(SimpleLimiter.newBuilder().limit(limit).build(), timeout);
+
+        // Acquire first, will succeeed an not block
         limiter.acquire(null);
+
+        // Second acquire should time out after at least 50 millis
         Instant before = Instant.now();
-        assertEquals(Optional.empty(), limiter.acquire(null));
+        Assert.assertFalse(limiter.acquire(null).isPresent());
         Instant after = Instant.now();
-        Duration interval = Duration.between(before, after);
-        assertTrue(interval.compareTo(timeout) >= 0);
+
+        Duration delay = Duration.between(before, after);
+        assertTrue("Delay was " + delay.toMillis() + " millis", delay.compareTo(timeout) >= 0);
+    }
+
+    @Test(expected=TimeoutException.class)
+    public void testNoTimeout() throws InterruptedException, ExecutionException, TimeoutException {
+        SettableLimit limit = SettableLimit.startingAt(1);
+        BlockingLimiter<Void> limiter = BlockingLimiter.wrap(SimpleLimiter.newBuilder().limit(limit).build());
+        limiter.acquire(null);
+
+        CompletableFuture<Optional<Limiter.Listener>> future = CompletableFuture.supplyAsync(() -> limiter.acquire(null));
+        future.get(1, TimeUnit.SECONDS);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void failOnHighTimeout() {
+        SettableLimit limit = SettableLimit.startingAt(1);
+        BlockingLimiter<Void> limiter = BlockingLimiter.wrap(SimpleLimiter.newBuilder().limit(limit).build(), Duration.ofDays(1));
     }
 }

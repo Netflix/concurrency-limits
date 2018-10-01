@@ -16,6 +16,7 @@
 package com.netflix.concurrency.limits.limiter;
 
 import com.netflix.concurrency.limits.Limiter;
+import com.netflix.concurrency.limits.internal.Preconditions;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -29,38 +30,54 @@ import java.util.Optional;
  * @param <ContextT>
  */
 public final class BlockingLimiter<ContextT> implements Limiter<ContextT> {
+    public static final Duration MAX_TIMEOUT = Duration.ofHours(1);
+
+    /**
+     * Wrap a limiter such that acquire will block up to {@link BlockingLimiter#MAX_TIMEOUT} if the limit was reached
+     * instead of return an empty listener immediately
+     * @param delegate Non-blocking limiter to wrap
+     * @return Wrapped limiter
+     */
     public static <ContextT> BlockingLimiter<ContextT> wrap(Limiter<ContextT> delegate) {
-        return new BlockingLimiter<>(delegate, Optional.empty());
+        return new BlockingLimiter<>(delegate, MAX_TIMEOUT);
     }
 
+    /**
+     * Wrap a limiter such that acquire will block up to a provided timeout if the limit was reached
+     * instead of return an empty listener immediately
+     *
+     * @param delegate Non-blocking limiter to wrap
+     * @param timeout Max amount of time to wait for the wait for the limit to be released.  Cannot exceed {@link BlockingLimiter#MAX_TIMEOUT}
+     * @return Wrapped limiter
+     */
     public static <ContextT> BlockingLimiter<ContextT> wrap(Limiter<ContextT> delegate, Duration timeout) {
-        return new BlockingLimiter<>(delegate, Optional.of(timeout));
+        Preconditions.checkArgument(timeout.compareTo(MAX_TIMEOUT) < 0, "Timeout cannot be greater than " + MAX_TIMEOUT);
+        return new BlockingLimiter<>(delegate, timeout);
     }
 
     private final Limiter<ContextT> delegate;
-    private final Optional<Duration> timeout;
+    private final Duration timeout;
     
     /**
      * Lock used to block and unblock callers as the limit is reached
      */
     private final Object lock = new Object();
 
-    private BlockingLimiter(Limiter<ContextT> limiter, Optional<Duration> timeout) {
+    private BlockingLimiter(Limiter<ContextT> limiter, Duration timeout) {
         this.delegate = limiter;
         this.timeout = timeout;
     }
     
     private Optional<Listener> tryAcquire(ContextT context) {
-        Instant deadline = timeout.map(t -> Instant.now().plus(t)).orElse(Instant.MAX);
+        final Instant deadline = Instant.now().plus(timeout);
         synchronized (lock) {
             while (true) {
-                Instant now = Instant.now();
+                final Instant now = Instant.now();
                 if (!now.isBefore(deadline)) {
                     return Optional.empty();
                 }
                 // Try to acquire a token and return immediately if successful
-                Optional<Listener> listener;
-                listener = delegate.acquire(context);
+                final Optional<Listener> listener = delegate.acquire(context);
                 if (listener.isPresent()) {
                     return listener;
                 }
