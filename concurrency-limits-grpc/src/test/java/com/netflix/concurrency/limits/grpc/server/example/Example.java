@@ -15,7 +15,9 @@ import java.util.function.Consumer;
 
 public class Example {
     public static void main(String[] args) throws IOException {
-        final Gradient2Limit limit = Gradient2Limit.newBuilder().build();
+        final Gradient2Limit limit = Gradient2Limit.newBuilder()
+                .longWindow(100)
+                .build();
         
         // Create a server
         final TestServer server = TestServer.newBuilder()
@@ -34,10 +36,10 @@ public class Example {
         final LatencyCollector latency = new LatencyCollector();
 
         final Driver driver = Driver.newBuilder()
-            .exponentialRps(75,  200, TimeUnit.SECONDS)
-            .exponentialRps(100, 200, TimeUnit.SECONDS)
-            .exponentialRps(200, 200, TimeUnit.SECONDS)
-            .exponentialRps(100, 200, TimeUnit.SECONDS)
+            .exponentialRps(50,  400, TimeUnit.SECONDS)
+            .exponentialRps(100, 400, TimeUnit.SECONDS)
+            .exponentialRps(200, 400, TimeUnit.SECONDS)
+            .exponentialRps(100, 400, TimeUnit.SECONDS)
             .latencyAccumulator(latency)
             .runtime(1, TimeUnit.HOURS)
             .port(server.getPort())

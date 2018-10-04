@@ -21,6 +21,7 @@ import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.limit.measurement.ExpAvgMeasurement;
 import com.netflix.concurrency.limits.limit.measurement.Measurement;
+import com.netflix.concurrency.limits.limit.measurement.SingleMeasurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -205,7 +206,7 @@ public final class Gradient2Limit extends AbstractLimit {
         this.minLimit = builder.minLimit;
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
-        this.shortRtt = new ExpAvgMeasurement(builder.shortWindow,10);
+        this.shortRtt = new SingleMeasurement(); // new ExpAvgMeasurement(builder.shortWindow,10);
         this.longRtt = new ExpAvgMeasurement(builder.longWindow,10);
         this.maxDriftIntervals = builder.shortWindow * builder.driftMultiplier;
 
@@ -237,6 +238,7 @@ public final class Gradient2Limit extends AbstractLimit {
             }
         } else {
             intervalsAbove = 0;
+            this.longRtt.update(ignore -> (longRtt + shortRtt) / 2);
         }
 
         shortRttSampleListener.addSample(shortRtt);
