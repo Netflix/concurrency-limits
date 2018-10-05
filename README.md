@@ -58,10 +58,10 @@ ServerBuilder builder = ...;
 builder.addService(ServerInterceptor.intercept(service,
     new ConcurrencyLimitServerInterceptor(
         new GrpcServerLimiterBuilder()
-            .partitionByHeader(GROUP_HEADER, c -> c
-                .assign("live", 0.9)
-                .assign("batch", 0.1))
-            .build()
+            .partitionByHeader(GROUP_HEADER)
+                .partition("live", 0.9)
+                .partition("batch", 0.1)
+                .build()
         )
     ));
 ```
