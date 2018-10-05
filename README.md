@@ -56,13 +56,16 @@ In this example a GRPC server is configured with a single adaptive limiter that 
 ServerBuilder builder = ...;
 
 builder.addService(ServerInterceptor.intercept(service,
-    new ConcurrencyLimitServerInterceptor(
+    ConcurrencyLimitServerInterceptor.newBuilder(
         new GrpcServerLimiterBuilder()
-            .partitionByHeader(GROUP_HEADER, c -> c
-                .assign("live", 0.9)
-                .assign("batch", 0.1))
-            .build()
-        )
+            .partitionByHeader(GROUP_HEADER)
+            .partition("live", 0.9)
+            .partition("batch", 0.1)
+            .limit(WindowedLimit.newBuilder()
+                    .build(Gradient2Limit.newBuilder()
+                            .build()))
+            .build();
+
     ));
 ```
 
@@ -95,10 +98,10 @@ In this example a servlet is configured with a single adaptive limiter that is s
 ```java
 Map<String, String> principalToGroup = ...;
 Filter filter = new ConcurrencyLimitServletFilter(new ServletLimiterBuilder()
-        .partitionByUserPrincipal(principal -> principalToGroup.get(principal.getName()), c -> c
-               .assign("live", 0.9)
-               .assign("batch", 0.1))
-        .build());
+    .partitionByUserPrincipal(principal -> principalToGroup.get(principal.getName())
+    .partition("live", 0.9)
+    .partition("batch", 0.1))
+    .build());
 ```
 
 ## Executor
@@ -108,9 +111,8 @@ The BlockingAdaptiveExecutor adapts the size of an internal thread pool to match
 ```java
 public void drainQueue(Queue<Runnable> tasks) {
     Executor executor = new BlockingAdaptiveExecutor(
-        new DefaultLimiter(
-            VegasLimit.newDefault(), 
-            new SimpleStrategy()));
+        SimpleLimiter.newBuilder()
+            .build());
     
     while (true) {
         executor.execute(tasks.take());
