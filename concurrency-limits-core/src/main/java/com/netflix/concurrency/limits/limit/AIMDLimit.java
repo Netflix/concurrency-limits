@@ -16,8 +16,6 @@
 package com.netflix.concurrency.limits.limit;
 
 import com.netflix.concurrency.limits.Limit;
-import com.netflix.concurrency.limits.MetricRegistry;
-import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
 
 import java.util.concurrent.TimeUnit;
@@ -32,7 +30,6 @@ public final class AIMDLimit extends AbstractLimit {
     public static class Builder {
         private int initialLimit = 10;
         private double backoffRatio = 0.9;
-        private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private long timeout = DEFAULT_TIMEOUT;
 
         public Builder initialLimit(int initialLimit) {
