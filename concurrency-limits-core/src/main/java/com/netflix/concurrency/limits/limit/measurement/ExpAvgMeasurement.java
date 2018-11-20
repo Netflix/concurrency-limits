@@ -20,25 +20,23 @@ import java.util.function.Function;
 
 public class ExpAvgMeasurement implements Measurement {
     private Double value = 0.0;
+    private Double sum = 0.0;
     private final int window;
     private final int warmupWindow;
     private int count = 0;
-    private BiFunction<Double, Double, Double> warmupFunc;
 
     public ExpAvgMeasurement(int window, int warmupWindow) {
         this.window = window;
         this.warmupWindow = warmupWindow;
-        this.warmupFunc = Double::min;
+        this.sum = 0.0;
     }
 
     @Override
     public Number add(Number sample) {
-        if (count == 0) {
+        if (count < warmupWindow) {
             count++;
-            value = sample.doubleValue();
-        } else if (count < warmupWindow) {
-            count++;
-            value = warmupFunc.apply(value, sample.doubleValue());
+            sum += sample.doubleValue();
+            value = sum / count;
         } else {
             double factor = factor(window);
             value = value * (1-factor) + sample.doubleValue() * factor;
@@ -59,6 +57,7 @@ public class ExpAvgMeasurement implements Measurement {
     public void reset() {
         value = 0.0;
         count = 0;
+        sum = 0.0;
     }
 
     @Override
