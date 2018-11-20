@@ -84,7 +84,7 @@ public final class BlockingLimiter<ContextT> implements Limiter<ContextT> {
                 
                 // We have reached the limit so block until a token is released
                 try {
-                    lock.wait(Duration.between(now, deadline).toMillis());
+                    lock.wait(Duration.between(now, deadline).toMillis() + 1);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return Optional.empty();
