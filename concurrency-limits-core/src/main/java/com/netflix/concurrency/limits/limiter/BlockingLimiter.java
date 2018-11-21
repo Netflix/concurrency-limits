@@ -72,8 +72,8 @@ public final class BlockingLimiter<ContextT> implements Limiter<ContextT> {
         final Instant deadline = Instant.now().plus(timeout);
         synchronized (lock) {
             while (true) {
-                final Instant now = Instant.now();
-                if (!now.isBefore(deadline)) {
+                long timeout = Duration.between(Instant.now(), deadline).toMillis();
+                if (timeout <= 0) {
                     return Optional.empty();
                 }
                 // Try to acquire a token and return immediately if successful
@@ -84,7 +84,7 @@ public final class BlockingLimiter<ContextT> implements Limiter<ContextT> {
                 
                 // We have reached the limit so block until a token is released
                 try {
-                    lock.wait(Duration.between(now, deadline).toMillis());
+                    lock.wait(timeout);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return Optional.empty();
