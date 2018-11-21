@@ -29,28 +29,56 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
- * Concurrency limit algorithm that adjust the limits based on the gradient of change in the 
- * samples minimum RTT and absolute minimum RTT allowing for a queue of square root of the 
- * current limit.  Why square root?  Because it's better than a fixed queue size that becomes too
- * small for large limits but still prevents the limit from growing too much by slowing down
- * growth as the limit grows.
+ * Concurrency limit algorithm that adjusts the limit based on the gradient of change of the current average RTT and
+ * a long term exponentially smoothed average RTT.  Unlike traditional congestion control algorithms we use average
+ * instead of minimum since RPC methods can be very bursty due to various factors such as non-homogenous request
+ * processing complexity as well as a wide distribution of data size.  We have also found that using minimum can result
+ * in an bias towards an impractically low base RTT resulting in excessive load shedding.  An exponential decay is
+ * applied to the base RTT so that the value is kept stable yet is allowed to adapt to long term changes in latency
+ * characteristics.
+ *
+ * The core algorithm re-calculates the limit every sampling window (ex. 1 second) using the formula
+ *
+ *      // Calculate the gradient limiting to the range [0.5, 1.0] to filter outliers
+ *      gradient = min(0.5, max(1.0, currentRtt / longtermRtt));
+ *
+ *      // Calculate the new limit by applying the gradient and allowing for some queuing
+ *      newLimit = gradient * currentLimit + queueSize;
+ *
+ *      // Update the limit using a smoothing factor (default 0.2)
+ *      newLimit = currentLimit * (1-smoothing) + newLimit * smoothing
+ *
+ * The limit can be in one of three main states
+ *
+ * 1.  Steady state
+ *
+ * In this state the average RTT is very stable and the current measurement whipsaws around this value, sometimes reducing
+ * the limit, sometimes increasing it.
+ *
+ * 2.  Transition from steady state to load
+ *
+ * In this state either the RPS to latency has spiked. The gradient is < 1.0 due to a growing request queue that
+ * cannot be handled by the system. Excessive requests and rejected due to the low limit. The baseline RTT grows using
+ * exponential decay but lags the current measurement, which keeps the gradient < 1.0 and limit low.
+ *
+ * 3.  Transition from load to steady state
+ *
+ * In this state the system goes back to steady state after a prolonged period of excessive load.  Requests aren't rejected
+ * and the sample RTT remains low. During this state the long term RTT may take some time to go back to normal and could
+ * potentially be several multiples higher than the current RTT.
  */
 public final class Gradient2Limit extends AbstractLimit {
-    private static final int DISABLED = -1;
-
     private static final Logger LOG = LoggerFactory.getLogger(Gradient2Limit.class);
 
     public static class Builder {
-        private int initialLimit = 4;
-        private int minLimit = 4;
-        private int maxConcurrency = 1000;
+        private int initialLimit = 20;
+        private int minLimit = 20;
+        private int maxConcurrency = 200;
 
         private double smoothing = 0.2;
         private Function<Integer, Integer> queueSize = concurrency -> 4;
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
-        private int shortWindow = 10;
-        private int longWindow = 100;
-        private int driftMultiplier = 5;
+        private int longWindow = 600;
 
         /**
          * Initial limit used by the limiter
@@ -111,8 +139,8 @@ public final class Gradient2Limit extends AbstractLimit {
          * @param multiplier
          * @return
          */
+        @Deprecated
         public Builder driftMultiplier(int multiplier) {
-            this.driftMultiplier = multiplier;
             return this;
         }
 
@@ -138,8 +166,8 @@ public final class Gradient2Limit extends AbstractLimit {
             return this;
         }
 
+        @Deprecated
         public Builder shortWindow(int n) {
-            this.shortWindow = n;
             return this;
         }
 
@@ -194,10 +222,6 @@ public final class Gradient2Limit extends AbstractLimit {
 
     private final SampleListener queueSizeSampleListener;
 
-    private final int maxDriftIntervals;
-
-    private int intervalsAbove = 0;
-
     private Gradient2Limit(Builder builder) {
         super(builder.initialLimit);
 
@@ -207,8 +231,7 @@ public final class Gradient2Limit extends AbstractLimit {
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
         this.shortRtt = new SingleMeasurement(); // new ExpAvgMeasurement(builder.shortWindow,10);
-        this.longRtt = new ExpAvgMeasurement(builder.longWindow,10);
-        this.maxDriftIntervals = builder.shortWindow * builder.driftMultiplier;
+        this.longRtt = new ExpAvgMeasurement(builder.longWindow, 10);
 
         this.longRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
         this.shortRttSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_MIN_RTT_NAME);
@@ -222,50 +245,34 @@ public final class Gradient2Limit extends AbstractLimit {
         final double shortRtt = this.shortRtt.add(rtt).doubleValue();
         final double longRtt = this.longRtt.add(rtt).doubleValue();
 
-        // Under steady state we expect the short and long term RTT to whipsaw.  We can identify that a system is under
-        // long term load when there is no crossover detected for a certain number of internals, normally a multiple of
-        // the short term RTT window.  Since both short and long term RTT trend higher this state results in the limit
-        // slowly trending upwards, increasing the queue and latency.  To mitigate this we drop both the limit and
-        // long term latency value to effectively probe for less queueing and better latency.
-        if (shortRtt > longRtt) {
-            intervalsAbove++;
-            if (intervalsAbove > maxDriftIntervals) {
-                intervalsAbove = 0;
-                int newLimit = (int) Math.max(minLimit, queueSize);
-                this.longRtt.reset();
-                estimatedLimit = newLimit;
-                return (int) estimatedLimit;
-            }
-        } else {
-            intervalsAbove = 0;
-            this.longRtt.update(ignore -> (longRtt + shortRtt) / 2);
-        }
-
         shortRttSampleListener.addSample(shortRtt);
         longRttSampleListener.addSample(longRtt);
         queueSizeSampleListener.addSample(queueSize);
+
+        // If the long RTT is substantially larger than the short RTT then reduce the long RTT measurement.
+        // This can happen when latency returns to normal after a prolonged prior of excessive load.  Reducing the
+        // long RTT without waiting for the exponential smoothing helps bring the system back to steady state.
+        if (longRtt / shortRtt > 2) {
+            this.longRtt.update(current -> current.doubleValue() * 0.9);
+        }
+
+        // Don't grow the limit if we are app limited
+        if (inflight < estimatedLimit / 2) {
+            return (int) estimatedLimit;
+        }
 
         // Rtt could be higher than rtt_noload because of smoothing rtt noload updates
         // so set to 1.0 to indicate no queuing.  Otherwise calculate the slope and don't
         // allow it to be reduced by more than half to avoid aggressive load-sheding due to 
         // outliers.
         final double gradient = Math.max(0.5, Math.min(1.0, longRtt / shortRtt));
-        
-        double newLimit;
-        // Don't grow the limit if we are app limited
-        if (inflight < estimatedLimit / 2) {
-            return (int) estimatedLimit;
-        }
-
-        newLimit = estimatedLimit * gradient + queueSize;
-        if (newLimit < estimatedLimit) {
-            newLimit = Math.max(minLimit, estimatedLimit * (1-smoothing) + smoothing*(newLimit));
-        }
-        newLimit = Math.max(queueSize, Math.min(maxLimit, newLimit));
+        double newLimit = estimatedLimit * gradient + queueSize;
+        newLimit = estimatedLimit * (1 - smoothing) + newLimit * smoothing;
+        newLimit = Math.max(minLimit, Math.min(maxLimit, newLimit));
 
         if ((int)estimatedLimit != newLimit) {
             LOG.debug("New limit={} shortRtt={} ms longRtt={} ms queueSize={} gradient={}",
-                    (int) newLimit,
+                    (int)newLimit,
                     getShortRtt(TimeUnit.MICROSECONDS) / 1000.0,
                     getLongRtt(TimeUnit.MICROSECONDS) / 1000.0,
                     queueSize,
