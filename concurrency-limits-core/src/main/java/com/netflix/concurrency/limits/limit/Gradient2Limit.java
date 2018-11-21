@@ -57,9 +57,9 @@ import java.util.function.Function;
  *
  * 2.  Transition from steady state to load
  *
- * In this state either the RPS to latency has spiked. The gradient is < 1.0 due to a growing request queue that
+ * In this state either the RPS to latency has spiked. The gradient is {@literal <} 1.0 due to a growing request queue that
  * cannot be handled by the system. Excessive requests and rejected due to the low limit. The baseline RTT grows using
- * exponential decay but lags the current measurement, which keeps the gradient < 1.0 and limit low.
+ * exponential decay but lags the current measurement, which keeps the gradient {@literal <} 1.0 and limit low.
  *
  * 3.  Transition from load to steady state
  *
