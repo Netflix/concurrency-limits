@@ -43,6 +43,6 @@ public final class Log10RootFunction implements Function<Integer, Integer> {
     
     @Override
     public Integer apply(Integer t) {
-        return t < 1000 ? lookup[t] : (int)Math.sqrt(t);
+        return t < 1000 ? lookup[t] : (int)Math.log10(t);
     }
 }
