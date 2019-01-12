@@ -17,9 +17,15 @@ public class VegasLimitTest {
     }
     
     @Test
-    public void initialLimit() {
-        VegasLimit limit = create();
-        Assert.assertEquals(10, limit.getLimit());
+    public void largeLimitIncrease() {
+        VegasLimit limit = VegasLimit.newBuilder()
+                .initialLimit(10000)
+                .maxConcurrency(20000)
+                .build();
+        limit.onSample(0, TimeUnit.SECONDS.toNanos(10), 5000, false);
+        Assert.assertEquals(10000, limit.getLimit());
+        limit.onSample(0, TimeUnit.SECONDS.toNanos(10), 6000, false);
+        Assert.assertEquals(10024, limit.getLimit());
     }
 
     @Test
