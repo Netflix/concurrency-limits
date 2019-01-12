@@ -269,6 +269,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
     @Override
     protected void onNewLimit(int newLimit) {
+        super.onNewLimit(newLimit);
         partitions.forEach((name, partition) -> partition.updateLimit(newLimit));
     }
 
