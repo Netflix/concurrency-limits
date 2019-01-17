@@ -40,7 +40,7 @@ import java.util.function.Function;
  * The core algorithm re-calculates the limit every sampling window (ex. 1 second) using the formula
  *
  *      // Calculate the gradient limiting to the range [0.5, 1.0] to filter outliers
- *      gradient = min(0.5, max(1.0, currentRtt / longtermRtt));
+ *      gradient = max(0.5, min(1.0, longtermRtt / currentRtt));
  *
  *      // Calculate the new limit by applying the gradient and allowing for some queuing
  *      newLimit = gradient * currentLimit + queueSize;
