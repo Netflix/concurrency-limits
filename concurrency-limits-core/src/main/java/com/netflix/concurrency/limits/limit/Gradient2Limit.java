@@ -263,7 +263,7 @@ public final class Gradient2Limit extends AbstractLimit {
 
         // Rtt could be higher than rtt_noload because of smoothing rtt noload updates
         // so set to 1.0 to indicate no queuing.  Otherwise calculate the slope and don't
-        // allow it to be reduced by more than half to avoid aggressive load-sheding due to 
+        // allow it to be reduced by more than half to avoid aggressive load-shedding due to 
         // outliers.
         final double gradient = Math.max(0.5, Math.min(1.0, longRtt / shortRtt));
         double newLimit = estimatedLimit * gradient + queueSize;
