@@ -55,7 +55,7 @@ public class WindowedLimit implements Limit {
          * Maximum window duration for sampling a new minRtt
          */
         public Builder maxWindowTime(long maxWindowTime, TimeUnit units) {
-            Preconditions.checkArgument(maxWindowTime >= units.toMillis(100), "minWindowTime must be >= 100 ms");
+            Preconditions.checkArgument(units.toMillis(maxWindowTime) >= 100, "maxWindowTime must be >= 100 ms");
             this.maxWindowTime = units.toNanos(maxWindowTime);
             return this;
         }
@@ -137,7 +137,7 @@ public class WindowedLimit implements Limit {
                         sample.set(new ImmutableSampleWindow());
 
                         nextUpdateTime = endTime + Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
-                        delegate.onSample(startTime, current.getAverateRttNanos(), current.getMaxInFlight(), current.didDrop());
+                        delegate.onSample(startTime, current.getAverageRttNanos(), current.getMaxInFlight(), current.didDrop());
                     }
                 }
             }
