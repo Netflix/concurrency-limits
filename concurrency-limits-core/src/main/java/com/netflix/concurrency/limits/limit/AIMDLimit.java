@@ -17,6 +17,8 @@ package com.netflix.concurrency.limits.limit;
 
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.internal.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 
@@ -25,12 +27,14 @@ import java.util.concurrent.TimeUnit;
  * there are no errors and a multiplicative decrement when there is an error.
  */
 public final class AIMDLimit extends AbstractLimit {
+    private static final Logger LOG = LoggerFactory.getLogger(AIMDLimit.class);
     private static final long DEFAULT_TIMEOUT = TimeUnit.SECONDS.toNanos(5);
 
     public static class Builder {
         private int initialLimit = 10;
         private double backoffRatio = 0.9;
         private long timeout = DEFAULT_TIMEOUT;
+        private boolean enableLogging = false;
 
         public Builder initialLimit(int initialLimit) {
             this.initialLimit = initialLimit;
@@ -54,6 +58,11 @@ public final class AIMDLimit extends AbstractLimit {
             this.timeout = units.toNanos(timeout);
             return this;
         }
+
+        public Builder enableLogging() {
+            this.enableLogging = true;
+            return this;
+        }
         
         public AIMDLimit build() {
             return new AIMDLimit(this);
@@ -66,24 +75,32 @@ public final class AIMDLimit extends AbstractLimit {
     
     private final double backoffRatio;
     private final long timeout;
+    private final boolean enableLogging;
 
     private AIMDLimit(Builder builder) {
         super(builder.initialLimit);
         this.backoffRatio = builder.backoffRatio;
         this.timeout = builder.timeout;
+        this.enableLogging = builder.enableLogging;
     }
     
     @Override
     protected int _update(long startTime, long rtt, int inflight, boolean didDrop) {
         final int currentLimit = getLimit();
+        final int estimatedLimit;
 
         if (didDrop || rtt > timeout) {
-            return Math.max(1, Math.min(currentLimit - 1, (int) (currentLimit * backoffRatio)));
+            estimatedLimit = Math.max(1, Math.min(currentLimit - 1, (int) (currentLimit * backoffRatio)));
         } else if (inflight * 2 >= currentLimit) {
-            return currentLimit + 1;
+            estimatedLimit = currentLimit + 1;
         } else {
             return currentLimit;
         }
+
+        if (enableLogging) {
+            LOG.debug("New limit={}, previous limit={}", estimatedLimit, currentLimit);
+        }
+        return estimatedLimit;
     }
 
     @Override
