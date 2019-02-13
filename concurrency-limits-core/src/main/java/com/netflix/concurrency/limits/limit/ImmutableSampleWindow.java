@@ -55,7 +55,7 @@ class ImmutableSampleWindow {
         return minRtt;
     }
 
-    public long getAverateRttNanos() {
+    public long getAverageRttNanos() {
         return sampleCount == 0 ? 0 : sum / sampleCount;
     }
     
@@ -75,7 +75,7 @@ class ImmutableSampleWindow {
     public String toString() {
         return "ImmutableSampleWindow ["
                 + "minRtt=" + TimeUnit.NANOSECONDS.toMicros(minRtt) / 1000.0 
-                + ", avgRtt=" + TimeUnit.NANOSECONDS.toMicros(getAverateRttNanos()) / 1000.0
+                + ", avgRtt=" + TimeUnit.NANOSECONDS.toMicros(getAverageRttNanos()) / 1000.0
                 + ", maxInFlight=" + maxInFlight 
                 + ", sampleCount=" + sampleCount 
                 + ", didDrop=" + didDrop + "]";
