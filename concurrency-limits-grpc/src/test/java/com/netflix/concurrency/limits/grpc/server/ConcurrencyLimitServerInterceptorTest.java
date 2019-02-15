@@ -72,7 +72,7 @@ public class ConcurrencyLimitServerInterceptorTest {
 
         ClientCalls.blockingUnaryCall(channel, METHOD_DESCRIPTOR, CallOptions.DEFAULT, "foo");
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
-        Mockito.verify(listener.getResult().get(), Mockito.times(1)).onSuccess();
+        Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onSuccess();
     }
 
     @Test
@@ -94,7 +94,7 @@ public class ConcurrencyLimitServerInterceptorTest {
             // Verify
             Assert.assertEquals(Status.Code.INVALID_ARGUMENT, e.getStatus().getCode());
             Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
-            Mockito.verify(listener.getResult().get(), Mockito.times(1)).onIgnore();
+            Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onIgnore();
         }
     }
 
@@ -116,7 +116,7 @@ public class ConcurrencyLimitServerInterceptorTest {
         } catch (StatusRuntimeException e) {
             // Verify
             Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
-            Mockito.verify(listener.getResult().get(), Mockito.times(1)).onIgnore();
+            Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onIgnore();
         }
     }
 }
