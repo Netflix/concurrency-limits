@@ -1,21 +1,11 @@
 package com.netflix.concurrency.limits.grpc.server;
 
-import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.grpc.StringMarshaller;
-import com.netflix.concurrency.limits.grpc.client.ConcurrencyLimitClientInterceptor;
-import com.netflix.concurrency.limits.grpc.client.GrpcClientLimiterBuilder;
-import com.netflix.concurrency.limits.limit.FixedLimit;
-import com.netflix.concurrency.limits.limit.Gradient2Limit;
-import com.netflix.concurrency.limits.limit.VegasLimit;
-import com.netflix.concurrency.limits.spectator.SpectatorMetricRegistry;
-import com.netflix.spectator.api.DefaultRegistry;
-import com.netflix.spectator.api.Registry;
+import com.netflix.concurrency.limits.grpc.mockito.OptionalResultCaptor;
+import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
-import io.grpc.ClientCall;
-import io.grpc.Metadata;
-import io.grpc.Metadata.Key;
 import io.grpc.MethodDescriptor;
 import io.grpc.MethodDescriptor.MethodType;
 import io.grpc.Server;
@@ -26,23 +16,13 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.ClientCalls;
-import io.grpc.stub.MetadataUtils;
 import io.grpc.stub.ServerCalls;
-import io.grpc.stub.StreamObserver;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.util.Optional;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicLongArray;
 
 public class ConcurrencyLimitServerInterceptorTest {
     private static final MethodDescriptor<String, String> METHOD_DESCRIPTOR = MethodDescriptor.<String, String>newBuilder()
@@ -52,12 +32,12 @@ public class ConcurrencyLimitServerInterceptorTest {
             .setResponseMarshaller(StringMarshaller.INSTANCE)
             .build();
 
-    final Limiter<GrpcServerRequestContext> limiter = Mockito.mock(Limiter.class);
-    final Limiter.Listener listener = Mockito.mock(Limiter.Listener.class);
+    final Limiter<GrpcServerRequestContext> limiter = Mockito.spy(SimpleLimiter.newBuilder().build());
+    final OptionalResultCaptor<Limiter.Listener> listener = OptionalResultCaptor.forClass(Limiter.Listener.class);
 
     @Before
     public void beforeEachTest() {
-        Mockito.when(limiter.acquire(Mockito.isA(GrpcServerRequestContext.class))).thenReturn(Optional.of(listener));
+        Mockito.doAnswer(listener).when(limiter).acquire(Mockito.any());
     }
 
     private Server startServer(ServerCalls.UnaryMethod<String, String> method) {
@@ -92,7 +72,7 @@ public class ConcurrencyLimitServerInterceptorTest {
 
         ClientCalls.blockingUnaryCall(channel, METHOD_DESCRIPTOR, CallOptions.DEFAULT, "foo");
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
-        Mockito.verify(listener, Mockito.times(1)).onSuccess();
+        Mockito.verify(listener.getResult().get(), Mockito.times(1)).onSuccess();
     }
 
     @Test
@@ -114,7 +94,7 @@ public class ConcurrencyLimitServerInterceptorTest {
             // Verify
             Assert.assertEquals(Status.Code.INVALID_ARGUMENT, e.getStatus().getCode());
             Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
-            Mockito.verify(listener, Mockito.times(1)).onIgnore();
+            Mockito.verify(listener.getResult().get(), Mockito.times(1)).onIgnore();
         }
     }
 
@@ -136,7 +116,7 @@ public class ConcurrencyLimitServerInterceptorTest {
         } catch (StatusRuntimeException e) {
             // Verify
             Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
-            Mockito.verify(listener, Mockito.times(1)).onIgnore();
+            Mockito.verify(listener.getResult().get(), Mockito.times(1)).onIgnore();
         }
     }
 }

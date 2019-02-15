@@ -59,8 +59,9 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         this.limitAlgorithm = builder.limit;
         this.limit = limitAlgorithm.getLimit();
         this.limitAlgorithm.notifyOnChange(this::onNewLimit);
-        
-        builder.registry.registerGauge(MetricIds.LIMIT_GUAGE_NAME, this::getLimit);
+
+        builder.registry.registerGauge(MetricIds.LIMIT_NAME, this::getLimit);
+
     }
 
     protected Listener createListener() {

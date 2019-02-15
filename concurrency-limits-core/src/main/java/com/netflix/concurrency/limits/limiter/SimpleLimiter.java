@@ -15,6 +15,9 @@
  */
 package com.netflix.concurrency.limits.limiter;
 
+import com.netflix.concurrency.limits.MetricIds;
+import com.netflix.concurrency.limits.MetricRegistry;
+
 import java.util.Optional;
 
 public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
@@ -33,13 +36,19 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
         return new Builder();
     }
 
+    private final MetricRegistry.SampleListener inflightDistribution;
+
     public SimpleLimiter(AbstractLimiter.Builder<?> builder) {
         super(builder);
+
+        this.inflightDistribution = builder.registry.registerDistribution(MetricIds.INFLIGHT_NAME);
     }
 
     @Override
     public Optional<Listener> acquire(ContextT context) {
-        if (getInflight() >= getLimit()) {
+        int currentInFlight = getInflight();
+        inflightDistribution.addSample(currentInFlight);
+        if (currentInFlight >= getLimit()) {
             return Optional.empty();
         }
         return Optional.of(createListener());
