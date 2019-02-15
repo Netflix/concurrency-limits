@@ -160,8 +160,8 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         }
 
         void createMetrics(MetricRegistry registry) {
-            this.inflightDistribution = registry.registerDistribution(MetricIds.INFLIGHT_GUAGE_NAME, PARTITION_TAG_NAME, name);
-            registry.registerGauge(MetricIds.PARTITION_LIMIT_GUAGE_NAME, this::getLimit, PARTITION_TAG_NAME, name);
+            this.inflightDistribution = registry.registerDistribution(MetricIds.INFLIGHT_NAME, PARTITION_TAG_NAME, name);
+            registry.registerGauge(MetricIds.PARTITION_LIMIT_NAME, this::getLimit, PARTITION_TAG_NAME, name);
         }
 
         @Override
