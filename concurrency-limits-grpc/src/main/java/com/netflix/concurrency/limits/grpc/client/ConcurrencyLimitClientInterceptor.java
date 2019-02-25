@@ -48,6 +48,10 @@ public class ConcurrencyLimitClientInterceptor implements ClientInterceptor {
     @Override
     public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(final MethodDescriptor<ReqT, RespT> method,
             final CallOptions callOptions, final Channel next) {
+        if (!method.getType().serverSendsOneMessage() || !method.getType().clientSendsOneMessage()) {
+            return next.newCall(method, callOptions);
+        }
+
         return grpcLimiter
                 .acquire(new GrpcClientRequestContext() {
                     @Override

@@ -15,14 +15,7 @@
  */
 package com.netflix.concurrency.limits.grpc.server;
 
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-
 import com.netflix.concurrency.limits.Limiter;
-
 import io.grpc.ForwardingServerCall;
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
@@ -33,6 +26,10 @@ import io.grpc.ServerInterceptor;
 import io.grpc.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * {@link ServerInterceptor} that enforces per service and/or per method concurrent request limits and returns
@@ -114,7 +111,11 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
     public <ReqT, RespT> Listener<ReqT> interceptCall(final ServerCall<ReqT, RespT> call,
                                                       final Metadata headers,
                                                       final ServerCallHandler<ReqT, RespT> next) {
-        
+
+        if (!call.getMethodDescriptor().getType().serverSendsOneMessage() || !call.getMethodDescriptor().getType().clientSendsOneMessage()) {
+            return next.startCall(call, headers);
+        }
+
         return grpcLimiter
             .acquire(new GrpcServerRequestContext() {
                 @Override
