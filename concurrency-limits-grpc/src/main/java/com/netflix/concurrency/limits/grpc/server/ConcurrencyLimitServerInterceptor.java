@@ -15,7 +15,9 @@
  */
 package com.netflix.concurrency.limits.grpc.server;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.netflix.concurrency.limits.Limiter;
+import io.grpc.Context;
 import io.grpc.ForwardingServerCall;
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
@@ -27,6 +29,8 @@ import io.grpc.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -45,7 +49,13 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
     private final Supplier<Status> statusSupplier;
 
     private Supplier<Metadata> trailerSupplier;
-    
+
+    private static final Executor executor = Executors.newCachedThreadPool(
+            new ThreadFactoryBuilder()
+                    .setDaemon(true)
+                    .setNameFormat("concurrency-limit-cleanup-%d")
+                    .build());
+
     public static class Builder {
         private Supplier<Status> statusSupplier = () -> LIMIT_EXCEEDED_STATUS;
         private Supplier<Metadata> trailerSupplier = Metadata::new;
@@ -139,11 +149,13 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
                             LOG.error("Critical error releasing limit", t);
                         }
                     }
-                };
+                }
 
                 @Override
                 public Listener<ReqT> apply(Limiter.Listener listener) {
-                    return (ServerCall.Listener<ReqT>) new ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(
+                    Context.current().addListener(context -> safeComplete(listener::onIgnore), executor);
+
+                    return new ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(
                             next.startCall(
                                     new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
                                         @Override
