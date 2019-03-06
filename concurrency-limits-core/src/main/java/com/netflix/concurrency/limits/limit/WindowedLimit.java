@@ -17,6 +17,9 @@ package com.netflix.concurrency.limits.limit;
 
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.internal.Preconditions;
+import com.netflix.concurrency.limits.limit.window.ImmutableAverageSampleWindow;
+import com.netflix.concurrency.limits.limit.window.ImmutablePercentileSampleWindow;
+import com.netflix.concurrency.limits.limit.window.SampleWindow;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -26,6 +29,7 @@ public class WindowedLimit implements Limit {
     private static final long DEFAULT_MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
     private static final long DEFAULT_MAX_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
     private static final long DEFAULT_MIN_RTT_THRESHOLD = TimeUnit.MICROSECONDS.toNanos(100);
+    private static final int DEFAULT_PERCENTILE = 99;
 
     /**
      * Minimum observed samples to filter out sample windows with not enough significant samples
@@ -41,6 +45,8 @@ public class WindowedLimit implements Limit {
         private long minWindowTime = DEFAULT_MIN_WINDOW_TIME;
         private int windowSize = DEFAULT_WINDOW_SIZE;
         private long minRttThreshold = DEFAULT_MIN_RTT_THRESHOLD;
+        private boolean percentileBased = false;
+        private int percentile;
 
         /**
          * Minimum window duration for sampling a new minRtt
@@ -74,6 +80,17 @@ public class WindowedLimit implements Limit {
             return this;
         }
 
+        public Builder percentile() {
+            return percentile(DEFAULT_PERCENTILE);
+        }
+
+        public Builder percentile(int percentile) {
+            Preconditions.checkArgument(percentile >= 0 && percentile <= 100, "Percentile should belong to [0, 100]");
+            this.percentileBased = true;
+            this.percentile = percentile;
+            return this;
+        }
+
         public WindowedLimit build(Limit delegate) {
             return new WindowedLimit(this, delegate);
         }
@@ -99,7 +116,7 @@ public class WindowedLimit implements Limit {
     /**
      * Object tracking stats for the current sample window
      */
-    private final AtomicReference<ImmutableSampleWindow> sample = new AtomicReference<>(new ImmutableSampleWindow());
+    private final AtomicReference<SampleWindow> sample;
 
     private WindowedLimit(Builder builder, Limit delegate) {
         this.delegate = delegate;
@@ -107,6 +124,13 @@ public class WindowedLimit implements Limit {
         this.maxWindowTime = builder.maxWindowTime;
         this.windowSize = builder.windowSize;
         this.minRttThreshold = builder.minRttThreshold;
+        SampleWindow sampleWindow;
+        if (builder.percentileBased) {
+            sampleWindow = new ImmutablePercentileSampleWindow(builder.percentile);
+        } else {
+            sampleWindow = new ImmutableAverageSampleWindow();
+        }
+        sample = new AtomicReference<>(sampleWindow);
     }
 
     @Override
@@ -132,19 +156,19 @@ public class WindowedLimit implements Limit {
             synchronized (lock) {
                 // Double check under the lock
                 if (endTime > nextUpdateTime) {
-                    ImmutableSampleWindow current = sample.get();
+                    SampleWindow current = sample.get();
                     if (isWindowReady(current)) {
-                        sample.set(new ImmutableSampleWindow());
+                        sample.set(current.createBlankInstance());
 
                         nextUpdateTime = endTime + Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
-                        delegate.onSample(startTime, current.getAverageRttNanos(), current.getMaxInFlight(), current.didDrop());
+                        delegate.onSample(startTime, current.getTrackedRttNanos(), current.getMaxInFlight(), current.didDrop());
                     }
                 }
             }
         }
     }
 
-    private boolean isWindowReady(ImmutableSampleWindow sample) {
+    private boolean isWindowReady(SampleWindow sample) {
         return sample.getCandidateRttNanos() < Long.MAX_VALUE && sample.getSampleCount() > windowSize;
     }
 

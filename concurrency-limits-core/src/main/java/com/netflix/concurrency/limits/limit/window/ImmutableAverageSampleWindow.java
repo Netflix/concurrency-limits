@@ -13,21 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.netflix.concurrency.limits.limit;
+package com.netflix.concurrency.limits.limit.window;
 
 import java.util.concurrent.TimeUnit;
 
-/**
- * Class used to track immutable samples in an AtomicReference
- */
-class ImmutableSampleWindow {
-    final long minRtt;
-    final int maxInFlight;
-    final int sampleCount;
-    final long sum;
-    final boolean didDrop;
+public class ImmutableAverageSampleWindow implements SampleWindow<ImmutableAverageSampleWindow> {
+    private final long minRtt;
+    private final int maxInFlight;
+    private final int sampleCount;
+    private final long sum;
+    private final boolean didDrop;
     
-    public ImmutableSampleWindow() {
+    public ImmutableAverageSampleWindow() {
         this.minRtt = Long.MAX_VALUE;
         this.maxInFlight = 0;
         this.sampleCount = 0;
@@ -35,47 +32,59 @@ class ImmutableSampleWindow {
         this.didDrop = false;
     }
     
-    public ImmutableSampleWindow(long minRtt, long sum, int maxInFlight, int sampleCount, boolean didDrop) {
+    public ImmutableAverageSampleWindow(long minRtt, long sum, int maxInFlight, int sampleCount, boolean didDrop) {
         this.minRtt = minRtt;
         this.sum = sum;
         this.maxInFlight = maxInFlight;
         this.sampleCount = sampleCount;
         this.didDrop = didDrop;
     }
-    
-    public ImmutableSampleWindow addSample(long rtt, int maxInFlight) {
-        return new ImmutableSampleWindow(Math.min(rtt, minRtt), sum + rtt, Math.max(maxInFlight, this.maxInFlight), sampleCount+1, didDrop);
+
+    @Override
+    public ImmutableAverageSampleWindow addSample(long rtt, int maxInFlight) {
+        return new ImmutableAverageSampleWindow(Math.min(rtt, minRtt), sum + rtt, Math.max(maxInFlight, this.maxInFlight), sampleCount+1, didDrop);
     }
-    
-    public ImmutableSampleWindow addDroppedSample(int maxInFlight) {
-        return new ImmutableSampleWindow(minRtt, sum, Math.max(maxInFlight, this.maxInFlight), sampleCount, true);
+
+    @Override
+    public ImmutableAverageSampleWindow addDroppedSample(int maxInFlight) {
+        return new ImmutableAverageSampleWindow(minRtt, sum, Math.max(maxInFlight, this.maxInFlight), sampleCount, true);
     }
-    
+
+    @Override
     public long getCandidateRttNanos() {
         return minRtt;
     }
 
-    public long getAverageRttNanos() {
+    @Override
+    public long getTrackedRttNanos() {
         return sampleCount == 0 ? 0 : sum / sampleCount;
     }
-    
+
+    @Override
     public int getMaxInFlight() {
         return maxInFlight;
     }
 
+    @Override
     public int getSampleCount() {
         return sampleCount;
     }
 
+    @Override
     public boolean didDrop() {
         return didDrop;
     }
 
     @Override
+    public ImmutableAverageSampleWindow createBlankInstance() {
+        return new ImmutableAverageSampleWindow();
+    }
+
+    @Override
     public String toString() {
-        return "ImmutableSampleWindow ["
+        return "ImmutableAverageSampleWindow ["
                 + "minRtt=" + TimeUnit.NANOSECONDS.toMicros(minRtt) / 1000.0 
-                + ", avgRtt=" + TimeUnit.NANOSECONDS.toMicros(getAverageRttNanos()) / 1000.0
+                + ", avgRtt=" + TimeUnit.NANOSECONDS.toMicros(getTrackedRttNanos()) / 1000.0
                 + ", maxInFlight=" + maxInFlight 
                 + ", sampleCount=" + sampleCount 
                 + ", didDrop=" + didDrop + "]";
