@@ -103,27 +103,31 @@ public class ConcurrencyLimitClientInterceptor implements ClientInterceptor {
                         }
                 )
                 .orElseGet(() -> new ClientCall<ReqT, RespT>() {
-                            @Override
-                            public void start(io.grpc.ClientCall.Listener<RespT> responseListener, Metadata headers) {
-                                responseListener.onClose(LIMIT_EXCEEDED_STATUS, new Metadata());
-                            }
 
-                            @Override
-                            public void request(int numMessages) {
-                            }
+                        private Listener<RespT> responseListener;
 
-                            @Override
-                            public void cancel(String message, Throwable cause) {
-                            }
-
-                            @Override
-                            public void halfClose() {
-                            }
-
-                            @Override
-                            public void sendMessage(ReqT message) {
-                            }
+                        @Override
+                        public void start(io.grpc.ClientCall.Listener<RespT> responseListener, Metadata headers) {
+                            this.responseListener = responseListener;
                         }
+
+                        @Override
+                        public void request(int numMessages) {
+                        }
+
+                        @Override
+                        public void cancel(String message, Throwable cause) {
+                        }
+
+                        @Override
+                        public void halfClose() {
+                            responseListener.onClose(LIMIT_EXCEEDED_STATUS, new Metadata());
+                        }
+
+                        @Override
+                        public void sendMessage(ReqT message) {
+                        }
+                    }
                 );
     }
 }
