@@ -17,9 +17,9 @@ package com.netflix.concurrency.limits.limit;
 
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.internal.Preconditions;
-import com.netflix.concurrency.limits.limit.window.ImmutableAverageSampleWindow;
-import com.netflix.concurrency.limits.limit.window.ImmutablePercentileSampleWindow;
+import com.netflix.concurrency.limits.limit.window.AverageSampleWindowFactory;
 import com.netflix.concurrency.limits.limit.window.SampleWindow;
+import com.netflix.concurrency.limits.limit.window.SampleWindowFactory;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -29,7 +29,6 @@ public class WindowedLimit implements Limit {
     private static final long DEFAULT_MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
     private static final long DEFAULT_MAX_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
     private static final long DEFAULT_MIN_RTT_THRESHOLD = TimeUnit.MICROSECONDS.toNanos(100);
-    private static final int DEFAULT_PERCENTILE = 99;
 
     /**
      * Minimum observed samples to filter out sample windows with not enough significant samples
@@ -45,8 +44,7 @@ public class WindowedLimit implements Limit {
         private long minWindowTime = DEFAULT_MIN_WINDOW_TIME;
         private int windowSize = DEFAULT_WINDOW_SIZE;
         private long minRttThreshold = DEFAULT_MIN_RTT_THRESHOLD;
-        private boolean percentileBased = false;
-        private int percentile;
+        private SampleWindowFactory sampleWindowFactory = AverageSampleWindowFactory.create();
 
         /**
          * Minimum window duration for sampling a new minRtt
@@ -80,14 +78,8 @@ public class WindowedLimit implements Limit {
             return this;
         }
 
-        public Builder percentile() {
-            return percentile(DEFAULT_PERCENTILE);
-        }
-
-        public Builder percentile(int percentile) {
-            Preconditions.checkArgument(percentile >= 0 && percentile <= 100, "Percentile should belong to [0, 100]");
-            this.percentileBased = true;
-            this.percentile = percentile;
+        public Builder sampleWindowFactory(SampleWindowFactory sampleWindowFactory) {
+            this.sampleWindowFactory = sampleWindowFactory;
             return this;
         }
 
@@ -113,6 +105,8 @@ public class WindowedLimit implements Limit {
 
     private final Object lock = new Object();
 
+    private final SampleWindowFactory<SampleWindow> sampleWindowFactory;
+
     /**
      * Object tracking stats for the current sample window
      */
@@ -124,13 +118,9 @@ public class WindowedLimit implements Limit {
         this.maxWindowTime = builder.maxWindowTime;
         this.windowSize = builder.windowSize;
         this.minRttThreshold = builder.minRttThreshold;
-        SampleWindow sampleWindow;
-        if (builder.percentileBased) {
-            sampleWindow = new ImmutablePercentileSampleWindow(builder.percentile);
-        } else {
-            sampleWindow = new ImmutableAverageSampleWindow();
-        }
-        sample = new AtomicReference<>(sampleWindow);
+        //noinspection unchecked
+        this.sampleWindowFactory = builder.sampleWindowFactory;
+        this.sample = new AtomicReference<>(sampleWindowFactory.newInstance());
     }
 
     @Override
@@ -147,9 +137,9 @@ public class WindowedLimit implements Limit {
         }
 
         if (didDrop) {
-            sample.updateAndGet(current -> current.addDroppedSample(inflight));
+            sample.updateAndGet(current -> sampleWindowFactory.addDroppedSample(current, inflight));
         } else {
-            sample.updateAndGet(window -> window.addSample(rtt, inflight));
+            sample.updateAndGet(current -> sampleWindowFactory.addSample(current, rtt, inflight));
         }
 
         if (startTime + rtt > nextUpdateTime) {
@@ -158,7 +148,7 @@ public class WindowedLimit implements Limit {
                 if (endTime > nextUpdateTime) {
                     SampleWindow current = sample.get();
                     if (isWindowReady(current)) {
-                        sample.set(current.createBlankInstance());
+                        sample.set(sampleWindowFactory.newInstance());
 
                         nextUpdateTime = endTime + Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
                         delegate.onSample(startTime, current.getTrackedRttNanos(), current.getMaxInFlight(), current.didDrop());

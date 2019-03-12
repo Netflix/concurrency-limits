@@ -20,11 +20,7 @@ package com.netflix.concurrency.limits.limit.window;
  *
  * @see com.netflix.concurrency.limits.limit.WindowedLimit
  */
-public interface SampleWindow<SELF extends SampleWindow> {
-    SELF addSample(long rtt, int maxInFlight);
-
-    SELF addDroppedSample(int maxInFlight);
-
+public interface SampleWindow {
     long getCandidateRttNanos();
 
     long getTrackedRttNanos();
@@ -34,6 +30,4 @@ public interface SampleWindow<SELF extends SampleWindow> {
     int getSampleCount();
 
     boolean didDrop();
-
-    SELF createBlankInstance();
 }
