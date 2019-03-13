@@ -31,13 +31,29 @@ class ImmutableAverageSampleWindow implements SampleWindow {
         this.sampleCount = 0;
         this.didDrop = false;
     }
-    
+
     ImmutableAverageSampleWindow(long minRtt, long sum, int maxInFlight, int sampleCount, boolean didDrop) {
         this.minRtt = minRtt;
         this.sum = sum;
         this.maxInFlight = maxInFlight;
         this.sampleCount = sampleCount;
         this.didDrop = didDrop;
+    }
+
+    @Override
+    public SampleWindow addSample(long rtt, int inflight) {
+        return new ImmutableAverageSampleWindow(
+                Math.min(rtt, minRtt),
+                sum + rtt,
+                Math.max(inflight, this.maxInFlight),
+                sampleCount + 1,
+                didDrop
+        );
+    }
+
+    @Override
+    public SampleWindow addDroppedSample(int inflight) {
+        return new ImmutableAverageSampleWindow(minRtt, sum, Math.max(inflight, this.maxInFlight), sampleCount, true);
     }
 
     @Override
@@ -63,10 +79,6 @@ class ImmutableAverageSampleWindow implements SampleWindow {
     @Override
     public boolean didDrop() {
         return didDrop;
-    }
-
-    long getSum() {
-        return sum;
     }
 
     @Override

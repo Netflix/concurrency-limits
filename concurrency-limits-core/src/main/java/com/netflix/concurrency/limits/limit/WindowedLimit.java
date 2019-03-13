@@ -105,7 +105,7 @@ public class WindowedLimit implements Limit {
 
     private final Object lock = new Object();
 
-    private final SampleWindowFactory<SampleWindow> sampleWindowFactory;
+    private final SampleWindowFactory sampleWindowFactory;
 
     /**
      * Object tracking stats for the current sample window
@@ -118,7 +118,6 @@ public class WindowedLimit implements Limit {
         this.maxWindowTime = builder.maxWindowTime;
         this.windowSize = builder.windowSize;
         this.minRttThreshold = builder.minRttThreshold;
-        //noinspection unchecked
         this.sampleWindowFactory = builder.sampleWindowFactory;
         this.sample = new AtomicReference<>(sampleWindowFactory.newInstance());
     }
@@ -137,9 +136,9 @@ public class WindowedLimit implements Limit {
         }
 
         if (didDrop) {
-            sample.updateAndGet(current -> sampleWindowFactory.addDroppedSample(current, inflight));
+            sample.updateAndGet(current -> current.addDroppedSample(inflight));
         } else {
-            sample.updateAndGet(current -> sampleWindowFactory.addSample(current, rtt, inflight));
+            sample.updateAndGet(current -> current.addSample(rtt, inflight));
         }
 
         if (startTime + rtt > nextUpdateTime) {

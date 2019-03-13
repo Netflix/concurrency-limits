@@ -48,6 +48,32 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
     }
 
     @Override
+    public SampleWindow addSample(long rtt, int inflight) {
+        // TODO: very naive
+        // full copy in order to fulfill side-effect-free requirement of AtomicReference::updateAndGet
+        PriorityQueue<Long> newSortedRtts = new PriorityQueue<>(sortedRtts);
+        newSortedRtts.add(rtt);
+        return new ImmutablePercentileSampleWindow(
+                Math.min(minRtt, rtt),
+                Math.max(inflight, this.maxInFlight),
+                didDrop,
+                newSortedRtts,
+                percentile
+        );
+    }
+
+    @Override
+    public SampleWindow addDroppedSample(int inflight) {
+        return new ImmutablePercentileSampleWindow(
+                minRtt,
+                Math.max(inflight, this.maxInFlight),
+                true,
+                sortedRtts,
+                percentile
+        );
+    }
+
+    @Override
     public long getCandidateRttNanos() {
         return minRtt;
     }
@@ -72,10 +98,6 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
     @Override
     public boolean didDrop() {
         return didDrop;
-    }
-
-    PriorityQueue<Long> getSortedRtts() {
-        return sortedRtts;
     }
 
     @Override
