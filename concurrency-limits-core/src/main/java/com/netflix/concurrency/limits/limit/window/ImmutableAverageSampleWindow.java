@@ -41,7 +41,7 @@ class ImmutableAverageSampleWindow implements SampleWindow {
     }
 
     @Override
-    public SampleWindow addSample(long rtt, int inflight) {
+    public ImmutableAverageSampleWindow addSample(long rtt, int inflight) {
         return new ImmutableAverageSampleWindow(
                 Math.min(rtt, minRtt),
                 sum + rtt,
@@ -52,7 +52,7 @@ class ImmutableAverageSampleWindow implements SampleWindow {
     }
 
     @Override
-    public SampleWindow addDroppedSample(int inflight) {
+    public ImmutableAverageSampleWindow addDroppedSample(int inflight) {
         return new ImmutableAverageSampleWindow(minRtt, sum, Math.max(inflight, this.maxInFlight), sampleCount, true);
     }
 
