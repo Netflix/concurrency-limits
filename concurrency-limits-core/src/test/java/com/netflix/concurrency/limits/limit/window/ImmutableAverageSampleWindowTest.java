@@ -19,12 +19,13 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class ImmutableAverageSampleWindowTest {
+    private final long bigRtt = 5000;
+    private final long moderateRtt = 500;
+    private final long lowRtt = 10;
+
     @Test
     public void calculateAverage() {
         ImmutableAverageSampleWindow window = new ImmutableAverageSampleWindow();
-        long bigRtt = 5000;
-        long moderateRtt = 500;
-        long lowRtt = 10;
         window = window.addSample(bigRtt, 1);
         window = window.addSample(moderateRtt, 1);
         window = window.addSample(lowRtt, 1);
@@ -34,9 +35,6 @@ public class ImmutableAverageSampleWindowTest {
     @Test
     public void droppedSampleShouldNotChangeTrackedAverage() {
         ImmutableAverageSampleWindow window = new ImmutableAverageSampleWindow();
-        long bigRtt = 5000;
-        long moderateRtt = 500;
-        long lowRtt = 10;
         window = window.addSample(bigRtt, 1);
         window = window.addSample(moderateRtt, 1);
         window = window.addSample(lowRtt, 1);
