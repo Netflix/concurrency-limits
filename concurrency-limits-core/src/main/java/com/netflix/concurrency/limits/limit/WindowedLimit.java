@@ -17,6 +17,9 @@ package com.netflix.concurrency.limits.limit;
 
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.internal.Preconditions;
+import com.netflix.concurrency.limits.limit.window.AverageSampleWindowFactory;
+import com.netflix.concurrency.limits.limit.window.SampleWindow;
+import com.netflix.concurrency.limits.limit.window.SampleWindowFactory;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,6 +44,7 @@ public class WindowedLimit implements Limit {
         private long minWindowTime = DEFAULT_MIN_WINDOW_TIME;
         private int windowSize = DEFAULT_WINDOW_SIZE;
         private long minRttThreshold = DEFAULT_MIN_RTT_THRESHOLD;
+        private SampleWindowFactory sampleWindowFactory = AverageSampleWindowFactory.create();
 
         /**
          * Minimum window duration for sampling a new minRtt
@@ -74,6 +78,11 @@ public class WindowedLimit implements Limit {
             return this;
         }
 
+        public Builder sampleWindowFactory(SampleWindowFactory sampleWindowFactory) {
+            this.sampleWindowFactory = sampleWindowFactory;
+            return this;
+        }
+
         public WindowedLimit build(Limit delegate) {
             return new WindowedLimit(this, delegate);
         }
@@ -96,10 +105,12 @@ public class WindowedLimit implements Limit {
 
     private final Object lock = new Object();
 
+    private final SampleWindowFactory sampleWindowFactory;
+
     /**
      * Object tracking stats for the current sample window
      */
-    private final AtomicReference<ImmutableSampleWindow> sample = new AtomicReference<>(new ImmutableSampleWindow());
+    private final AtomicReference<SampleWindow> sample;
 
     private WindowedLimit(Builder builder, Limit delegate) {
         this.delegate = delegate;
@@ -107,6 +118,8 @@ public class WindowedLimit implements Limit {
         this.maxWindowTime = builder.maxWindowTime;
         this.windowSize = builder.windowSize;
         this.minRttThreshold = builder.minRttThreshold;
+        this.sampleWindowFactory = builder.sampleWindowFactory;
+        this.sample = new AtomicReference<>(sampleWindowFactory.newInstance());
     }
 
     @Override
@@ -125,26 +138,26 @@ public class WindowedLimit implements Limit {
         if (didDrop) {
             sample.updateAndGet(current -> current.addDroppedSample(inflight));
         } else {
-            sample.updateAndGet(window -> window.addSample(rtt, inflight));
+            sample.updateAndGet(current -> current.addSample(rtt, inflight));
         }
 
         if (startTime + rtt > nextUpdateTime) {
             synchronized (lock) {
                 // Double check under the lock
                 if (endTime > nextUpdateTime) {
-                    ImmutableSampleWindow current = sample.get();
+                    SampleWindow current = sample.get();
                     if (isWindowReady(current)) {
-                        sample.set(new ImmutableSampleWindow());
+                        sample.set(sampleWindowFactory.newInstance());
 
                         nextUpdateTime = endTime + Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
-                        delegate.onSample(startTime, current.getAverageRttNanos(), current.getMaxInFlight(), current.didDrop());
+                        delegate.onSample(startTime, current.getTrackedRttNanos(), current.getMaxInFlight(), current.didDrop());
                     }
                 }
             }
         }
     }
 
-    private boolean isWindowReady(ImmutableSampleWindow sample) {
+    private boolean isWindowReady(SampleWindow sample) {
         return sample.getCandidateRttNanos() < Long.MAX_VALUE && sample.getSampleCount() > windowSize;
     }
 
