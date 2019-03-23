@@ -14,15 +14,15 @@ public class AIMDLimitTest {
     
     @Test
     public void increaseOnSuccess() {
-        AIMDLimit limiter = AIMDLimit.newBuilder().initialLimit(10).build();
+        AIMDLimit limiter = AIMDLimit.newBuilder().initialLimit(20).build();
         limiter.onSample(0, TimeUnit.MILLISECONDS.toNanos(1), 10, false);
-        Assert.assertEquals(11, limiter.getLimit());
+        Assert.assertEquals(21, limiter.getLimit());
     }
 
     @Test
     public void decreaseOnDrops() {
-        AIMDLimit limiter = AIMDLimit.newBuilder().initialLimit(10).build();
+        AIMDLimit limiter = AIMDLimit.newBuilder().initialLimit(30).build();
         limiter.onSample(0, 0, 0, true);
-        Assert.assertEquals(9, limiter.getLimit());
+        Assert.assertEquals(27, limiter.getLimit());
     }
 }
