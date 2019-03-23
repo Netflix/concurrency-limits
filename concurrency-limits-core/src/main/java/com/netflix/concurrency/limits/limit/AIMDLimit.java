@@ -28,12 +28,24 @@ public final class AIMDLimit extends AbstractLimit {
     private static final long DEFAULT_TIMEOUT = TimeUnit.SECONDS.toNanos(5);
 
     public static class Builder {
-        private int initialLimit = 10;
+        private int minLimit = 20;
+        private int initialLimit = 20;
+        private int maxLimit = 200;
         private double backoffRatio = 0.9;
         private long timeout = DEFAULT_TIMEOUT;
 
         public Builder initialLimit(int initialLimit) {
             this.initialLimit = initialLimit;
+            return this;
+        }
+
+        public Builder minLimit(int minLimit) {
+            this.minLimit = minLimit;
+            return this;
+        }
+
+        public Builder maxLimit(int maxLimit) {
+            this.maxLimit = maxLimit;
             return this;
         }
 
@@ -66,24 +78,32 @@ public final class AIMDLimit extends AbstractLimit {
     
     private final double backoffRatio;
     private final long timeout;
+    private final int minLimit;
+    private final int maxLimit;
 
     private AIMDLimit(Builder builder) {
         super(builder.initialLimit);
         this.backoffRatio = builder.backoffRatio;
         this.timeout = builder.timeout;
+        this.maxLimit = builder.maxLimit;
+        this.minLimit = builder.minLimit;
     }
     
     @Override
     protected int _update(long startTime, long rtt, int inflight, boolean didDrop) {
-        final int currentLimit = getLimit();
+        int currentLimit = getLimit();
 
         if (didDrop || rtt > timeout) {
-            return Math.max(1, Math.min(currentLimit - 1, (int) (currentLimit * backoffRatio)));
+            currentLimit = (int) (currentLimit * backoffRatio);
         } else if (inflight * 2 >= currentLimit) {
-            return currentLimit + 1;
-        } else {
-            return currentLimit;
+            currentLimit =  currentLimit + 1;
         }
+
+        if (currentLimit >= maxLimit) {
+            currentLimit = currentLimit / 2;
+        }
+
+        return Math.min(maxLimit, Math.max(minLimit, currentLimit));
     }
 
     @Override
