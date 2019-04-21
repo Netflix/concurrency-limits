@@ -138,11 +138,11 @@ public class WindowedLimit implements Limit {
             return;
         }
 
-        sequence.incrementAndGet();
         if (didDrop) {
             sample.updateAndGet(current -> current.addDroppedSample(inflight));
         } else {
-            sample.updateAndGet(current -> current.addSample(rtt, sequence.get(), inflight));
+            long seqId = sequence.incrementAndGet();
+            sample.updateAndGet(current -> current.addSample(rtt, seqId, inflight));
         }
 
         if (startTime + rtt > nextUpdateTime) {
