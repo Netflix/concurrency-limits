@@ -55,7 +55,7 @@ public class ImmutablePercentileSampleWindowTest {
     }
 
     @Test
-    public void addingSamplesIsIdempotent() {
+    public void addSampleOperationIsIdempotent() {
         ImmutablePercentileSampleWindow window = new ImmutablePercentileSampleWindow(0.5);
         window = window.addSample(slowestRtt, 1, 1);
         window = window.addSample(moderateRtt, 2, 1);
