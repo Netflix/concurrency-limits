@@ -18,6 +18,8 @@ package com.netflix.concurrency.limits.limit.window;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static com.netflix.concurrency.limits.limit.window.SampleWindowTestingUtils.addSample;
+
 public class ImmutablePercentileSampleWindowTest {
     private final long slowestRtt = 5000;
     private final long moderateRtt = 500;
@@ -25,30 +27,44 @@ public class ImmutablePercentileSampleWindowTest {
 
     @Test
     public void calculateP50() {
-        ImmutablePercentileSampleWindow window = new ImmutablePercentileSampleWindow(0.5);
-        window = window.addSample(slowestRtt, 1);
-        window = window.addSample(moderateRtt, 1);
-        window = window.addSample(fastestRtt, 1);
+        SampleWindow window = new ImmutablePercentileSampleWindow(0.5);
+        window = addSample(window, slowestRtt);
+        window = addSample(window, moderateRtt);
+        window = addSample(window, fastestRtt);
         Assert.assertEquals(moderateRtt, window.getTrackedRttNanos());
     }
 
     @Test
     public void droppedSampleShouldNotChangeTrackedRtt() {
-        ImmutablePercentileSampleWindow window = new ImmutablePercentileSampleWindow(0.5);
-        window = window.addSample(slowestRtt, 1);
-        window = window.addSample(moderateRtt, 1);
-        window = window.addSample(fastestRtt, 1);
+        SampleWindow window = new ImmutablePercentileSampleWindow(0.5);
+        window = addSample(window, slowestRtt);
+        window = addSample(window, moderateRtt);
+        window = addSample(window, fastestRtt);
         window = window.addDroppedSample(1);
         Assert.assertEquals(moderateRtt, window.getTrackedRttNanos());
     }
     
     @Test
     public void p999ReturnsSlowestObservedRtt() {
-        ImmutablePercentileSampleWindow window = new ImmutablePercentileSampleWindow(0.999);
-        window = window.addSample(slowestRtt, 1);
-        window = window.addSample(moderateRtt, 1);
-        window = window.addSample(fastestRtt, 1);
+        SampleWindow window = new ImmutablePercentileSampleWindow(0.999);
+        window = addSample(window, slowestRtt);
+        window = addSample(window, moderateRtt);
+        window = addSample(window, fastestRtt);
         window = window.addDroppedSample(1);
         Assert.assertEquals(slowestRtt, window.getTrackedRttNanos());
+    }
+
+    @Test
+    public void addingSamplesIsIdempotent() {
+        ImmutablePercentileSampleWindow window = new ImmutablePercentileSampleWindow(0.5);
+        window = window.addSample(slowestRtt, 1, 1);
+        window = window.addSample(moderateRtt, 2, 1);
+        window = window.addSample(fastestRtt, 3, 1);
+        window = window.addSample(fastestRtt, 3, 1);
+        window = window.addSample(fastestRtt, 3, 1);
+        window = window.addSample(fastestRtt, 3, 1);
+        window = window.addSample(fastestRtt, 3, 1);
+        window = window.addDroppedSample(1);
+        Assert.assertEquals(moderateRtt, window.getTrackedRttNanos());
     }
 }

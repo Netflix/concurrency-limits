@@ -15,23 +15,22 @@
  */
 package com.netflix.concurrency.limits.limit.window;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 class ImmutablePercentileSampleWindow implements SampleWindow {
     private final long minRtt;
     private final int maxInFlight;
     private final boolean didDrop;
-    private final List<Long> observedRtts;
+    private final Set<ObservedRtt> observedRtts;
     private final double percentile;
 
     ImmutablePercentileSampleWindow(double percentile) {
         this.minRtt = Long.MAX_VALUE;
         this.maxInFlight = 0;
         this.didDrop = false;
-        this.observedRtts = new ArrayList<>();
+        this.observedRtts = new HashSet<>();
         this.percentile = percentile;
     }
 
@@ -39,7 +38,7 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
             long minRtt,
             int maxInFlight,
             boolean didDrop,
-            List<Long> observedRtts,
+            Set<ObservedRtt> observedRtts,
             double percentile
     ) {
         this.minRtt = minRtt;
@@ -50,16 +49,13 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
     }
 
     @Override
-    public ImmutablePercentileSampleWindow addSample(long rtt, int inflight) {
-        // TODO: very naive
-        // full copy in order to fulfill side-effect-free requirement of AtomicReference::updateAndGet
-        List<Long> newObservedRtts = new ArrayList<>(observedRtts);
-        newObservedRtts.add(rtt);
+    public ImmutablePercentileSampleWindow addSample(long rtt, long seqId, int inflight) {
+        observedRtts.add(new ObservedRtt(rtt, seqId));
         return new ImmutablePercentileSampleWindow(
                 Math.min(minRtt, rtt),
                 Math.max(inflight, this.maxInFlight),
                 didDrop,
-                newObservedRtts,
+                observedRtts,
                 percentile
         );
     }
@@ -82,10 +78,13 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
 
     @Override
     public long getTrackedRttNanos() {
-        observedRtts.sort(Comparator.naturalOrder());
-        int rttIndex = (int) Math.round(observedRtts.size() * percentile);
+        List<Long> listOfSortedRtts = observedRtts.stream()
+                .map(o -> o.rtt)
+                .sorted(Comparator.naturalOrder())
+                .collect(Collectors.toList());
+        int rttIndex = (int) Math.round(listOfSortedRtts.size() * percentile);
         int zeroBasedRttIndex = rttIndex - 1;
-        return observedRtts.get(zeroBasedRttIndex);
+        return listOfSortedRtts.get(zeroBasedRttIndex);
     }
 
     @Override
@@ -111,5 +110,28 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
                 + ", maxInFlight=" + maxInFlight
                 + ", sampleCount=" + observedRtts.size()
                 + ", didDrop=" + didDrop + "]";
+    }
+
+    private static class ObservedRtt {
+        final long rtt;
+        final long seqId;
+
+        ObservedRtt(long rtt, long seqId) {
+            this.rtt = rtt;
+            this.seqId = seqId;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ObservedRtt that = (ObservedRtt) o;
+            return seqId == that.seqId;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(seqId);
+        }
     }
 }

@@ -22,6 +22,7 @@ import com.netflix.concurrency.limits.limit.window.SampleWindow;
 import com.netflix.concurrency.limits.limit.window.SampleWindowFactory;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -34,6 +35,8 @@ public class WindowedLimit implements Limit {
      * Minimum observed samples to filter out sample windows with not enough significant samples
      */
     private static final int DEFAULT_WINDOW_SIZE = 10;
+
+    private final AtomicLong sequence = new AtomicLong();
 
     public static Builder newBuilder() {
         return new Builder();
@@ -135,10 +138,11 @@ public class WindowedLimit implements Limit {
             return;
         }
 
+        sequence.incrementAndGet();
         if (didDrop) {
             sample.updateAndGet(current -> current.addDroppedSample(inflight));
         } else {
-            sample.updateAndGet(current -> current.addSample(rtt, inflight));
+            sample.updateAndGet(current -> current.addSample(rtt, sequence.get(), inflight));
         }
 
         if (startTime + rtt > nextUpdateTime) {

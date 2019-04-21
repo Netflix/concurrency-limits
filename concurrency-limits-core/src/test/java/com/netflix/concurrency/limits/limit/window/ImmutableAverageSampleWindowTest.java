@@ -18,6 +18,8 @@ package com.netflix.concurrency.limits.limit.window;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static com.netflix.concurrency.limits.limit.window.SampleWindowTestingUtils.addSample;
+
 public class ImmutableAverageSampleWindowTest {
     private final long bigRtt = 5000;
     private final long moderateRtt = 500;
@@ -25,19 +27,19 @@ public class ImmutableAverageSampleWindowTest {
 
     @Test
     public void calculateAverage() {
-        ImmutableAverageSampleWindow window = new ImmutableAverageSampleWindow();
-        window = window.addSample(bigRtt, 1);
-        window = window.addSample(moderateRtt, 1);
-        window = window.addSample(lowRtt, 1);
+        SampleWindow window = new ImmutableAverageSampleWindow();
+        window = addSample(window, bigRtt);
+        window = addSample(window, moderateRtt);
+        window = addSample(window, lowRtt);
         Assert.assertEquals((bigRtt + moderateRtt + lowRtt) / 3, window.getTrackedRttNanos());
     }
 
     @Test
     public void droppedSampleShouldNotChangeTrackedAverage() {
-        ImmutableAverageSampleWindow window = new ImmutableAverageSampleWindow();
-        window = window.addSample(bigRtt, 1);
-        window = window.addSample(moderateRtt, 1);
-        window = window.addSample(lowRtt, 1);
+        SampleWindow window = new ImmutableAverageSampleWindow();
+        window = addSample(window, bigRtt);
+        window = addSample(window, moderateRtt);
+        window = addSample(window, lowRtt);
         window = window.addDroppedSample(1);
         Assert.assertEquals((bigRtt + moderateRtt + lowRtt) / 3, window.getTrackedRttNanos());
     }
