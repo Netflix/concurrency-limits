@@ -58,6 +58,7 @@ public class ConcurrencyLimitServletFilter implements Filter {
                 listener.get().onSuccess();
             } catch (Exception e) {
                 listener.get().onIgnore();
+                throw e;
             }
         } else {
             outputThrottleError((HttpServletResponse)response);
