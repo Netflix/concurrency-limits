@@ -81,8 +81,8 @@ public class PartitionedExample {
                     driver2.getAndResetDropCount(),
 //                    driver3.getAndResetDropCount(),
                     TimeUnit.NANOSECONDS.toMillis(latency.getAndReset()),
-                    limit.getShortRtt(TimeUnit.MILLISECONDS),
-                    limit.getLongRtt(TimeUnit.MILLISECONDS)
+                    limit.getLastRtt(TimeUnit.MILLISECONDS),
+                    limit.getRttNoLoad(TimeUnit.MILLISECONDS)
                     ))  ;
         }, 1, 1, TimeUnit.SECONDS);
 

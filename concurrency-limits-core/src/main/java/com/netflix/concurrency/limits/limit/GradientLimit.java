@@ -187,7 +187,9 @@ public final class GradientLimit extends AbstractLimit {
      * Estimated concurrency limit based on our algorithm
      */
     private volatile double estimatedLimit;
-    
+
+    private long lastRtt = 0;
+
     private final Measurement rttNoLoadMeasurement;
     
     /**
@@ -239,6 +241,7 @@ public final class GradientLimit extends AbstractLimit {
 
     @Override
     public int _update(final long startTime, final long rtt, final int inflight, final boolean didDrop) {
+        lastRtt = rtt;
         minWindowRttSampleListener.addSample(rtt);
 
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
@@ -252,6 +255,7 @@ public final class GradientLimit extends AbstractLimit {
             
             estimatedLimit = Math.max(minLimit, queueSize);
             rttNoLoadMeasurement.reset();
+            lastRtt = 0;
             LOG.debug("Probe MinRTT limit={}", getLimit());
             return (int)estimatedLimit;
         }
@@ -295,8 +299,12 @@ public final class GradientLimit extends AbstractLimit {
         return (int)estimatedLimit;
     }
 
-    public long getRttNoLoad() {
-        return rttNoLoadMeasurement.get().longValue();
+    public long getLastRtt(TimeUnit units) {
+        return units.convert(lastRtt, TimeUnit.NANOSECONDS);
+    }
+
+    public long getRttNoLoad(TimeUnit units) {
+        return units.convert(rttNoLoadMeasurement.get().longValue(), TimeUnit.NANOSECONDS);
     }
 
     @Override
