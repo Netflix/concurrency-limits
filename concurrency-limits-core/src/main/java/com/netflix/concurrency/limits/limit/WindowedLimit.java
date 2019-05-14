@@ -135,11 +135,7 @@ public class WindowedLimit implements Limit {
             return;
         }
 
-        if (didDrop) {
-            sample.updateAndGet(current -> current.addDroppedSample(inflight));
-        } else {
-            sample.updateAndGet(current -> current.addSample(rtt, inflight));
-        }
+        sample.updateAndGet(current -> current.addSample(rtt, inflight, didDrop));
 
         if (endTime > nextUpdateTime) {
             synchronized (lock) {

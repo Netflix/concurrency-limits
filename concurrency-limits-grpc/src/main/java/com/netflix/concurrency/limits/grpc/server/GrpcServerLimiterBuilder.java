@@ -15,9 +15,7 @@
  */
 package com.netflix.concurrency.limits.grpc.server;
 
-import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limiter.AbstractPartitionedLimiter;
-import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import io.grpc.Attributes;
 import io.grpc.Metadata;
 

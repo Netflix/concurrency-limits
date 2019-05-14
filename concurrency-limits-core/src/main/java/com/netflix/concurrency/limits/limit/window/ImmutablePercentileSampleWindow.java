@@ -50,7 +50,7 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
     }
 
     @Override
-    public ImmutablePercentileSampleWindow addSample(long rtt, int inflight) {
+    public ImmutablePercentileSampleWindow addSample(long rtt, int inflight, boolean didDrop) {
         // TODO: very naive
         // full copy in order to fulfill side-effect-free requirement of AtomicReference::updateAndGet
         List<Long> newObservedRtts = new ArrayList<>(observedRtts);
@@ -58,19 +58,8 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
         return new ImmutablePercentileSampleWindow(
                 Math.min(minRtt, rtt),
                 Math.max(inflight, this.maxInFlight),
-                didDrop,
+                this.didDrop || didDrop,
                 newObservedRtts,
-                percentile
-        );
-    }
-
-    @Override
-    public ImmutablePercentileSampleWindow addDroppedSample(int inflight) {
-        return new ImmutablePercentileSampleWindow(
-                minRtt,
-                Math.max(inflight, this.maxInFlight),
-                true,
-                observedRtts,
                 percentile
         );
     }
