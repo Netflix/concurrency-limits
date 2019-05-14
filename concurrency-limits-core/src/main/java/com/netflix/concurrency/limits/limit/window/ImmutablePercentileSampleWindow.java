@@ -15,22 +15,24 @@
  */
 package com.netflix.concurrency.limits.limit.window;
 
-import java.util.*;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicLongArray;
 
 class ImmutablePercentileSampleWindow implements SampleWindow {
     private final long minRtt;
     private final int maxInFlight;
     private final boolean didDrop;
-    private final Set<ObservedRtt> observedRtts;
+    private final AtomicLongArray observedRtts;
+    private final int sampleCount;
     private final double percentile;
 
-    ImmutablePercentileSampleWindow(double percentile) {
+    ImmutablePercentileSampleWindow(double percentile, int windowSize) {
         this.minRtt = Long.MAX_VALUE;
         this.maxInFlight = 0;
         this.didDrop = false;
-        this.observedRtts = new HashSet<>();
+        this.observedRtts = new AtomicLongArray(windowSize);
+        this.sampleCount = 0;
         this.percentile = percentile;
     }
 
@@ -38,24 +40,27 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
             long minRtt,
             int maxInFlight,
             boolean didDrop,
-            Set<ObservedRtt> observedRtts,
+            AtomicLongArray observedRtts,
+            int sampleCount,
             double percentile
     ) {
         this.minRtt = minRtt;
         this.maxInFlight = maxInFlight;
         this.didDrop = didDrop;
         this.observedRtts = observedRtts;
+        this.sampleCount = sampleCount;
         this.percentile = percentile;
     }
 
     @Override
-    public ImmutablePercentileSampleWindow addSample(long rtt, long seqId, int inflight) {
-        observedRtts.add(new ObservedRtt(rtt, seqId));
+    public ImmutablePercentileSampleWindow addSample(long rtt, int inflight) {
+        observedRtts.set(sampleCount, rtt);
         return new ImmutablePercentileSampleWindow(
                 Math.min(minRtt, rtt),
                 Math.max(inflight, this.maxInFlight),
                 didDrop,
                 observedRtts,
+                sampleCount + 1,
                 percentile
         );
     }
@@ -67,6 +72,7 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
                 Math.max(inflight, this.maxInFlight),
                 true,
                 observedRtts,
+                sampleCount,
                 percentile
         );
     }
@@ -78,13 +84,15 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
 
     @Override
     public long getTrackedRttNanos() {
-        List<Long> listOfSortedRtts = observedRtts.stream()
-                .map(o -> o.rtt)
-                .sorted(Comparator.naturalOrder())
-                .collect(Collectors.toList());
-        int rttIndex = (int) Math.round(listOfSortedRtts.size() * percentile);
+        long[] copyOfObservedRtts = new long[sampleCount];
+        for (int i = 0; i < sampleCount; i++) {
+            copyOfObservedRtts[i] = observedRtts.get(i);
+        }
+        Arrays.sort(copyOfObservedRtts);
+
+        int rttIndex = (int) Math.round(sampleCount * percentile);
         int zeroBasedRttIndex = rttIndex - 1;
-        return listOfSortedRtts.get(zeroBasedRttIndex);
+        return copyOfObservedRtts[zeroBasedRttIndex];
     }
 
     @Override
@@ -94,7 +102,7 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
 
     @Override
     public int getSampleCount() {
-        return observedRtts.size();
+        return sampleCount;
     }
 
     @Override
@@ -108,30 +116,7 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
                 + "minRtt=" + TimeUnit.NANOSECONDS.toMicros(minRtt) / 1000.0
                 + ", p" + percentile + " rtt=" + TimeUnit.NANOSECONDS.toMicros(getTrackedRttNanos()) / 1000.0
                 + ", maxInFlight=" + maxInFlight
-                + ", sampleCount=" + observedRtts.size()
+                + ", sampleCount=" + sampleCount
                 + ", didDrop=" + didDrop + "]";
-    }
-
-    private static class ObservedRtt {
-        final long rtt;
-        final long seqId;
-
-        ObservedRtt(long rtt, long seqId) {
-            this.rtt = rtt;
-            this.seqId = seqId;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ObservedRtt that = (ObservedRtt) o;
-            return seqId == that.seqId;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(seqId);
-        }
     }
 }
