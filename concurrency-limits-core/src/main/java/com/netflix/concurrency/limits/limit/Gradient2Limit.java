@@ -19,12 +19,14 @@ import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
+import com.netflix.concurrency.limits.internal.Preconditions;
 import com.netflix.concurrency.limits.limit.measurement.ExpAvgMeasurement;
 import com.netflix.concurrency.limits.limit.measurement.Measurement;
 import com.netflix.concurrency.limits.limit.measurement.SingleMeasurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -79,6 +81,7 @@ public final class Gradient2Limit extends AbstractLimit {
         private Function<Integer, Integer> queueSize = concurrency -> 4;
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private int longWindow = 600;
+        private double rttTolerance = 1.5;
 
         /**
          * Initial limit used by the limiter
@@ -131,6 +134,18 @@ public final class Gradient2Limit extends AbstractLimit {
          */
         public Builder queueSize(Function<Integer, Integer> queueSize) {
             this.queueSize = queueSize;
+            return this;
+        }
+
+        /**
+         * Tolerance for changes in minimum latency.
+         * @param rttTolerance Value {@literal >}= 1.0 indicating how much change in minimum latency is acceptable
+         *  before reducing the limit.  For example, a value of 2.0 means that a 2x increase in latency is acceptable.
+         * @return Chainable builder
+         */
+        public Builder rttTolerance(double rttTolerance) {
+            Preconditions.checkArgument(rttTolerance >= 1.0, "Tolerance must be >= 1.0");
+            this.rttTolerance = rttTolerance;
             return this;
         }
 
@@ -197,7 +212,7 @@ public final class Gradient2Limit extends AbstractLimit {
     /**
      * Tracks a measurement of the short time, and more volatile, RTT meant to represent the current system latency
      */
-    private final Measurement shortRtt;
+    private long lastRtt;
 
     /**
      * Tracks a measurement of the long term, less volatile, RTT meant to represent the baseline latency.  When the system
@@ -222,6 +237,8 @@ public final class Gradient2Limit extends AbstractLimit {
 
     private final SampleListener queueSizeSampleListener;
 
+    private final double tolerance;
+
     private Gradient2Limit(Builder builder) {
         super(builder.initialLimit);
 
@@ -230,7 +247,8 @@ public final class Gradient2Limit extends AbstractLimit {
         this.minLimit = builder.minLimit;
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
-        this.shortRtt = new SingleMeasurement();
+        this.tolerance = builder.rttTolerance;
+        this.lastRtt = 0;
         this.longRtt = new ExpAvgMeasurement(builder.longWindow, 10);
 
         this.longRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
@@ -242,7 +260,8 @@ public final class Gradient2Limit extends AbstractLimit {
     public int _update(final long startTime, final long rtt, final int inflight, final boolean didDrop) {
         final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
 
-        final double shortRtt = this.shortRtt.add(rtt).doubleValue();
+        this.lastRtt = rtt;
+        final double shortRtt = (double)rtt;
         final double longRtt = this.longRtt.add(rtt).doubleValue();
 
         shortRttSampleListener.addSample(shortRtt);
@@ -253,7 +272,7 @@ public final class Gradient2Limit extends AbstractLimit {
         // This can happen when latency returns to normal after a prolonged prior of excessive load.  Reducing the
         // long RTT without waiting for the exponential smoothing helps bring the system back to steady state.
         if (longRtt / shortRtt > 2) {
-            this.longRtt.update(current -> current.doubleValue() * 0.9);
+            this.longRtt.update(current -> current.doubleValue() * 0.95);
         }
 
         // Don't grow the limit if we are app limited
@@ -265,7 +284,7 @@ public final class Gradient2Limit extends AbstractLimit {
         // so set to 1.0 to indicate no queuing.  Otherwise calculate the slope and don't
         // allow it to be reduced by more than half to avoid aggressive load-shedding due to 
         // outliers.
-        final double gradient = Math.max(0.5, Math.min(1.0, longRtt / shortRtt));
+        final double gradient = Math.max(0.5, Math.min(1.0, tolerance * longRtt / shortRtt));
         double newLimit = estimatedLimit * gradient + queueSize;
         newLimit = estimatedLimit * (1 - smoothing) + newLimit * smoothing;
         newLimit = Math.max(minLimit, Math.min(maxLimit, newLimit));
@@ -273,8 +292,8 @@ public final class Gradient2Limit extends AbstractLimit {
         if ((int)estimatedLimit != newLimit) {
             LOG.debug("New limit={} shortRtt={} ms longRtt={} ms queueSize={} gradient={}",
                     (int)newLimit,
-                    getShortRtt(TimeUnit.MICROSECONDS) / 1000.0,
-                    getLongRtt(TimeUnit.MICROSECONDS) / 1000.0,
+                    getLastRtt(TimeUnit.MICROSECONDS) / 1000.0,
+                    getRttNoLoad(TimeUnit.MICROSECONDS) / 1000.0,
                     queueSize,
                     gradient);
         }
@@ -284,11 +303,11 @@ public final class Gradient2Limit extends AbstractLimit {
         return (int)estimatedLimit;
     }
 
-    public long getShortRtt(TimeUnit units) {
-        return units.convert(shortRtt.get().longValue(), TimeUnit.NANOSECONDS);
+    public long getLastRtt(TimeUnit units) {
+        return units.convert(lastRtt, TimeUnit.NANOSECONDS);
     }
 
-    public long getLongRtt(TimeUnit units) {
+    public long getRttNoLoad(TimeUnit units) {
         return units.convert(longRtt.get().longValue(), TimeUnit.NANOSECONDS);
     }
 

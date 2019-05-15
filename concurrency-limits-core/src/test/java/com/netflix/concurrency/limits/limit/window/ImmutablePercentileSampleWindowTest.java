@@ -27,37 +27,38 @@ public class ImmutablePercentileSampleWindowTest {
     @Test
     public void calculateP50() {
         SampleWindow window = new ImmutablePercentileSampleWindow(0.5, 10);
-        window = window.addSample(bigRtt, 0);
-        window = window.addSample(moderateRtt, 0);
-        window = window.addSample(lowRtt, 0);
+        window = window.addSample(bigRtt, 0, false);
+        window = window.addSample(moderateRtt, 0, false);
+        window = window.addSample(lowRtt, 0, false);
         Assert.assertEquals(moderateRtt, window.getTrackedRttNanos());
     }
 
     @Test
     public void droppedSampleShouldNotChangeTrackedRtt() {
-        SampleWindow window = new ImmutablePercentileSampleWindow(0.5, 10);
-        window = window.addSample(bigRtt, 0);
-        window = window.addSample(moderateRtt, 0);
-        window = window.addSample(lowRtt, 0);
-        window = window.addDroppedSample(1);
+        ImmutablePercentileSampleWindow window = new ImmutablePercentileSampleWindow(0.5);
+        window = window.addSample(bigRtt, 1, false);
+        window = window.addSample(moderateRtt, 1, false);
+        window = window.addSample(lowRtt, 1, false);
+        window = window.addSample(bigRtt, 1, true);
         Assert.assertEquals(moderateRtt, window.getTrackedRttNanos());
     }
     
     @Test
     public void p999ReturnsSlowestObservedRtt() {
         SampleWindow window = new ImmutablePercentileSampleWindow(0.999, 10);
-        window = window.addSample(bigRtt, 0);
-        window = window.addSample(moderateRtt, 0);
-        window = window.addSample(lowRtt, 0);
+        window = window.addSample(bigRtt, 1, false);
+        window = window.addSample(moderateRtt, 1, false);
+        window = window.addSample(lowRtt, 1, false);
+        window = window.addSample(bigRtt, 1, true);
         Assert.assertEquals(bigRtt, window.getTrackedRttNanos());
     }
 
     @Test
     public void rttObservationOrderDoesntAffectResultValue() {
         SampleWindow window = new ImmutablePercentileSampleWindow(0.999, 10);
-        window = window.addSample(moderateRtt, 0);
-        window = window.addSample(lowRtt, 0);
-        window = window.addSample(bigRtt, 0);
+        window = window.addSample(moderateRtt, 1, false);
+        window = window.addSample(lowRtt, 1, false);
+        window = window.addSample(bigRtt, 1, false);
         Assert.assertEquals(bigRtt, window.getTrackedRttNanos());
     }
 }

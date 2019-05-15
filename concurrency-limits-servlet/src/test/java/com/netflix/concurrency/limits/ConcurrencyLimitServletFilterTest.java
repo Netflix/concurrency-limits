@@ -3,6 +3,7 @@ package com.netflix.concurrency.limits;
 import com.netflix.concurrency.limits.executors.BlockingAdaptiveExecutor;
 import com.netflix.concurrency.limits.limit.FixedLimit;
 import com.netflix.concurrency.limits.limit.VegasLimit;
+import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.netflix.concurrency.limits.servlet.ConcurrencyLimitServletFilter;
 import com.netflix.concurrency.limits.servlet.ServletLimiterBuilder;
 
@@ -32,9 +33,9 @@ public class ConcurrencyLimitServletFilterTest {
         
         Limiter<HttpServletRequest> limiter = new ServletLimiterBuilder()
                 .limit(FixedLimit.of(10))
-                .partitionByUserPrincipal(Principal::getName, builder -> builder
-                       .assign("live", 0.8)
-                       .assign("batch", 0.2))
+                .partitionByUserPrincipal(Principal::getName)
+                .partition("live", 0.8)
+                .partition("batch", 0.2)
                 .build();
 
         FilterHolder holder = new FilterHolder();
@@ -48,7 +49,7 @@ public class ConcurrencyLimitServletFilterTest {
     public void simulation() throws Exception {
         Limit limit = VegasLimit.newDefault();
         BlockingAdaptiveExecutor executor = new BlockingAdaptiveExecutor(
-                new DefaultLimiter<Void>(limit, new SimpleStrategy<>()));
+                SimpleLimiter.newBuilder().limit(limit).build());
         AtomicInteger errors = new AtomicInteger();
         AtomicInteger success = new AtomicInteger();
         

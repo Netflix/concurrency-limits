@@ -135,21 +135,16 @@ public class WindowedLimit implements Limit {
             return;
         }
 
-        if (didDrop) {
-            sample.updateAndGet(current -> current.addDroppedSample(inflight));
-        } else {
-            sample.updateAndGet(current -> current.addSample(rtt, inflight));
-        }
+        sample.updateAndGet(current -> current.addSample(rtt, inflight, didDrop));
 
-        if (startTime + rtt > nextUpdateTime) {
+        if (endTime > nextUpdateTime) {
             synchronized (lock) {
                 // Double check under the lock
                 if (endTime > nextUpdateTime) {
-                    SampleWindow current = sample.get();
-                    if (isWindowReady(current)) {
-                        sample.set(sampleWindowFactory.newInstance());
+                    SampleWindow current = sample.getAndSet(sampleWindowFactory.newInstance());
+                    nextUpdateTime = endTime + Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
 
-                        nextUpdateTime = endTime + Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
+                    if (isWindowReady(current)) {
                         delegate.onSample(startTime, current.getTrackedRttNanos(), current.getMaxInFlight(), current.didDrop());
                     }
                 }
@@ -158,7 +153,7 @@ public class WindowedLimit implements Limit {
     }
 
     private boolean isWindowReady(SampleWindow sample) {
-        return sample.getCandidateRttNanos() < Long.MAX_VALUE && sample.getSampleCount() > windowSize;
+        return sample.getCandidateRttNanos() < Long.MAX_VALUE && sample.getSampleCount() >= windowSize;
     }
 
     @Override

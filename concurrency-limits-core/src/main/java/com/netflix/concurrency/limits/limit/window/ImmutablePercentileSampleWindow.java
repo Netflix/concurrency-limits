@@ -53,26 +53,14 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
     }
 
     @Override
-    public ImmutablePercentileSampleWindow addSample(long rtt, int inflight) {
+    public ImmutablePercentileSampleWindow addSample(long rtt, int inflight, boolean didDrop) {
         observedRtts.set(sampleCount, rtt);
         return new ImmutablePercentileSampleWindow(
                 Math.min(minRtt, rtt),
                 Math.max(inflight, this.maxInFlight),
-                didDrop,
+                this.didDrop || didDrop,
                 observedRtts,
                 sampleCount + 1,
-                percentile
-        );
-    }
-
-    @Override
-    public ImmutablePercentileSampleWindow addDroppedSample(int inflight) {
-        return new ImmutablePercentileSampleWindow(
-                minRtt,
-                Math.max(inflight, this.maxInFlight),
-                true,
-                observedRtts,
-                sampleCount,
                 percentile
         );
     }

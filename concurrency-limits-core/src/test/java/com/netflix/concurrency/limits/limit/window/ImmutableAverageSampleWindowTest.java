@@ -26,19 +26,19 @@ public class ImmutableAverageSampleWindowTest {
     @Test
     public void calculateAverage() {
         SampleWindow window = new ImmutableAverageSampleWindow();
-        window = window.addSample(bigRtt, 1);
-        window = window.addSample(moderateRtt, 1);
-        window = window.addSample(lowRtt, 1);
+        window = window.addSample(bigRtt, 1, false);
+        window = window.addSample(moderateRtt, 1, false);
+        window = window.addSample(lowRtt, 1, false);
         Assert.assertEquals((bigRtt + moderateRtt + lowRtt) / 3, window.getTrackedRttNanos());
     }
 
     @Test
     public void droppedSampleShouldNotChangeTrackedAverage() {
         SampleWindow window = new ImmutableAverageSampleWindow();
-        window = window.addSample(bigRtt, 1);
-        window = window.addSample(moderateRtt, 1);
-        window = window.addSample(lowRtt, 1);
-        window = window.addDroppedSample(1);
-        Assert.assertEquals((bigRtt + moderateRtt + lowRtt) / 3, window.getTrackedRttNanos());
+        window = window.addSample(bigRtt, 1, false);
+        window = window.addSample(moderateRtt, 1, false);
+        window = window.addSample(lowRtt, 1, false);
+        window = window.addSample(bigRtt, 1, true);
+        Assert.assertEquals((bigRtt + moderateRtt + lowRtt + bigRtt) / 4, window.getTrackedRttNanos());
     }
 }

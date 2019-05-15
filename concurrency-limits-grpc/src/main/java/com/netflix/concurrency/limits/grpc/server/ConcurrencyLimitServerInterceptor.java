@@ -164,10 +164,14 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
                                                 super.close(status, trailers);
                                             } finally {
                                                 safeComplete(() -> {
-                                                    if (status.isOk()) {
-                                                        listener.onSuccess();
-                                                    } else {
-                                                        listener.onIgnore();
+                                                    switch (status.getCode()) {
+                                                        case CANCELLED:
+                                                        case DEADLINE_EXCEEDED:
+                                                            listener.onDropped();
+                                                            break;
+                                                        default:
+                                                            listener.onSuccess();
+                                                            break;
                                                     }
                                                 });
                                             }

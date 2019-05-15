@@ -28,9 +28,9 @@ public class GroupServletLimiterTest {
 
         Limiter<HttpServletRequest> limiter = new ServletLimiterBuilder()
                 .limit(VegasLimit.newDefault())
-                .partitionByUserPrincipal(p -> principalToGroup.get(p.getName()), builder -> builder
-                    .assign("live", 0.8)
-                    .assign("batch", 0.2))
+                .partitionByUserPrincipal(p -> principalToGroup.get(p.getName()))
+                .partition("live", 0.8)
+                .partition("batch", 0.2)
                 .build();
 
         HttpServletRequest request = createMockRequestWithPrincipal("bob");
@@ -47,9 +47,9 @@ public class GroupServletLimiterTest {
 
         Limiter<HttpServletRequest> limiter = new ServletLimiterBuilder()
                 .limit(VegasLimit.newDefault())
-                .partitionByUserPrincipal(p -> principalToGroup.get(p.getName()), builder -> builder
-                    .assign("live", 0.8)
-                    .assign("batch", 0.2))
+                .partitionByUserPrincipal(p -> principalToGroup.get(p.getName()))
+                .partition("live", 0.8)
+                .partition("batch", 0.2)
                 .build();
 
         HttpServletRequest request = createMockRequestWithPrincipal("doesntexist");
@@ -66,9 +66,9 @@ public class GroupServletLimiterTest {
 
         Limiter<HttpServletRequest> limiter = new ServletLimiterBuilder()
                 .limit(VegasLimit.newDefault())
-                .partitionByUserPrincipal(p -> principalToGroup.get(p.getName()), builder -> builder
-                    .assign("live", 0.8)
-                    .assign("batch", 0.2))
+                .partitionByUserPrincipal(p -> principalToGroup.get(p.getName()))
+                .partition("live", 0.8)
+                .partition("batch", 0.2)
                 .build();
 
         HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
@@ -87,9 +87,9 @@ public class GroupServletLimiterTest {
 
         Limiter<HttpServletRequest> limiter = new ServletLimiterBuilder()
                 .limit(VegasLimit.newDefault())
-                .partitionByUserPrincipal(p -> principalToGroup.get(p.getName()), builder -> builder
-                    .assign("live", 0.8)
-                    .assign("batch", 0.2))
+                .partitionByUserPrincipal(p -> principalToGroup.get(p.getName()))
+                .partition("live", 0.8)
+                .partition("batch", 0.2)
                 .build();
 
         HttpServletRequest request = createMockRequestWithPrincipal(null);
@@ -106,9 +106,9 @@ public class GroupServletLimiterTest {
 
         Limiter<HttpServletRequest> limiter = new ServletLimiterBuilder()
                 .limit(VegasLimit.newDefault())
-                .partitionByPathInfo(pathToGroup::get, builder -> builder
-                    .assign("live", 0.8)
-                    .assign("batch", 0.2))
+                .partitionByPathInfo(pathToGroup::get)
+                .partition("live", 0.8)
+                .partition("batch", 0.2)
                 .build();
 
         HttpServletRequest request = createMockRequestWithPathInfo("/live/path");
@@ -125,9 +125,9 @@ public class GroupServletLimiterTest {
 
         Limiter<HttpServletRequest> limiter = new ServletLimiterBuilder()
                 .limit(VegasLimit.newDefault())
-                .partitionByPathInfo(pathToGroup::get, builder -> builder
-                    .assign("live", 0.8)
-                    .assign("batch", 0.2))
+                .partitionByPathInfo(pathToGroup::get)
+                .partition("live", 0.8)
+                .partition("batch", 0.2)
                 .build();
 
         HttpServletRequest request = createMockRequestWithPathInfo("/other/path");
@@ -144,9 +144,9 @@ public class GroupServletLimiterTest {
 
         Limiter<HttpServletRequest> limiter = new ServletLimiterBuilder()
                 .limit(VegasLimit.newDefault())
-                .partitionByPathInfo(pathToGroup::get, builder -> builder
-                    .assign("live", 0.8)
-                    .assign("batch", 0.2))
+                .partitionByPathInfo(pathToGroup::get)
+                .partition("live", 0.8)
+                .partition("batch", 0.2)
                 .build();
 
         HttpServletRequest request = createMockRequestWithPathInfo(null);
