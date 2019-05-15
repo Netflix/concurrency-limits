@@ -105,7 +105,6 @@ public class ConcurrencyLimitServerInterceptorTest {
         }
         // Verify
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
-        Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onIgnore();
     }
 
     @Test
