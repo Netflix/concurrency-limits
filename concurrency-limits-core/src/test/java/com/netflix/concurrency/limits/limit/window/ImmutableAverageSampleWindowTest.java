@@ -33,7 +33,7 @@ public class ImmutableAverageSampleWindowTest {
     }
 
     @Test
-    public void droppedSampleShouldNotChangeTrackedAverage() {
+    public void droppedSampleShouldChangeTrackedAverage() {
         SampleWindow window = new ImmutableAverageSampleWindow();
         window = window.addSample(bigRtt, 1, false);
         window = window.addSample(moderateRtt, 1, false);
