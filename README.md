@@ -120,3 +120,6 @@ public void drainQueue(Queue<Runnable> tasks) {
 }
 
 ```
+## License
+Concurrency-Limits is Open Source software released under the
+https://www.apache.org/licenses/LICENSE-2.0.html[Apache 2.0 license].
