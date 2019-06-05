@@ -33,6 +33,6 @@ public class PercentileSampleWindowFactory implements SampleWindowFactory {
 
     @Override
     public ImmutablePercentileSampleWindow newInstance() {
-        return new ImmutablePercentileSampleWindow(percentile, (int) (windowSize * 1.2));
+        return new ImmutablePercentileSampleWindow(percentile, windowSize);
     }
 }

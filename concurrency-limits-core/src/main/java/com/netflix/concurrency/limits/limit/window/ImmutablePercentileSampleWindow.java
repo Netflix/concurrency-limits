@@ -36,7 +36,7 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
         this.percentile = percentile;
     }
 
-    ImmutablePercentileSampleWindow(
+    private ImmutablePercentileSampleWindow(
             long minRtt,
             int maxInFlight,
             boolean didDrop,
@@ -54,6 +54,9 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
 
     @Override
     public ImmutablePercentileSampleWindow addSample(long rtt, int inflight, boolean didDrop) {
+        if (sampleCount >= observedRtts.length()) {
+            return this;
+        }
         observedRtts.set(sampleCount, rtt);
         return new ImmutablePercentileSampleWindow(
                 Math.min(minRtt, rtt),
@@ -72,6 +75,9 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
 
     @Override
     public long getTrackedRttNanos() {
+        if (sampleCount == 0) {
+            return 0;
+        }
         long[] copyOfObservedRtts = new long[sampleCount];
         for (int i = 0; i < sampleCount; i++) {
             copyOfObservedRtts[i] = observedRtts.get(i);
