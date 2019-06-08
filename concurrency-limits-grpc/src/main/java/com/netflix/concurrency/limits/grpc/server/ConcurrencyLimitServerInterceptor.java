@@ -17,6 +17,7 @@ package com.netflix.concurrency.limits.grpc.server;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.netflix.concurrency.limits.Limiter;
+import com.netflix.concurrency.limits.internal.Preconditions;
 import io.grpc.Context;
 import io.grpc.ForwardingServerCall;
 import io.grpc.ForwardingServerCallListener;
@@ -62,6 +63,7 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
         private final Limiter<GrpcServerRequestContext> grpcLimiter;
         
         public Builder(Limiter<GrpcServerRequestContext> grpcLimiter) {
+            Preconditions.checkArgument(grpcLimiter != null, "grpcLimiter cannot be null");
             this.grpcLimiter = grpcLimiter;
         }
         
@@ -75,6 +77,7 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
          * @return Chainable builder
          */
         public Builder statusSupplier(Supplier<Status> supplier) {
+            Preconditions.checkArgument(supplier != null, "statusSupplier cannot be null");
             this.statusSupplier = supplier;
             return this;
         }
@@ -87,6 +90,7 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
          * @return Chainable builder
          */
         public Builder trailerSupplier(Supplier<Metadata> supplier) {
+            Preconditions.checkArgument(supplier != null, "trailerSupplier cannot be null");
             this.trailerSupplier = supplier;
             return this;
         }
@@ -106,6 +110,7 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
      */
     @Deprecated
     public ConcurrencyLimitServerInterceptor(Limiter<GrpcServerRequestContext> grpcLimiter) {
+        Preconditions.checkArgument(grpcLimiter != null, "grpcLimiter cannot be null");
         this.grpcLimiter = grpcLimiter;
         this.statusSupplier = () -> LIMIT_EXCEEDED_STATUS;
         this.trailerSupplier = Metadata::new;

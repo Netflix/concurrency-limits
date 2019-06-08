@@ -22,14 +22,27 @@ import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.limit.VegasLimit;
 
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
+    public static final String ID_TAG = "id";
+    public static final String STATUS_TAG = "status";
+
     public abstract static class Builder<BuilderT extends Builder<BuilderT>> {
+        private static final AtomicInteger idCounter = new AtomicInteger();
+
         private Limit limit = VegasLimit.newDefault();
         private Supplier<Long> clock = System::nanoTime;
+
+        protected String name = "unnamed-" + idCounter.incrementAndGet();
         protected MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
+
+        public BuilderT named(String name) {
+            this.name = name;
+            return self();
+        }
 
         public BuilderT limit(Limit limit) {
             this.limit = limit;
@@ -52,6 +65,11 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     private final AtomicInteger inFlight = new AtomicInteger();
     private final Supplier<Long> clock;
     private final Limit limitAlgorithm;
+    private final MetricRegistry.Counter successCounter;
+    private final MetricRegistry.Counter droppedCounter;
+    private final MetricRegistry.Counter ignoredCounter;
+    private final MetricRegistry.Counter rejectedCounter;
+
     private volatile int limit;
 
     protected AbstractLimiter(Builder<?> builder) {
@@ -61,7 +79,15 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         this.limitAlgorithm.notifyOnChange(this::onNewLimit);
 
         builder.registry.gauge(MetricIds.LIMIT_NAME, this::getLimit);
+        this.successCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "success");
+        this.droppedCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "dropped");
+        this.ignoredCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "ignored");
+        this.rejectedCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "rejected");
+    }
 
+    protected Optional<Listener> createRejectedListener() {
+        this.rejectedCounter.increment();
+        return Optional.empty();
     }
 
     protected Listener createListener() {
@@ -71,6 +97,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
             @Override
             public void onSuccess() {
                 inFlight.decrementAndGet();
+                successCounter.increment();
 
                 limitAlgorithm.onSample(startTime, clock.get() - startTime, currentInflight, false);
             }
@@ -78,11 +105,13 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
             @Override
             public void onIgnore() {
                 inFlight.decrementAndGet();
+                ignoredCounter.increment();
             }
 
             @Override
             public void onDropped() {
                 inFlight.decrementAndGet();
+                droppedCounter.increment();
 
                 limitAlgorithm.onSample(startTime, clock.get() - startTime, currentInflight, true);
             }
