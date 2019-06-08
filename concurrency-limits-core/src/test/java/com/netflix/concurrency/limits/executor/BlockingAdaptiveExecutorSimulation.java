@@ -24,7 +24,7 @@ public class BlockingAdaptiveExecutorSimulation {
     @Test
     public void test() {
         Limiter<Void> limiter = SimpleLimiter.newBuilder().limit(AIMDLimit.newBuilder().initialLimit(10).build()).build();
-        Executor executor = new BlockingAdaptiveExecutor(limiter);
+        Executor executor = BlockingAdaptiveExecutor.newBuilder().limiter(limiter).build();
         
         run(10000, 20, executor, randomLatency(50, 150));
     }
@@ -36,7 +36,7 @@ public class BlockingAdaptiveExecutorSimulation {
                     .initialLimit(100)
                     .build()))
                 .build();
-        Executor executor = new BlockingAdaptiveExecutor(limiter);
+        Executor executor = BlockingAdaptiveExecutor.newBuilder().limiter(limiter).build();
         run(10000, 50, executor, randomLatency(50, 150));
     }
     
@@ -47,7 +47,7 @@ public class BlockingAdaptiveExecutorSimulation {
                     .initialLimit(100)
                     .build()))
                 .build();
-        Executor executor = new BlockingAdaptiveExecutor(limiter);
+        Executor executor = BlockingAdaptiveExecutor.newBuilder().limiter(limiter).build();
         run(100000, 50, executor, randomLatency(50, 150));
     }
     
@@ -80,13 +80,5 @@ public class BlockingAdaptiveExecutorSimulation {
     
     public Supplier<Long> randomLatency(int min, int max) {
         return () -> min + ThreadLocalRandom.current().nextLong(max - min);
-    }
-    
-    public void sleepNoThrow(long timeout, TimeUnit units) {
-        try {
-            units.sleep(timeout);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 }
