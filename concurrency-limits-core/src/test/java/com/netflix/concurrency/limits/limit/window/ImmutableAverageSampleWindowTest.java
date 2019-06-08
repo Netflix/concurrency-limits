@@ -25,7 +25,7 @@ public class ImmutableAverageSampleWindowTest {
 
     @Test
     public void calculateAverage() {
-        ImmutableAverageSampleWindow window = new ImmutableAverageSampleWindow();
+        SampleWindow window = new ImmutableAverageSampleWindow();
         window = window.addSample(bigRtt, 1, false);
         window = window.addSample(moderateRtt, 1, false);
         window = window.addSample(lowRtt, 1, false);
@@ -33,8 +33,8 @@ public class ImmutableAverageSampleWindowTest {
     }
 
     @Test
-    public void droppedSampleShouldNotChangeTrackedAverage() {
-        ImmutableAverageSampleWindow window = new ImmutableAverageSampleWindow();
+    public void droppedSampleShouldChangeTrackedAverage() {
+        SampleWindow window = new ImmutableAverageSampleWindow();
         window = window.addSample(bigRtt, 1, false);
         window = window.addSample(moderateRtt, 1, false);
         window = window.addSample(lowRtt, 1, false);

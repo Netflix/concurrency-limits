@@ -18,37 +18,46 @@ package com.netflix.concurrency.limits.limit.window;
 import org.junit.Assert;
 import org.junit.Test;
 
+
 public class ImmutablePercentileSampleWindowTest {
-    private final long slowestRtt = 5000;
+    private final long bigRtt = 5000;
     private final long moderateRtt = 500;
-    private final long fastestRtt = 10;
+    private final long lowRtt = 10;
 
     @Test
     public void calculateP50() {
-        ImmutablePercentileSampleWindow window = new ImmutablePercentileSampleWindow(0.5);
-        window = window.addSample(slowestRtt, 1, false);
-        window = window.addSample(moderateRtt, 1, false);
-        window = window.addSample(fastestRtt, 1, false);
+        SampleWindow window = new ImmutablePercentileSampleWindow(0.5, 10);
+        window = window.addSample(bigRtt, 0, false);
+        window = window.addSample(moderateRtt, 0, false);
+        window = window.addSample(lowRtt, 0, false);
         Assert.assertEquals(moderateRtt, window.getTrackedRttNanos());
     }
 
     @Test
-    public void droppedSampleShouldNotChangeTrackedRtt() {
-        ImmutablePercentileSampleWindow window = new ImmutablePercentileSampleWindow(0.5);
-        window = window.addSample(slowestRtt, 1, false);
-        window = window.addSample(moderateRtt, 1, false);
-        window = window.addSample(fastestRtt, 1, false);
-        window = window.addSample(slowestRtt, 1, true);
-        Assert.assertEquals(moderateRtt, window.getTrackedRttNanos());
+    public void droppedSampleShouldChangeTrackedRtt() {
+        ImmutablePercentileSampleWindow window = new ImmutablePercentileSampleWindow(0.5, 10);
+        window = window.addSample(lowRtt, 1, false);
+        window = window.addSample(bigRtt, 1, true);
+        window = window.addSample(bigRtt, 1, true);
+        Assert.assertEquals(bigRtt, window.getTrackedRttNanos());
     }
     
     @Test
     public void p999ReturnsSlowestObservedRtt() {
-        ImmutablePercentileSampleWindow window = new ImmutablePercentileSampleWindow(0.999);
-        window = window.addSample(slowestRtt, 1, false);
+        SampleWindow window = new ImmutablePercentileSampleWindow(0.999, 10);
+        window = window.addSample(bigRtt, 1, false);
         window = window.addSample(moderateRtt, 1, false);
-        window = window.addSample(fastestRtt, 1, false);
-        window = window.addSample(slowestRtt, 1, true);
-        Assert.assertEquals(slowestRtt, window.getTrackedRttNanos());
+        window = window.addSample(lowRtt, 1, false);
+        Assert.assertEquals(bigRtt, window.getTrackedRttNanos());
+    }
+
+    @Test
+    public void rttObservationOrderDoesntAffectResultValue() {
+        SampleWindow window = new ImmutablePercentileSampleWindow(0.999, 10);
+        window = window.addSample(moderateRtt, 1, false);
+        window = window.addSample(lowRtt, 1, false);
+        window = window.addSample(bigRtt, 1, false);
+        window = window.addSample(lowRtt, 1, false);
+        Assert.assertEquals(bigRtt, window.getTrackedRttNanos());
     }
 }
