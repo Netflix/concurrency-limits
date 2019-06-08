@@ -251,9 +251,9 @@ public final class Gradient2Limit extends AbstractLimit {
         this.lastRtt = 0;
         this.longRtt = new ExpAvgMeasurement(builder.longWindow, 10);
 
-        this.longRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
-        this.shortRttSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_MIN_RTT_NAME);
-        this.queueSizeSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_QUEUE_SIZE_NAME);
+        this.longRttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME);
+        this.shortRttSampleListener = builder.registry.distribution(MetricIds.WINDOW_MIN_RTT_NAME);
+        this.queueSizeSampleListener = builder.registry.distribution(MetricIds.WINDOW_QUEUE_SIZE_NAME);
     }
 
     @Override

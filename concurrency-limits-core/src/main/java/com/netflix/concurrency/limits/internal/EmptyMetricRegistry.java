@@ -25,11 +25,11 @@ public final class EmptyMetricRegistry implements MetricRegistry {
     private EmptyMetricRegistry() {}
     
     @Override
-    public SampleListener registerDistribution(String id, String... tagNameValuePairs) {
+    public SampleListener distribution(String id, String... tagNameValuePairs) {
         return value -> { };
     }
 
     @Override
-    public void registerGauge(String id, Supplier<Number> supplier, String... tagNameValuePairs) {
+    public void gauge(String id, Supplier<Number> supplier, String... tagNameValuePairs) {
     }
 }

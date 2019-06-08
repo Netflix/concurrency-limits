@@ -41,7 +41,7 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
     public SimpleLimiter(AbstractLimiter.Builder<?> builder) {
         super(builder);
 
-        this.inflightDistribution = builder.registry.registerDistribution(MetricIds.INFLIGHT_NAME);
+        this.inflightDistribution = builder.registry.distribution(MetricIds.INFLIGHT_NAME);
     }
 
     @Override
