@@ -227,9 +227,9 @@ public final class GradientLimit extends AbstractLimit {
         this.resetRttCounter = nextProbeCountdown();
         this.rttNoLoadMeasurement = new MinimumMeasurement();
         
-        this.minRttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
-        this.minWindowRttSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_MIN_RTT_NAME);
-        this.queueSizeSampleListener = builder.registry.registerDistribution(MetricIds.WINDOW_QUEUE_SIZE_NAME);
+        this.minRttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME);
+        this.minWindowRttSampleListener = builder.registry.distribution(MetricIds.WINDOW_MIN_RTT_NAME);
+        this.queueSizeSampleListener = builder.registry.distribution(MetricIds.WINDOW_QUEUE_SIZE_NAME);
     }
 
     private int nextProbeCountdown() {

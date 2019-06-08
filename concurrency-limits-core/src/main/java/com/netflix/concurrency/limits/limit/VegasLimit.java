@@ -185,7 +185,7 @@ public class VegasLimit extends AbstractLimit {
 
         resetProbeJitter();
 
-        this.rttSampleListener = builder.registry.registerDistribution(MetricIds.MIN_RTT_NAME);
+        this.rttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME);
     }
 
     private void resetProbeJitter() {
