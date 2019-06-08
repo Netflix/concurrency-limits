@@ -49,7 +49,7 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
         int currentInFlight = getInflight();
         inflightDistribution.addSample(currentInFlight);
         if (currentInFlight >= getLimit()) {
-            return Optional.empty();
+            return createRejectedListener();
         }
         return Optional.of(createListener());
     }

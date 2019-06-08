@@ -97,9 +97,9 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         }
 
         public Limiter<ContextT> build() {
-            return (this.hasPartitions() && !partitionResolvers.isEmpty())
+            return this.hasPartitions() && !partitionResolvers.isEmpty()
                     ? new AbstractPartitionedLimiter<ContextT>(this) {}
-                    : new SimpleLimiter<ContextT>(this);
+                    : new SimpleLimiter<>(this);
         }
     }
 
@@ -228,7 +228,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
                     }
                 }
 
-                return Optional.empty();
+                return createRejectedListener();
             }
 
             partition.acquire();

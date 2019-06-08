@@ -24,6 +24,7 @@ import java.util.Optional;
  * 
  * @param <ContextT> Some limiters take a context to perform more fine grained limits.
  */
+@FunctionalInterface
 public interface Limiter<ContextT> {
     /**
      */
@@ -47,7 +48,7 @@ public interface Limiter<ContextT> {
          */
         void onDropped();
     }
-    
+
     /**
      * Acquire a token from the limiter.  Returns an Optional.empty() if the limit has been exceeded.
      * If acquired the caller must call one of the Listener methods when the operation has been completed

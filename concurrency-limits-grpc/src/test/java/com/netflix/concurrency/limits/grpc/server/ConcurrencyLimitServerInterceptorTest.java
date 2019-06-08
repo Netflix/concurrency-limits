@@ -6,6 +6,10 @@ import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.grpc.StringMarshaller;
 import com.netflix.concurrency.limits.grpc.mockito.OptionalResultCaptor;
 import com.netflix.concurrency.limits.limiter.SimpleLimiter;
+import com.netflix.concurrency.limits.spectator.SpectatorMetricRegistry;
+import com.netflix.spectator.api.DefaultRegistry;
+import com.netflix.spectator.api.Meter;
+import com.netflix.spectator.api.Timer;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
 import io.grpc.ClientCall;
@@ -24,13 +28,19 @@ import io.grpc.stub.ServerCalls;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.concurrent.TimeUnit;
 
 public class ConcurrencyLimitServerInterceptorTest {
+    @Rule
+    public TestName testName = new TestName();
+
     private static final MethodDescriptor<String, String> METHOD_DESCRIPTOR = MethodDescriptor.<String, String>newBuilder()
             .setType(MethodType.UNARY)
             .setFullMethodName("service/method")
@@ -38,14 +48,23 @@ public class ConcurrencyLimitServerInterceptorTest {
             .setResponseMarshaller(StringMarshaller.INSTANCE)
             .build();
 
+    private DefaultRegistry registry = new DefaultRegistry();
+
     private Server server;
     private Channel channel;
 
-    final Limiter<GrpcServerRequestContext> limiter = Mockito.spy(SimpleLimiter.newBuilder().build());
-    final OptionalResultCaptor<Limiter.Listener> listener = OptionalResultCaptor.forClass(Limiter.Listener.class);
+    Limiter<GrpcServerRequestContext> limiter;
+    OptionalResultCaptor<Limiter.Listener> listener;
 
     @Before
     public void beforeEachTest() {
+        limiter = Mockito.spy(SimpleLimiter.newBuilder()
+                .named(testName.getMethodName())
+                .metricRegistry(new SpectatorMetricRegistry(registry, registry.createId("unit.test.limiter")))
+                .build());
+
+        listener = OptionalResultCaptor.forClass(Limiter.Listener.class);
+
         Mockito.doAnswer(listener).when(limiter).acquire(Mockito.any());
     }
 
@@ -54,6 +73,11 @@ public class ConcurrencyLimitServerInterceptorTest {
         if (server != null) {
             server.shutdown();
         }
+
+        System.out.println("COUNTERS:");
+        registry.counters().forEach(t -> System.out.println("  " + t.id() + " " + t.count()));
+        System.out.println("DISTRIBUTIONS:");
+        registry.distributionSummaries().forEach(t -> System.out.println("  " + t.id() + " " + t.count() + " " + t.totalAmount()));
     }
 
     private void startServer(ServerCalls.UnaryMethod<String, String> method) {
@@ -88,6 +112,8 @@ public class ConcurrencyLimitServerInterceptorTest {
         ClientCalls.blockingUnaryCall(channel, METHOD_DESCRIPTOR, CallOptions.DEFAULT, "foo");
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
         Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onSuccess();
+
+        verifyCounts(0, 0, 1, 0);
     }
 
     @Test
@@ -105,6 +131,8 @@ public class ConcurrencyLimitServerInterceptorTest {
         }
         // Verify
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
+
+        verifyCounts(0, 0, 1, 0);
     }
 
     @Test
@@ -123,6 +151,8 @@ public class ConcurrencyLimitServerInterceptorTest {
         // Verify
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
         Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onIgnore();
+
+        verifyCounts(0, 1, 0, 0);
     }
 
     @Test
@@ -136,6 +166,8 @@ public class ConcurrencyLimitServerInterceptorTest {
         // Verify
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
         Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onIgnore();
+
+        verifyCounts(0, 1, 0, 0);
     }
 
     @Test
@@ -151,6 +183,8 @@ public class ConcurrencyLimitServerInterceptorTest {
         // Verify
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
         Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onIgnore();
+
+        verifyCounts(0, 1, 0, 0);
     }
 
     @Test
@@ -168,5 +202,18 @@ public class ConcurrencyLimitServerInterceptorTest {
         // Verify
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
         Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onIgnore();
+
+        verifyCounts(0, 1, 0, 0);
+    }
+
+    public void verifyCounts(int dropped, int ignored, int success, int rejected) {
+        try {
+            TimeUnit.SECONDS.sleep(1);
+        } catch (InterruptedException e) {
+        }
+        Assert.assertEquals(dropped, registry.counter("unit.test.limiter.call", "id", testName.getMethodName(), "status", "dropped").count());
+        Assert.assertEquals(ignored, registry.counter("unit.test.limiter.call", "id", testName.getMethodName(), "status", "ignored").count());
+        Assert.assertEquals(success, registry.counter("unit.test.limiter.call", "id", testName.getMethodName(), "status", "success").count());
+        Assert.assertEquals(rejected, registry.counter("unit.test.limiter.call", "id", testName.getMethodName(), "status", "rejected").count());
     }
 }
