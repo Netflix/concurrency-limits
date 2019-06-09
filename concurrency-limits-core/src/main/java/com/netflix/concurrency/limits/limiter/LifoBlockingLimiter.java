@@ -52,11 +52,19 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
          * @param size New max size.  Default is 100.
          * @return Chainable builder
          */
+        public Builder<ContextT> backlogSize(int size) {
+            this.maxBacklogSize = size;
+            return this;
+        }
+
+        /**
+         * @deprecated Use {@link #backlogSize}
+         */
         public Builder<ContextT> maxBacklogSize(int size) {
             this.maxBacklogSize = size;
             return this;
         }
-        
+
         /**
          * Set maximum timeout for threads blocked on the limiter.
          * Default is 1 second.
@@ -140,7 +148,7 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
     private LifoBlockingLimiter(Builder<ContextT> builder) {
         this.delegate = builder.delegate;
         this.backlogSize = builder.maxBacklogSize;
-        backlogTimeoutMillis = builder.maxBacklogTimeoutMillis;
+        this.backlogTimeoutMillis = builder.maxBacklogTimeoutMillis;
     }
     
     private Optional<Listener> tryAcquire(ContextT context) {
@@ -151,7 +159,7 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
         }
         
         // Restrict backlog size so the queue doesn't grow unbounded during an outage
-        if (backlogCounter.get() > this.backlogSize) {
+        if (backlogCounter.get() >= this.backlogSize) {
             return Optional.empty();
         }
 
@@ -159,14 +167,14 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
         // operation.  Holders will be unblocked in LIFO order
         backlogCounter.incrementAndGet();
         final ListenerHolder<ContextT> event = new ListenerHolder<>(context);
-        
+
         try {
             synchronized (lock) {
                 backlog.addFirst(event);
             }
             
             if (!event.await(backlogTimeoutMillis.apply(context), TimeUnit.MILLISECONDS)) {
-                // Remove the holder from the backlog.  This item is likely to be at the end of the 
+                // Remove the holder from the backlog.  This item is likely to be at the end of the
                 // list so do a removeLastOccurance to minimize the number of items to traverse
                 synchronized (lock) {
                     backlog.removeLastOccurrence(event);
@@ -204,26 +212,24 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
     
     @Override
     public Optional<Listener> acquire(ContextT context) {
-        return tryAcquire(context).map(delegate -> {
-            return new Listener() {
-                @Override
-                public void onSuccess() {
-                    delegate.onSuccess();
-                    unblock();
-                }
+        return tryAcquire(context).map(delegate -> new Listener() {
+            @Override
+            public void onSuccess() {
+                delegate.onSuccess();
+                unblock();
+            }
 
-                @Override
-                public void onIgnore() {
-                    delegate.onIgnore();
-                    unblock();
-                }
+            @Override
+            public void onIgnore() {
+                delegate.onIgnore();
+                unblock();
+            }
 
-                @Override
-                public void onDropped() {
-                    delegate.onDropped();
-                    unblock();
-                }
-            };
+            @Override
+            public void onDropped() {
+                delegate.onDropped();
+                unblock();
+            }
         });
     }
     
