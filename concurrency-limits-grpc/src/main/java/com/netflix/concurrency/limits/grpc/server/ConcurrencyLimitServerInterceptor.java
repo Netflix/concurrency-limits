@@ -160,29 +160,38 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
                 public Listener<ReqT> apply(Limiter.Listener listener) {
                     Context.current().addListener(context -> safeComplete(listener::onIgnore), executor);
 
-                    return new ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(
-                            next.startCall(
-                                    new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
-                                        @Override
-                                        public void close(Status status, Metadata trailers) {
-                                            try {
-                                                super.close(status, trailers);
-                                            } finally {
-                                                safeComplete(() -> {
-                                                    switch (status.getCode()) {
-                                                        case CANCELLED:
-                                                        case DEADLINE_EXCEEDED:
-                                                            listener.onDropped();
-                                                            break;
-                                                        default:
-                                                            listener.onSuccess();
-                                                            break;
-                                                    }
-                                                });
-                                            }
+                    final Listener<ReqT> delegate;
+
+                    try {
+                        delegate = next.startCall(
+                                new ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
+                                    @Override
+                                    public void close(Status status, Metadata trailers) {
+                                        try {
+                                            super.close(status, trailers);
+                                        } finally {
+                                            safeComplete(() -> {
+                                                switch (status.getCode()) {
+                                                    case CANCELLED:
+                                                    case DEADLINE_EXCEEDED:
+                                                        listener.onDropped();
+                                                        break;
+                                                    default:
+                                                        listener.onSuccess();
+                                                        break;
+                                                }
+                                            });
                                         }
-                                    },
-                                    headers)) {
+                                    }
+                                },
+                                headers);
+                    } catch (Exception e) {
+                        LOG.warn("Failed to create call", e);
+                        safeComplete(listener::onIgnore);
+                        throw e;
+                    }
+
+                    return new ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(delegate) {
 
                         @Override
                         public void onMessage(ReqT message) {
