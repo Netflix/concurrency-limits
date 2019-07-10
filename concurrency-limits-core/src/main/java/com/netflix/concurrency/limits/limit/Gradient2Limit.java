@@ -280,9 +280,11 @@ public final class Gradient2Limit extends AbstractLimit {
 
         // Rtt could be higher than longRtt because of smoothing longRtt updates
         // so set to 1.0 to indicate no queuing.  Otherwise calculate the slope and don't
-        // allow it to be reduced by not more than half to avoid aggressive load-shedding due to
-        // outliers.
-        final double gradient = Math.max(0.5, Math.min(1.0, tolerance * longRtt / shortRtt));
+        // allow it to be reduced by more than half to avoid aggressive load-shedding due to
+        // outliers. If a request is dropped, choose lowest gradient value to initiate
+        // load-shedding.
+        final double gradient = didDrop ? 0.5
+                : Math.max(0.5, Math.min(1.0, tolerance * longRtt / shortRtt));
 
         // Don't grow the limit if not necessary
         if (gradient == 1.0 && inflight < estimatedLimit / 2) {
