@@ -261,15 +261,12 @@ public final class Gradient2Limit extends AbstractLimit {
 
     @Override
     public int _update(final long startTime, final long rtt, final int inflight, final boolean didDrop) {
-        final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
-
         this.lastRtt = rtt;
         final double shortRtt = (double)rtt;
         final double longRtt = this.longRtt.add(rtt).doubleValue();
 
         shortRttSampleListener.addSample(shortRtt);
         longRttSampleListener.addSample(longRtt);
-        queueSizeSampleListener.addSample(queueSize);
 
         // If the long RTT is substantially larger than the short RTT then reduce the long RTT measurement.
         // This can happen when latency returns to normal after a prolonged prior of excessive load.  Reducing the
@@ -286,9 +283,14 @@ public final class Gradient2Limit extends AbstractLimit {
         final double gradient = didDrop ? 0.5
                 : Math.max(0.5, Math.min(1.0, tolerance * longRtt / shortRtt));
 
+        double queueSize = 0;
         // Don't grow the limit if not necessary
-        if (gradient == 1.0 && inflight < estimatedLimit / 2) {
-            return (int) estimatedLimit;
+        if (gradient == 1.0) {
+            if (inflight < estimatedLimit / 2) {
+                return (int) estimatedLimit;
+            }
+            queueSize = this.queueSize.apply((int)this.estimatedLimit);
+            queueSizeSampleListener.addSample(queueSize);
         }
 
         double newLimit = estimatedLimit * gradient + queueSize;
