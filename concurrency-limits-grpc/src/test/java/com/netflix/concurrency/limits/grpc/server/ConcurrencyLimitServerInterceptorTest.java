@@ -158,22 +158,33 @@ public class ConcurrencyLimitServerInterceptorTest {
     @Test
     public void releaseOnCancellation() {
         // Setup server
-        startServer((req, observer) -> {});
+        startServer((req, observer) -> {
+            Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
+            observer.onNext("delayed_response");
+            observer.onCompleted();
+        });
 
         ListenableFuture<String> future = ClientCalls.futureUnaryCall(channel.newCall(METHOD_DESCRIPTOR, CallOptions.DEFAULT), "foo");
         Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         future.cancel(true);
+
         // Verify
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
-        Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onIgnore();
+        Mockito.verify(listener.getResult().get(), Mockito.times(0)).onIgnore();
 
-        verifyCounts(0, 1, 0, 0);
+        Mockito.verify(listener.getResult().get(), Mockito.timeout(2000).times(1)).onSuccess();
+
+        verifyCounts(0, 0, 1, 0);
     }
 
     @Test
     public void releaseOnDeadlineExceeded() {
         // Setup server
-        startServer((req, observer) -> {});
+        startServer((req, observer) -> {
+            Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
+            observer.onNext("delayed_response");
+            observer.onCompleted();
+        });
 
         try {
             ClientCalls.blockingUnaryCall(channel.newCall(METHOD_DESCRIPTOR, CallOptions.DEFAULT.withDeadlineAfter(1, TimeUnit.SECONDS)), "foo");
@@ -182,28 +193,11 @@ public class ConcurrencyLimitServerInterceptorTest {
         }
         // Verify
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
-        Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onIgnore();
+        Mockito.verify(listener.getResult().get(), Mockito.times(0)).onIgnore();
 
-        verifyCounts(0, 1, 0, 0);
-    }
+        Mockito.verify(listener.getResult().get(), Mockito.timeout(2000).times(1)).onSuccess();
 
-    @Test
-    public void releaseOnMissingHalfClose() {
-        // Setup server
-        startServer((req, observer) -> {});
-
-        ClientCall<String, String> call = channel.newCall(METHOD_DESCRIPTOR, CallOptions.DEFAULT.withDeadlineAfter(500, TimeUnit.MILLISECONDS));
-        call.start(new ClientCall.Listener<String>() {}, new Metadata());
-        call.request(2);
-        call.sendMessage("foo");
-
-        Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-
-        // Verify
-        Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
-        Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onIgnore();
-
-        verifyCounts(0, 1, 0, 0);
+        verifyCounts(0, 0, 1, 0);
     }
 
     public void verifyCounts(int dropped, int ignored, int success, int rejected) {

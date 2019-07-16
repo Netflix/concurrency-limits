@@ -15,10 +15,8 @@
  */
 package com.netflix.concurrency.limits.grpc.server;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.internal.Preconditions;
-import io.grpc.Context;
 import io.grpc.ForwardingServerCall;
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
@@ -30,8 +28,6 @@ import io.grpc.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -50,12 +46,6 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
     private final Supplier<Status> statusSupplier;
 
     private Supplier<Metadata> trailerSupplier;
-
-    private static final Executor executor = Executors.newCachedThreadPool(
-            new ThreadFactoryBuilder()
-                    .setDaemon(true)
-                    .setNameFormat("concurrency-limit-cleanup-%d")
-                    .build());
 
     public static class Builder {
         private Supplier<Status> statusSupplier = () -> LIMIT_EXCEEDED_STATUS;
@@ -158,8 +148,6 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
 
                 @Override
                 public Listener<ReqT> apply(Limiter.Listener listener) {
-                    Context.current().addListener(context -> safeComplete(listener::onIgnore), executor);
-
                     final Listener<ReqT> delegate;
 
                     try {
@@ -212,15 +200,6 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
                                 LOG.error("Uncaught exception. Force releasing limit. ", t);
                                 safeComplete(listener::onIgnore);
                                 throw t;
-                            }
-                        }
-
-                        @Override
-                        public void onCancel() {
-                            try {
-                                super.onCancel();
-                            } finally {
-                                safeComplete(listener::onIgnore);
                             }
                         }
                     };
