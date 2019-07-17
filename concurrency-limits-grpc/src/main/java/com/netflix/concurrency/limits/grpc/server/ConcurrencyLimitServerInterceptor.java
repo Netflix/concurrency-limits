@@ -202,6 +202,16 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
                                 throw t;
                             }
                         }
+
+                        @Override
+                        public void onCancel() {
+                            try {
+                                super.onCancel();
+                            } finally {
+                                safeComplete(listener::onDropped);
+                            }
+                        }
+
                     };
                 }
             })
