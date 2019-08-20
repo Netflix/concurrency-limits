@@ -57,12 +57,12 @@ public final class GradientLimit extends AbstractLimit {
          * Minimum threshold for accepting a new rtt sample.  Any RTT lower than this threshold
          * will be discarded.
          *  
-         * @param minRttTreshold
+         * @param minRttThreshold
          * @param units
          * @return Chainable builder
          */
         @Deprecated
-        public Builder minRttThreshold(long minRttTreshold, TimeUnit units) {
+        public Builder minRttThreshold(long minRttThreshold, TimeUnit units) {
             return this;
         }
         

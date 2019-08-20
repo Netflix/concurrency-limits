@@ -63,7 +63,7 @@ public class VegasLimit extends AbstractLimit {
          * The limiter will probe for a new noload RTT every probeMultiplier * current limit
          * iterations.  Default value is 30.  
          * @param probeMultiplier 
-         * @return Chinable builder
+         * @return Chainable builder
          */
         public Builder probeMultiplier(int probeMultiplier) {
             this.probeMultiplier = probeMultiplier;
