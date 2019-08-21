@@ -3,3 +3,5 @@ include 'concurrency-limits-core'
 include 'concurrency-limits-grpc'
 include 'concurrency-limits-servlet'
 include 'concurrency-limits-spectator'
+include 'concurrency-limits-dubbo'
+

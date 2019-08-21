@@ -1,0 +1,2 @@
+concurrencyClientLimiter=com.netflix.concurrency.limits.dubbo.DubboLimiterClientFilter
+concurrencyServerLimiter=com.netflix.concurrency.limits.dubbo.DubboLimiterServerFilter
