@@ -52,6 +52,7 @@ public final class GradientLimit extends AbstractLimit {
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private double rttTolerance = 2.0;
         private int probeInterval = 1000;
+        private double backoffRatio = 0.9;
         
         /**
          * Minimum threshold for accepting a new rtt sample.  Any RTT lower than this threshold
@@ -153,6 +154,18 @@ public final class GradientLimit extends AbstractLimit {
             this.registry = registry;
             return this;
         }
+
+        /**
+         * Ratio applied to the limit when a timeout was identified within the sampling window.  The default value is
+         * 0.9.  A value of 1.0 means no backoff.
+         * @param backoffRatio
+         * @return
+         */
+        public Builder backoffRatio(double backoffRatio) {
+            Preconditions.checkArgument(backoffRatio >= 0.5 && backoffRatio <= 1.0, "backoffRatio must be in the range [0.5, 1.0]");
+            this.backoffRatio = backoffRatio;
+            return this;
+        }
         
         @Deprecated
         public Builder probeMultiplier(int probeMultiplier) {
@@ -205,6 +218,8 @@ public final class GradientLimit extends AbstractLimit {
 
     private final double rttTolerance;
 
+    private final double backoffRatio;
+
     private final SampleListener minRttSampleListener;
 
     private final SampleListener minWindowRttSampleListener;
@@ -212,7 +227,7 @@ public final class GradientLimit extends AbstractLimit {
     private final SampleListener queueSizeSampleListener;
     
     private final int probeInterval;
-    
+
     private int resetRttCounter;
     
     private GradientLimit(Builder builder) {
@@ -223,6 +238,7 @@ public final class GradientLimit extends AbstractLimit {
         this.queueSize = builder.queueSize;
         this.smoothing = builder.smoothing;
         this.rttTolerance = builder.rttTolerance;
+        this.backoffRatio = builder.backoffRatio;
         this.probeInterval = builder.probeInterval;
         this.resetRttCounter = nextProbeCountdown();
         this.rttNoLoadMeasurement = new MinimumMeasurement();
@@ -272,7 +288,7 @@ public final class GradientLimit extends AbstractLimit {
         double newLimit;
         // Reduce the limit aggressively if there was a drop
         if (didDrop) {
-            newLimit = estimatedLimit/2;
+            newLimit = estimatedLimit * backoffRatio;
         // Don't grow the limit if we are app limited
         } else if (inflight < estimatedLimit / 2) {
             return (int)estimatedLimit;
