@@ -7,7 +7,7 @@ sourceCompatibility = JavaVersion.VERSION_1_8
 dependencies {
     compile project(":concurrency-limits-core")
 
-    compile "io.grpc:grpc-core:1.9.0"
+    compileOnly "io.grpc:grpc-core:1.9.0"
     
     testCompile project(":concurrency-limits-spectator")
 

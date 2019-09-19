@@ -160,7 +160,6 @@ public class ConcurrencyLimitServerInterceptor implements ServerInterceptor {
                                         } finally {
                                             safeComplete(() -> {
                                                 switch (status.getCode()) {
-                                                    case CANCELLED:
                                                     case DEADLINE_EXCEEDED:
                                                         listener.onDropped();
                                                         break;
