@@ -64,7 +64,7 @@ public class BlockingLimiterTest {
         SettableLimit limit = SettableLimit.startingAt(1);
         BlockingLimiter<Void> limiter = BlockingLimiter.wrap(SimpleLimiter.newBuilder().limit(limit).build(), timeout);
 
-        // Acquire first, will succeeed an not block
+        // Acquire first, will succeed and not block
         limiter.acquire(null);
 
         // Second acquire should time out after at least 50 millis
