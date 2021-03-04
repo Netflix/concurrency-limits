@@ -48,3 +48,5 @@ atlassian-ide-plugin.xml
 .settings
 .metadata
 
+# publishing secrets
+secrets/signing-key
