@@ -8,7 +8,7 @@ buildscript {
 }
 
 plugins {
-    id 'nebula.netflixoss' version '6.1.0'
+    id 'nebula.netflixoss' version '9.1.0'
 }
 
 // Establish version and status
@@ -19,7 +19,7 @@ subprojects {
     group = "com.netflix.${githubProjectName}" 
 
     repositories {
-        jcenter()
+        mavenCentral()
         maven { url 'https://jitpack.io' }
     }
 }
