@@ -1,8 +1,13 @@
 package com.netflix.concurrency.limits.limiter;
 
 import com.netflix.concurrency.limits.Limiter;
+import com.netflix.concurrency.limits.MetricIds;
+import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.limit.FixedLimit;
 import com.netflix.concurrency.limits.limit.SettableLimit;
+import com.netflix.concurrency.limits.spectator.SpectatorMetricRegistry;
+import com.netflix.spectator.api.DefaultRegistry;
+import java.util.concurrent.TimeUnit;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -10,6 +15,12 @@ import java.util.Optional;
 import java.util.function.Function;
 
 public class AbstractPartitionedLimiterTest {
+
+  private static final String REGISTRY_ID = "partitioned.limiter.test";
+  private DefaultRegistry registry = new DefaultRegistry();
+  private MetricRegistry metricRegistry =
+      new SpectatorMetricRegistry(registry, registry.createId(REGISTRY_ID));
+
     public static class TestPartitionedLimiter extends AbstractPartitionedLimiter<String> {
         public static class Builder extends AbstractPartitionedLimiter.Builder<Builder, String> {
             @Override
@@ -47,6 +58,7 @@ public class AbstractPartitionedLimiterTest {
                 .partition("batch", 0.3)
                 .partition("live", 0.7)
                 .limit(FixedLimit.of(10))
+                .metricRegistry(metricRegistry)
                 .build();
 
         for (int i = 0; i < 10; i++) {
@@ -54,7 +66,8 @@ public class AbstractPartitionedLimiterTest {
             Assert.assertEquals(i+1, limiter.getPartition("batch").getInflight());
         }
 
-        Assert.assertFalse(limiter.acquire("batch").isPresent());
+      Assert.assertFalse(limiter.acquire("batch").isPresent());
+      Assert.assertEquals(1, getCount("batch", "rejected"));
     }
 
     @Test
@@ -64,6 +77,7 @@ public class AbstractPartitionedLimiterTest {
                 .partition("batch", 0.3)
                 .partition("live", 0.7)
                 .limit(FixedLimit.of(10))
+                .metricRegistry(metricRegistry)
                 .build();
 
         for (int i = 0; i < 10; i++) {
@@ -72,6 +86,7 @@ public class AbstractPartitionedLimiterTest {
         }
 
         Assert.assertFalse(limiter.acquire("batch").isPresent());
+        Assert.assertEquals(1, getCount("batch", "rejected"));
 
         for (int i = 0; i < 7; i++) {
             Assert.assertTrue(limiter.acquire("live").isPresent());
@@ -88,6 +103,7 @@ public class AbstractPartitionedLimiterTest {
                 .partition("batch", 0.3)
                 .partition("live", 0.7)
                 .limit(FixedLimit.of(10))
+                .metricRegistry(metricRegistry)
                 .build();
 
         for (int i = 0; i < 3; i++) {
@@ -103,7 +119,9 @@ public class AbstractPartitionedLimiterTest {
         }
 
         Assert.assertFalse(limiter.acquire("batch").isPresent());
+        Assert.assertEquals(1, getCount("batch", "rejected"));
         Assert.assertFalse(limiter.acquire("live").isPresent());
+        Assert.assertEquals(1, getCount("live", "rejected"));
     }
 
     @Test
@@ -155,5 +173,40 @@ public class AbstractPartitionedLimiterTest {
         Assert.assertEquals(6, limiter.getPartition("batch").getLimit());
         Assert.assertEquals(1, limiter.getPartition("batch").getInflight());
         Assert.assertEquals(1, limiter.getInflight());
+    }
+
+    @Test
+    public void listenerUpdatesCounters() {
+      AbstractPartitionedLimiter<String> limiter = (AbstractPartitionedLimiter<String>) TestPartitionedLimiter.newBuilder()
+          .partitionResolver(Function.identity())
+          .partition("batch", 0.3)
+          .partition("live", 0.7)
+          .limit(FixedLimit.of(10))
+          .metricRegistry(metricRegistry)
+          .build();
+
+      final Optional<Limiter.Listener> optionalListener = limiter.acquire("batch");
+      Assert.assertTrue(optionalListener.isPresent());
+      Limiter.Listener listener = optionalListener.get();
+
+      listener.onSuccess();
+      Assert.assertEquals(1, getCount("batch", "success"));
+
+      listener.onDropped();
+      Assert.assertEquals(1, getCount("batch", "dropped"));
+
+      listener.onIgnore();
+      Assert.assertEquals(1, getCount("batch", "ignored"));
+    }
+
+    public long getCount(String partition, String status) {
+      try {
+        TimeUnit.SECONDS.sleep(1);
+
+        String name = REGISTRY_ID + "." + MetricIds.PARTITIONED_CALL_NAME;
+        return registry.counter(name, "partition", partition, "status", status).count();
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
     }
 }
