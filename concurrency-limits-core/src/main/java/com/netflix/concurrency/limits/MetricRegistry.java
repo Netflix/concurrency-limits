@@ -59,7 +59,7 @@ public interface MetricRegistry {
      */
     @Deprecated
     default void registerGauge(String id, Supplier<Number> supplier, String... tagNameValuePairs) {
-        throw new UnsupportedOperationException("registerDistribution is deprecated");
+        throw new UnsupportedOperationException("registerGauge is deprecated");
     }
 
     /**
