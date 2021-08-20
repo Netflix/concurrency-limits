@@ -21,6 +21,7 @@ package com.netflix.concurrency.limits;
 public final class MetricIds {
     public static final String LIMIT_NAME = "limit";
     public static final String CALL_NAME = "call";
+    public static final String PARTITIONED_CALL_NAME = "call.partition";
     public static final String INFLIGHT_NAME = "inflight";
     public static final String PARTITION_LIMIT_NAME = "limit.partition";
     public static final String MIN_RTT_NAME = "min_rtt";

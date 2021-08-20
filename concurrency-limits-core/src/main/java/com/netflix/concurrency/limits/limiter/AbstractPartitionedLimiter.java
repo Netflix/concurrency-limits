@@ -111,6 +111,10 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         private int busy = 0;
         private long backoffMillis = 0;
         private MetricRegistry.SampleListener inflightDistribution;
+        private MetricRegistry.Counter successCounter;
+        private MetricRegistry.Counter droppedCounter;
+        private MetricRegistry.Counter ignoredCounter;
+        private MetricRegistry.Counter rejectedCounter;
 
         Partition(String name) {
             this.name = name;
@@ -140,7 +144,6 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         void acquire() {
             busy++;
             inflightDistribution.addSample(busy);
-
         }
 
         void release() {
@@ -162,6 +165,11 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         void createMetrics(MetricRegistry registry) {
             this.inflightDistribution = registry.distribution(MetricIds.INFLIGHT_NAME, PARTITION_TAG_NAME, name);
             registry.gauge(MetricIds.PARTITION_LIMIT_NAME, this::getLimit, PARTITION_TAG_NAME, name);
+
+            this.successCounter = registry.counter(MetricIds.PARTITIONED_CALL_NAME, PARTITION_TAG_NAME, name, STATUS_TAG, "success");
+            this.droppedCounter = registry.counter(MetricIds.PARTITIONED_CALL_NAME, PARTITION_TAG_NAME, name, STATUS_TAG, "dropped");
+            this.ignoredCounter = registry.counter(MetricIds.PARTITIONED_CALL_NAME, PARTITION_TAG_NAME, name, STATUS_TAG, "ignored");
+            this.rejectedCounter =registry.counter(MetricIds.PARTITIONED_CALL_NAME, PARTITION_TAG_NAME, name, STATUS_TAG, "rejected");
         }
 
         @Override
@@ -228,6 +236,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
                     }
                 }
 
+                partition.rejectedCounter.increment();
                 return createRejectedListener();
             }
 
@@ -237,18 +246,21 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
                 @Override
                 public void onSuccess() {
                     listener.onSuccess();
+                    partition.successCounter.increment();
                     releasePartition(partition);
                 }
 
                 @Override
                 public void onIgnore() {
                     listener.onIgnore();
+                    partition.ignoredCounter.increment();
                     releasePartition(partition);
                 }
 
                 @Override
                 public void onDropped() {
                     listener.onDropped();
+                    partition.droppedCounter.increment();
                     releasePartition(partition);
                 }
             });
