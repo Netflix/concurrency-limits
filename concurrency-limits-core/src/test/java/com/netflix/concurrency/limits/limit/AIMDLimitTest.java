@@ -25,4 +25,12 @@ public class AIMDLimitTest {
         limiter.onSample(0, 0, 0, true);
         Assert.assertEquals(27, limiter.getLimit());
     }
+
+    @Test
+    public void successOverflow() {
+        AIMDLimit limiter = AIMDLimit.newBuilder().initialLimit(21).maxLimit(21).minLimit(0).build();
+        limiter.onSample(0, TimeUnit.MILLISECONDS.toNanos(1), 10, false);
+        // after success limit should still be at the max.
+        Assert.assertEquals(21, limiter.getLimit());
+    }
 }
