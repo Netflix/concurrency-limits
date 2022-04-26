@@ -11,15 +11,15 @@ buildscript {
 }
 
 plugins {
-    id 'nebula.netflixoss' version '9.1.0'
+    id 'nebula.netflixoss' version '10.6.0'
 }
 
 // Establish version and status
-ext.githubProjectName = rootProject.name 
+ext.githubProjectName = rootProject.name
 
 subprojects {
     apply plugin: 'nebula.netflixoss'
-    group = "com.netflix.${githubProjectName}" 
+    group = "com.netflix.${githubProjectName}"
 
     repositories {
         mavenCentral()
