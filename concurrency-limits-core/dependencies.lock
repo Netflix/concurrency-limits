@@ -1,0 +1,40 @@
+{
+    "compileClasspath": {
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.36"
+        }
+    },
+    "runtimeClasspath": {
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.36"
+        }
+    },
+    "testCompileClasspath": {
+        "com.github.kevinmost:junit-retry-rule": {
+            "locked": "cbdd972d7c"
+        },
+        "junit:junit-dep": {
+            "locked": "4.10"
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.36"
+        },
+        "org.slf4j:slf4j-log4j12": {
+            "locked": "1.7.36"
+        }
+    },
+    "testRuntimeClasspath": {
+        "com.github.kevinmost:junit-retry-rule": {
+            "locked": "cbdd972d7c"
+        },
+        "junit:junit-dep": {
+            "locked": "4.10"
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.36"
+        },
+        "org.slf4j:slf4j-log4j12": {
+            "locked": "1.7.36"
+        }
+    }
+}

@@ -1,0 +1,88 @@
+{
+    "compileClasspath": {
+        "com.netflix.concurrency-limits:concurrency-limits-core": {
+            "project": true
+        },
+        "javax.servlet:javax.servlet-api": {
+            "locked": "3.1.0"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "com.netflix.concurrency-limits:concurrency-limits-core"
+            ],
+            "locked": "1.7.36"
+        }
+    },
+    "runtimeClasspath": {
+        "com.netflix.concurrency-limits:concurrency-limits-core": {
+            "project": true
+        },
+        "javax.servlet:javax.servlet-api": {
+            "locked": "3.1.0"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "com.netflix.concurrency-limits:concurrency-limits-core"
+            ],
+            "locked": "1.7.36"
+        }
+    },
+    "testCompileClasspath": {
+        "com.netflix.concurrency-limits:concurrency-limits-core": {
+            "project": true
+        },
+        "javax.servlet:javax.servlet-api": {
+            "locked": "3.1.0"
+        },
+        "junit:junit-dep": {
+            "locked": "4.10"
+        },
+        "org.eclipse.jetty:jetty-server": {
+            "locked": "9.4.48.v20220622"
+        },
+        "org.eclipse.jetty:jetty-servlet": {
+            "locked": "9.4.48.v20220622"
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "com.netflix.concurrency-limits:concurrency-limits-core"
+            ],
+            "locked": "1.7.36"
+        },
+        "org.slf4j:slf4j-log4j12": {
+            "locked": "1.7.36"
+        }
+    },
+    "testRuntimeClasspath": {
+        "com.netflix.concurrency-limits:concurrency-limits-core": {
+            "project": true
+        },
+        "javax.servlet:javax.servlet-api": {
+            "locked": "3.1.0"
+        },
+        "junit:junit-dep": {
+            "locked": "4.10"
+        },
+        "org.eclipse.jetty:jetty-server": {
+            "locked": "9.4.48.v20220622"
+        },
+        "org.eclipse.jetty:jetty-servlet": {
+            "locked": "9.4.48.v20220622"
+        },
+        "org.mockito:mockito-core": {
+            "locked": "1.10.19"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "com.netflix.concurrency-limits:concurrency-limits-core"
+            ],
+            "locked": "1.7.36"
+        },
+        "org.slf4j:slf4j-log4j12": {
+            "locked": "1.7.36"
+        }
+    }
+}
