@@ -19,6 +19,7 @@ ext.githubProjectName = rootProject.name
 
 subprojects {
     apply plugin: 'nebula.netflixoss'
+    apply plugin: 'java-library'
     group = "com.netflix.${githubProjectName}" 
 
     repositories {

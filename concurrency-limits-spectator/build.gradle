@@ -5,9 +5,10 @@ plugins {
 sourceCompatibility = JavaVersion.VERSION_1_8
 
 dependencies {
-    compile project(":concurrency-limits-core")
+    implementation project(":concurrency-limits-core")
 
-    compile 'com.netflix.spectator:spectator-api:0.+'
+    api 'com.netflix.spectator:spectator-api:0.+'
+    implementation "org.slf4j:slf4j-api:1.7.+"
     
-    testCompile "junit:junit-dep:4.10"
+    testImplementation "junit:junit-dep:4.10"
 }

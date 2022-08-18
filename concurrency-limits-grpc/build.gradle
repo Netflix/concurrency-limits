@@ -5,16 +5,17 @@ plugins {
 sourceCompatibility = JavaVersion.VERSION_1_8
 
 dependencies {
-    compile project(":concurrency-limits-core")
+    implementation "org.slf4j:slf4j-api:1.7.+"
+    implementation project(":concurrency-limits-core")
 
     compileOnly "io.grpc:grpc-core:1.9.0"
     
-    testCompile project(":concurrency-limits-spectator")
+    testImplementation project(":concurrency-limits-spectator")
 
-    testCompile "org.mockito:mockito-core:1.+"
-    testCompile "io.grpc:grpc-netty:1.9.0"
-    testCompile "io.grpc:grpc-stub:1.9.0"
-    testCompile "junit:junit-dep:4.10"
-    testCompile "org.slf4j:slf4j-log4j12:1.7.+"
-    testCompile "org.apache.commons:commons-math3:3.6.1"
+    testImplementation "org.mockito:mockito-core:1.+"
+    testImplementation "io.grpc:grpc-netty:1.9.0"
+    testImplementation "io.grpc:grpc-stub:1.9.0"
+    testImplementation "junit:junit-dep:4.10"
+    testImplementation "org.slf4j:slf4j-log4j12:1.7.+"
+    testImplementation "org.apache.commons:commons-math3:3.6.1"
 }
