@@ -14,9 +14,9 @@ import javax.servlet.http.HttpServletRequest;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Matchers;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class GroupServletLimiterTest {
@@ -96,7 +96,7 @@ public class GroupServletLimiterTest {
         Optional<Listener> listener =  limiter.acquire(request);
         
         Assert.assertTrue(listener.isPresent());
-        Mockito.verify(principalToGroup, Mockito.times(1)).get(Matchers.isNull(String.class));
+        Mockito.verify(principalToGroup, Mockito.times(1)).get(ArgumentMatchers.isNull());
     }
 
     @Test

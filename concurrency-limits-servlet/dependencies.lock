@@ -48,6 +48,9 @@
         },
         "org.slf4j:slf4j-log4j12": {
             "locked": "1.7.36"
+        },
+        "org.springframework:spring-test": {
+            "locked": "5.3.22"
         }
     },
     "testRuntimeClasspath": {
@@ -83,6 +86,9 @@
         },
         "org.slf4j:slf4j-log4j12": {
             "locked": "1.7.36"
+        },
+        "org.springframework:spring-test": {
+            "locked": "5.3.22"
         }
     }
 }

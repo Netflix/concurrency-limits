@@ -16,6 +16,7 @@ dependencies {
     testImplementation "org.eclipse.jetty:jetty-servlet:9.4.+"
     testCompileOnly "junit:junit:${jUnitLegacyVersion}"
     testImplementation "org.junit.jupiter:junit-jupiter-api:${jUnitVersion}"
+    testImplementation "org.springframework:spring-test:${springVersion}"
     testRuntimeOnly "org.junit.vintage:junit-vintage-engine:${jUnitVersion}"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${jUnitVersion}"
 }
