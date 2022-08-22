@@ -119,32 +119,31 @@ public class LifoBlockingLimiterTest {
     }
 
     @Test
-    @Retry(times=5)
     public void verifyFifoOrder() {
         // Make sure all tokens are acquired
         List<Optional<Limiter.Listener>> firstBatch = acquireN(blockingLimiter, 4);
 
         // Kick off 5 requests with a small delay to ensure futures are created in the correct order
         List<Integer> values = new CopyOnWriteArrayList<>();
-        List<CompletableFuture<Integer>> futures = IntStream.range(0, 5)
+        List<CompletableFuture<Void>> futures = IntStream.range(0, 5)
                 .peek(i -> {
                     try {
                         TimeUnit.MILLISECONDS.sleep(50);
                     } catch (InterruptedException e) {
                     }
                 })
-                .mapToObj(i -> CompletableFuture.supplyAsync(() -> {
+                .mapToObj(i -> CompletableFuture.<Void>supplyAsync(() -> {
                     Optional<Limiter.Listener> listener = blockingLimiter.acquire(null);
                     if (!listener.isPresent()) {
-                        return -1;
+                        values.add(-1);
                     }
                     try {
-                        return i;
+                        values.add(i);
                     } finally {
                         listener.get().onSuccess();
                     }
+                    return null;
                 }, executor))
-                .peek(future -> future.whenComplete((value, error) -> values.add(value)))
                 .collect(Collectors.toList());
 
         // Release the first batch of tokens

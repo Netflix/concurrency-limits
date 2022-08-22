@@ -5,10 +5,10 @@ plugins {
 sourceCompatibility = JavaVersion.VERSION_1_8
 
 dependencies {
-    compile "org.slf4j:slf4j-api:1.7.+"
+    implementation "org.slf4j:slf4j-api:1.7.+"
     
-    testCompile 'junit:junit-dep:4.10'
-    testCompile "org.slf4j:slf4j-log4j12:1.7.+"
+    testImplementation 'junit:junit-dep:4.10'
+    testImplementation "org.slf4j:slf4j-log4j12:1.7.+"
 
-    testCompile 'com.github.kevinmost:junit-retry-rule:cbdd972d7c'
+    testImplementation 'com.github.kevinmost:junit-retry-rule:cbdd972d7c'
 }
