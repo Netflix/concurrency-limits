@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.testing.Test
+
 buildscript {
     repositories {
         mavenCentral()
@@ -25,5 +27,20 @@ subprojects {
     repositories {
         mavenCentral()
         maven { url 'https://jitpack.io' }
+    }
+
+
+    ext {
+        grpcVersion = "1.9.0"
+        jUnitVersion = "5.+"
+        jUnitLegacyVersion = "4.+"
+        mockitoVersion = "4.+"
+        slf4jVersion = "1.7.+"
+        spectatorVersion = "1.+"
+        springVersion = "5.+"
+    }
+
+    tasks.withType(Test) {
+        useJUnitPlatform()
     }
 }
