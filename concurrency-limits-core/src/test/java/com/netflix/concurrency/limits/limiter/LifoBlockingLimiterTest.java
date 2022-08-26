@@ -9,12 +9,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -22,7 +26,7 @@ import java.util.stream.IntStream;
 public class LifoBlockingLimiterTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(LifoBlockingLimiterTest.class);
 
-    final Executor executor = Executors.newCachedThreadPool();
+    final ExecutorService executor = Executors.newCachedThreadPool();
 
     final SettableLimit limit = SettableLimit.startingAt(4);
 
@@ -160,6 +164,51 @@ public class LifoBlockingLimiterTest {
 
         // Verify that results are in reverse order
         Assert.assertEquals(Arrays.asList(4, 3, 2, 1, 0), values);
+    }
+
+    // this test reproduces the condition where a thread acquires a token just as it is timing out.
+    // before that was fixed, it would lead to a token getting lost.
+    @Test
+    public void timeoutAcquireRaceCondition() throws InterruptedException, ExecutionException {
+        // a limiter with a short timeout, and large backlog (we don't want it to hit that limit)
+        LifoBlockingLimiter<Void> limiter = LifoBlockingLimiter.newBuilder(simpleLimiter)
+            .backlogSize(1000)
+            .backlogTimeout(10, TimeUnit.MILLISECONDS)
+            .build();
+
+        // acquire all except one token
+        acquireN(limiter, 3);
+
+        // try to reproduce the problem a couple of times
+        for (int round = 0; round < 10; round++) {
+            // indicates if there has already been a timeout
+            AtomicBoolean firstTimeout = new AtomicBoolean(false);
+            // take the last token
+            Limiter.Listener one = limiter.acquire(null).get();
+            // in a bunch of threads in parallel, try to take one more. all of these will start to
+            // time out at around the same time
+            List<Future<?>> futures = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                futures.add(executor.submit(() -> {
+                    Optional<Limiter.Listener> listener = limiter.acquire(null);
+                    if (listener.isPresent()) {
+                        // if we got the last token, release it again. this might give it to a
+                        // thread that is in the process of timing out
+                        listener.get().onSuccess();
+                    } else if (firstTimeout.compareAndSet(false, true)) {
+                        // if this is the first one that times out, then other threads are going to
+                        // start timing out soon too, so it's time to release a token
+                        one.onSuccess();
+                    }
+                    return null;
+                }));
+            }
+            // wait for this round to finish
+            for (Future<?> future : futures) {
+                future.get();
+            }
+            Assert.assertEquals(3, simpleLimiter.getInflight());
+        }
     }
 
     private List<Optional<Limiter.Listener>> acquireN(Limiter<Void> limiter, int N) {

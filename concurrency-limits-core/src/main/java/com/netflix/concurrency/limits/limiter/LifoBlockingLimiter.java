@@ -179,6 +179,11 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
                 synchronized (lock) {
                     backlog.removeLastOccurrence(event);
                 }
+                // if we acquired a token just as we were timing out then return it, otherwise the
+                // token would get lost
+                if (event.listener != null) {
+                    return event.listener;
+                }
                 return Optional.empty();
             }
             return event.listener;
@@ -187,6 +192,10 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
                 backlog.removeFirstOccurrence(event);
             }
             Thread.currentThread().interrupt();
+            // if we acquired a token just as we were interrupted, then return it
+            if (event.listener != null) {
+                return event.listener;
+            }
             return Optional.empty();
         } finally {
             backlogCounter.decrementAndGet();
