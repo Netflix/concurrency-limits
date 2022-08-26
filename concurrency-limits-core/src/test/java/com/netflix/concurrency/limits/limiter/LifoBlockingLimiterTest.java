@@ -1,7 +1,5 @@
 package com.netflix.concurrency.limits.limiter;
 
-import com.kevinmost.junit_retry_rule.Retry;
-import com.kevinmost.junit_retry_rule.RetryRule;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limit.SettableLimit;
 import org.junit.Assert;
@@ -23,9 +21,6 @@ import java.util.stream.IntStream;
 
 public class LifoBlockingLimiterTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(LifoBlockingLimiterTest.class);
-
-    @Rule
-    public final RetryRule retry = new RetryRule();
 
     final Executor executor = Executors.newCachedThreadPool();
 

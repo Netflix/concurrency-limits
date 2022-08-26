@@ -1,0 +1,37 @@
+{
+    "compileClasspath": {
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.36"
+        }
+    },
+    "runtimeClasspath": {
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.36"
+        }
+    },
+    "testCompileClasspath": {
+        "junit:junit": {
+            "locked": "4.13.2"
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.36"
+        },
+        "org.slf4j:slf4j-log4j12": {
+            "locked": "1.7.36"
+        }
+    },
+    "testRuntimeClasspath": {
+        "org.junit.jupiter:junit-jupiter-engine": {
+            "locked": "5.9.0"
+        },
+        "org.junit.vintage:junit-vintage-engine": {
+            "locked": "5.9.0"
+        },
+        "org.slf4j:slf4j-api": {
+            "locked": "1.7.36"
+        },
+        "org.slf4j:slf4j-log4j12": {
+            "locked": "1.7.36"
+        }
+    }
+}

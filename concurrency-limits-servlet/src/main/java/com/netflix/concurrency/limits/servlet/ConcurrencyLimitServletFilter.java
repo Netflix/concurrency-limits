@@ -38,9 +38,14 @@ public class ConcurrencyLimitServletFilter implements Filter {
 
     private static final int STATUS_TOO_MANY_REQUESTS = 429;
     private final Limiter<HttpServletRequest> limiter;
+    private final int throttleStatus;
 
     public ConcurrencyLimitServletFilter(Limiter<HttpServletRequest> limiter) {
+        this(limiter, STATUS_TOO_MANY_REQUESTS);
+    }
+    public ConcurrencyLimitServletFilter(Limiter<HttpServletRequest> limiter, int throttleStatus) {
         this.limiter = limiter;
+        this.throttleStatus = throttleStatus;
     }
     
     @Override
@@ -67,7 +72,7 @@ public class ConcurrencyLimitServletFilter implements Filter {
 
     protected void outputThrottleError(HttpServletResponse response) {
         try {
-            response.setStatus(STATUS_TOO_MANY_REQUESTS);
+            response.setStatus(throttleStatus);
             response.getWriter().print("Concurrency limit exceeded");
         } catch (IOException e) {
         }
