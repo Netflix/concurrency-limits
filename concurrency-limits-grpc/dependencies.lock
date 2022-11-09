@@ -7,7 +7,7 @@
             "locked": "1.9.0"
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.36"
+            "locked": "2.0.3"
         }
     },
     "runtimeClasspath": {
@@ -18,7 +18,7 @@
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-core"
             ],
-            "locked": "1.7.36"
+            "locked": "2.0.3"
         }
     },
     "testCompileClasspath": {
@@ -32,7 +32,7 @@
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-spectator"
             ],
-            "locked": "1.3.6"
+            "locked": "1.3.9"
         },
         "io.grpc:grpc-netty": {
             "locked": "1.9.0"
@@ -47,13 +47,13 @@
             "locked": "3.6.1"
         },
         "org.mockito:mockito-core": {
-            "locked": "4.7.0"
+            "locked": "4.8.1"
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.36"
+            "locked": "2.0.3"
         },
         "org.slf4j:slf4j-log4j12": {
-            "locked": "1.7.36"
+            "locked": "2.0.3"
         }
     },
     "testRuntimeClasspath": {
@@ -70,7 +70,7 @@
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-spectator"
             ],
-            "locked": "1.3.6"
+            "locked": "1.3.9"
         },
         "io.grpc:grpc-netty": {
             "locked": "1.9.0"
@@ -82,23 +82,23 @@
             "locked": "3.6.1"
         },
         "org.junit.jupiter:junit-jupiter-engine": {
-            "locked": "5.9.0"
+            "locked": "5.9.1"
         },
         "org.junit.vintage:junit-vintage-engine": {
-            "locked": "5.9.0"
+            "locked": "5.9.1"
         },
         "org.mockito:mockito-core": {
-            "locked": "4.7.0"
+            "locked": "4.8.1"
         },
         "org.slf4j:slf4j-api": {
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-core",
                 "com.netflix.concurrency-limits:concurrency-limits-spectator"
             ],
-            "locked": "1.7.36"
+            "locked": "2.0.3"
         },
         "org.slf4j:slf4j-log4j12": {
-            "locked": "1.7.36"
+            "locked": "2.0.3"
         }
     }
 }

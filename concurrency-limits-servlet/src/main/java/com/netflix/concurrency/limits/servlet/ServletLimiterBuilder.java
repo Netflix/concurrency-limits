@@ -18,7 +18,7 @@ package com.netflix.concurrency.limits.servlet;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limiter.AbstractPartitionedLimiter;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.security.Principal;
 import java.util.Optional;
 import java.util.function.Function;

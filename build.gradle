@@ -9,24 +9,31 @@ buildscript {
     }
     dependencies {
         classpath 'org.junit.platform:junit-platform-gradle-plugin:1.0.2'
+        classpath "com.netflix.nebula:gradle-netflixoss-project-plugin:11.0.0"
     }
 }
 
 plugins {
-    id 'nebula.netflixoss' version '10.6.0'
+    id 'com.netflix.nebula.netflixoss' version '11.0.0'
 }
 
 // Establish version and status
 ext.githubProjectName = rootProject.name 
 
 subprojects {
-    apply plugin: 'nebula.netflixoss'
+    apply plugin: 'com.netflix.nebula.netflixoss'
     apply plugin: 'java-library'
-    group = "com.netflix.${githubProjectName}" 
+    group = "com.netflix.${githubProjectName}"
+
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 
     repositories {
         mavenCentral()
         maven { url 'https://jitpack.io' }
+        maven {
+            url = 'https://repo.spring.io/milestone'
+        }
     }
 
 
@@ -35,12 +42,18 @@ subprojects {
         jUnitVersion = "5.+"
         jUnitLegacyVersion = "4.+"
         mockitoVersion = "4.+"
-        slf4jVersion = "1.7.+"
+        slf4jVersion = "2.+"
         spectatorVersion = "1.+"
-        springVersion = "5.+"
+        springVersion = "6.+"
     }
 
     tasks.withType(Test) {
         useJUnitPlatform()
+    }
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
     }
 }

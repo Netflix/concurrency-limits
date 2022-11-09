@@ -3,11 +3,11 @@
         "com.netflix.concurrency-limits:concurrency-limits-core": {
             "project": true
         },
-        "javax.servlet:javax.servlet-api": {
-            "locked": "3.1.0"
+        "jakarta.servlet:jakarta.servlet-api": {
+            "locked": "5.0.0"
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.36"
+            "locked": "2.0.3"
         }
     },
     "runtimeClasspath": {
@@ -18,7 +18,7 @@
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-core"
             ],
-            "locked": "1.7.36"
+            "locked": "2.0.3"
         }
     },
     "testCompileClasspath": {
@@ -29,28 +29,28 @@
             "locked": "4.13.2"
         },
         "org.eclipse.jetty:jetty-server": {
-            "locked": "9.4.48.v20220622"
+            "locked": "11.0.12"
         },
         "org.eclipse.jetty:jetty-servlet": {
-            "locked": "9.4.48.v20220622"
+            "locked": "11.0.12"
         },
         "org.junit.jupiter:junit-jupiter-api": {
-            "locked": "5.9.0"
+            "locked": "5.9.1"
         },
         "org.mockito:mockito-core": {
-            "locked": "4.7.0"
+            "locked": "4.8.1"
         },
         "org.mockito:mockito-junit-jupiter": {
-            "locked": "4.7.0"
+            "locked": "4.8.1"
         },
         "org.slf4j:slf4j-api": {
-            "locked": "1.7.36"
+            "locked": "2.0.3"
         },
         "org.slf4j:slf4j-log4j12": {
-            "locked": "1.7.36"
+            "locked": "2.0.3"
         },
         "org.springframework:spring-test": {
-            "locked": "5.3.22"
+            "locked": "6.0.0-RC2"
         }
     },
     "testRuntimeClasspath": {
@@ -58,37 +58,37 @@
             "project": true
         },
         "org.eclipse.jetty:jetty-server": {
-            "locked": "9.4.48.v20220622"
+            "locked": "11.0.12"
         },
         "org.eclipse.jetty:jetty-servlet": {
-            "locked": "9.4.48.v20220622"
+            "locked": "11.0.12"
         },
         "org.junit.jupiter:junit-jupiter-api": {
-            "locked": "5.9.0"
+            "locked": "5.9.1"
         },
         "org.junit.jupiter:junit-jupiter-engine": {
-            "locked": "5.9.0"
+            "locked": "5.9.1"
         },
         "org.junit.vintage:junit-vintage-engine": {
-            "locked": "5.9.0"
+            "locked": "5.9.1"
         },
         "org.mockito:mockito-core": {
-            "locked": "4.7.0"
+            "locked": "4.8.1"
         },
         "org.mockito:mockito-junit-jupiter": {
-            "locked": "4.7.0"
+            "locked": "4.8.1"
         },
         "org.slf4j:slf4j-api": {
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-core"
             ],
-            "locked": "1.7.36"
+            "locked": "2.0.3"
         },
         "org.slf4j:slf4j-log4j12": {
-            "locked": "1.7.36"
+            "locked": "2.0.3"
         },
         "org.springframework:spring-test": {
-            "locked": "5.3.22"
+            "locked": "6.0.0-RC2"
         }
     }
 }
