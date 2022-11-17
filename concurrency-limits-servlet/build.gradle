@@ -4,9 +4,14 @@ plugins {
 
 sourceCompatibility = JavaVersion.VERSION_17
 
+// give test dependencies access to compileOnly dependencies to emulate providedCompile
+configurations {
+    testImplementation.extendsFrom compileOnly
+}
+
 dependencies {
     api project(":concurrency-limits-core")
-    compileOnly "jakarta.servlet:jakarta.servlet-api:5.0.0"
+    compileOnly "jakarta.servlet:jakarta.servlet-api:6.0.0"
     implementation "org.slf4j:slf4j-api:${slf4jVersion}"
 
     testImplementation "org.mockito:mockito-core:${mockitoVersion}"

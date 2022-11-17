@@ -12,7 +12,6 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import jakarta.servlet.DispatcherType;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -73,7 +72,7 @@ public class ConcurrencyLimitServletFilterSimulationTest {
         private static final long serialVersionUID = 1L;
 
         @Override
-        protected void doGet( HttpServletRequest request, HttpServletResponse response ) throws ServletException, IOException {
+        protected void doGet( HttpServletRequest request, HttpServletResponse response ) throws IOException {
             try {
                 TimeUnit.MILLISECONDS.sleep(100);
             } catch (InterruptedException e) {
