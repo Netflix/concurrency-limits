@@ -4,10 +4,10 @@
             "project": true
         },
         "com.netflix.spectator:spectator-api": {
-            "locked": "1.4.0"
+            "locked": "1.4.1"
         },
         "org.slf4j:slf4j-api": {
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         }
     },
     "runtimeClasspath": {
@@ -15,13 +15,13 @@
             "project": true
         },
         "com.netflix.spectator:spectator-api": {
-            "locked": "1.4.0"
+            "locked": "1.4.1"
         },
         "org.slf4j:slf4j-api": {
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-core"
             ],
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         }
     },
     "testCompileClasspath": {
@@ -29,13 +29,13 @@
             "project": true
         },
         "com.netflix.spectator:spectator-api": {
-            "locked": "1.4.0"
+            "locked": "1.4.1"
         },
         "junit:junit": {
             "locked": "4.13.2"
         },
         "org.slf4j:slf4j-api": {
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         }
     },
     "testRuntimeClasspath": {
@@ -43,7 +43,7 @@
             "project": true
         },
         "com.netflix.spectator:spectator-api": {
-            "locked": "1.4.0"
+            "locked": "1.4.1"
         },
         "org.junit.jupiter:junit-jupiter-engine": {
             "locked": "5.9.1"
@@ -55,7 +55,7 @@
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-core"
             ],
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         }
     }
 }

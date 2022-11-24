@@ -1,12 +1,12 @@
 {
     "compileClasspath": {
         "org.slf4j:slf4j-api": {
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         }
     },
     "runtimeClasspath": {
         "org.slf4j:slf4j-api": {
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         }
     },
     "testCompileClasspath": {
@@ -14,10 +14,10 @@
             "locked": "4.13.2"
         },
         "org.slf4j:slf4j-api": {
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         },
         "org.slf4j:slf4j-log4j12": {
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         }
     },
     "testRuntimeClasspath": {
@@ -28,10 +28,10 @@
             "locked": "5.9.1"
         },
         "org.slf4j:slf4j-api": {
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         },
         "org.slf4j:slf4j-log4j12": {
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         }
     }
 }

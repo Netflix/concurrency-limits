@@ -7,7 +7,7 @@
             "locked": "1.9.0"
         },
         "org.slf4j:slf4j-api": {
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         }
     },
     "runtimeClasspath": {
@@ -18,7 +18,7 @@
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-core"
             ],
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         }
     },
     "testCompileClasspath": {
@@ -32,7 +32,7 @@
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-spectator"
             ],
-            "locked": "1.4.0"
+            "locked": "1.4.1"
         },
         "io.grpc:grpc-netty": {
             "locked": "1.9.0"
@@ -50,10 +50,10 @@
             "locked": "4.9.0"
         },
         "org.slf4j:slf4j-api": {
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         },
         "org.slf4j:slf4j-log4j12": {
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         }
     },
     "testRuntimeClasspath": {
@@ -70,7 +70,7 @@
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-spectator"
             ],
-            "locked": "1.4.0"
+            "locked": "1.4.1"
         },
         "io.grpc:grpc-netty": {
             "locked": "1.9.0"
@@ -95,10 +95,10 @@
                 "com.netflix.concurrency-limits:concurrency-limits-core",
                 "com.netflix.concurrency-limits:concurrency-limits-spectator"
             ],
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         },
         "org.slf4j:slf4j-log4j12": {
-            "locked": "2.0.3"
+            "locked": "2.0.4"
         }
     }
 }
