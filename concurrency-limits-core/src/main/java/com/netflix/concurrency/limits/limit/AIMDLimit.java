@@ -99,10 +99,6 @@ public final class AIMDLimit extends AbstractLimit {
             currentLimit =  currentLimit + 1;
         }
 
-        if (currentLimit >= maxLimit) {
-            currentLimit = currentLimit / 2;
-        }
-
         return Math.min(maxLimit, Math.max(minLimit, currentLimit));
     }
 
