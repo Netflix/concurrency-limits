@@ -60,6 +60,7 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
         /**
          * @deprecated Use {@link #backlogSize}
          */
+        @Deprecated
         public Builder<ContextT> maxBacklogSize(int size) {
             this.maxBacklogSize = size;
             return this;
