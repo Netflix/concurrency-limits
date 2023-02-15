@@ -2,7 +2,7 @@ package com.netflix.concurrency.limits;
 
 import com.netflix.concurrency.limits.Limiter.Listener;
 import com.netflix.concurrency.limits.limit.VegasLimit;
-import com.netflix.concurrency.limits.servlet.ServletLimiterBuilder;
+import com.netflix.concurrency.limits.servlet.jakarta.ServletLimiterBuilder;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;

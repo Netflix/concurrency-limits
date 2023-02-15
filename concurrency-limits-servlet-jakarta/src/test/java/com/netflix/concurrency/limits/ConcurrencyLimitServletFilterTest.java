@@ -1,7 +1,7 @@
 package com.netflix.concurrency.limits;
 
 
-import com.netflix.concurrency.limits.servlet.ConcurrencyLimitServletFilter;
+import com.netflix.concurrency.limits.servlet.jakarta.ConcurrencyLimitServletFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
