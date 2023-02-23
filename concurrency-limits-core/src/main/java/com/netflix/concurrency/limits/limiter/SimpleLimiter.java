@@ -15,10 +15,12 @@
  */
 package com.netflix.concurrency.limits.limiter;
 
+import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 
 import java.util.Optional;
+import java.util.concurrent.Semaphore;
 
 public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
     public static class Builder extends AbstractLimiter.Builder<Builder> {
@@ -35,22 +37,75 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
     public static Builder newBuilder() {
         return new Builder();
     }
-
     private final MetricRegistry.SampleListener inflightDistribution;
+    private final AdjustableSemaphore semaphore;
 
     public SimpleLimiter(AbstractLimiter.Builder<?> builder) {
         super(builder);
 
         this.inflightDistribution = builder.registry.distribution(MetricIds.INFLIGHT_NAME);
+        this.semaphore = new AdjustableSemaphore(getLimit());
     }
 
     @Override
-    public Optional<Listener> acquire(ContextT context) {
-        int currentInFlight = getInflight();
-        inflightDistribution.addSample(currentInFlight);
-        if (currentInFlight >= getLimit()) {
+    public Optional<Limiter.Listener> acquire(ContextT context) {
+        if (!semaphore.tryAcquire()) {
             return createRejectedListener();
         }
-        return Optional.of(createListener());
+        Listener listener = new Listener(createListener());
+        inflightDistribution.addSample(getInflight());
+        return Optional.of(listener);
+    }
+
+    @Override
+    protected void onNewLimit(int newLimit) {
+        int oldLimit = this.getLimit();
+        super.onNewLimit(newLimit);
+
+        if (newLimit > oldLimit) {
+            semaphore.release(newLimit - oldLimit);
+        } else {
+            semaphore.reducePermits(oldLimit - newLimit);
+        }
+    }
+
+    /**
+     * Simple Semaphore subclass that allows access to its reducePermits method.
+     */
+    private static final class AdjustableSemaphore extends Semaphore {
+        AdjustableSemaphore(int permits) {
+            super(permits);
+        }
+
+        @Override
+        public void reducePermits(int reduction) {
+            super.reducePermits(reduction);
+        }
+    }
+
+    private class Listener implements Limiter.Listener {
+        private final Limiter.Listener delegate;
+
+        Listener(Limiter.Listener delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void onSuccess() {
+            delegate.onSuccess();
+            semaphore.release();
+        }
+
+        @Override
+        public void onIgnore() {
+            delegate.onIgnore();
+            semaphore.release();
+        }
+
+        @Override
+        public void onDropped() {
+            delegate.onDropped();
+            semaphore.release();
+        }
     }
 }
