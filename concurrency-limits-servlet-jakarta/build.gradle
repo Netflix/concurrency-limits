@@ -1,0 +1,43 @@
+plugins {
+    id 'java'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(11)
+    }
+}
+
+tasks.named('compileTestJava', JavaCompile).configure {
+    javaCompiler = javaToolchains.compilerFor {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+tasks.withType(Test).configureEach {
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+// give test dependencies access to compileOnly dependencies to emulate providedCompile
+configurations {
+    testImplementation.extendsFrom compileOnly
+}
+
+dependencies {
+    api project(":concurrency-limits-core")
+    compileOnly "jakarta.servlet:jakarta.servlet-api:6.0.0"
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+
+    testImplementation "org.mockito:mockito-core:${mockitoVersion}"
+    testImplementation "org.mockito:mockito-junit-jupiter:${mockitoVersion}"
+    testImplementation "org.slf4j:slf4j-log4j12:${slf4jVersion}"
+    testImplementation "org.eclipse.jetty:jetty-server:11.+"
+    testImplementation "org.eclipse.jetty:jetty-servlet:11.+"
+    testCompileOnly "junit:junit:${jUnitLegacyVersion}"
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${jUnitVersion}"
+    testImplementation "org.springframework:spring-test:6.+"
+    testRuntimeOnly "org.junit.vintage:junit-vintage-engine:${jUnitVersion}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${jUnitVersion}"
+}
