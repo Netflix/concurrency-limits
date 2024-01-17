@@ -49,12 +49,16 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
 
     @Override
     public Optional<Limiter.Listener> acquire(ContextT context) {
+        Optional<Limiter.Listener> listener;
         if (!semaphore.tryAcquire()) {
-            return createRejectedListener();
+            listener = createRejectedListener();
         }
-        Listener listener = new Listener(createListener());
+        else {
+            listener = Optional.of(new Listener(createListener()));
+        }
+
         inflightDistribution.addSample(getInflight());
-        return Optional.of(listener);
+        return listener;
     }
 
     @Override
