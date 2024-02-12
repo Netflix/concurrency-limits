@@ -4,7 +4,7 @@
             "project": true
         },
         "com.netflix.spectator:spectator-api": {
-            "locked": "1.3.6"
+            "locked": "1.7.7"
         },
         "org.slf4j:slf4j-api": {
             "locked": "1.7.36"
@@ -15,7 +15,7 @@
             "project": true
         },
         "com.netflix.spectator:spectator-api": {
-            "locked": "1.3.6"
+            "locked": "1.7.7"
         },
         "org.slf4j:slf4j-api": {
             "firstLevelTransitive": [
@@ -29,7 +29,7 @@
             "project": true
         },
         "com.netflix.spectator:spectator-api": {
-            "locked": "1.3.6"
+            "locked": "1.7.7"
         },
         "junit:junit": {
             "locked": "4.13.2"
@@ -43,13 +43,13 @@
             "project": true
         },
         "com.netflix.spectator:spectator-api": {
-            "locked": "1.3.6"
+            "locked": "1.7.7"
         },
         "org.junit.jupiter:junit-jupiter-engine": {
-            "locked": "5.9.0"
+            "locked": "5.10.2"
         },
         "org.junit.vintage:junit-vintage-engine": {
-            "locked": "5.9.0"
+            "locked": "5.10.2"
         },
         "org.slf4j:slf4j-api": {
             "firstLevelTransitive": [

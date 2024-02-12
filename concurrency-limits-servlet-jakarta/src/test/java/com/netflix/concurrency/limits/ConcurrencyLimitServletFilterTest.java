@@ -1,6 +1,5 @@
 package com.netflix.concurrency.limits;
 
-
 import com.netflix.concurrency.limits.servlet.jakarta.ConcurrencyLimitServletFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,12 +11,15 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
+
 import java.io.IOException;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,6 +31,9 @@ public class ConcurrencyLimitServletFilterTest {
 
     @Mock
     Limiter.Listener listener;
+
+    Predicate<HttpServletRequest> bypassActuatorEndpointPredicate = (request) ->
+            request.getRequestURI().contains("/actuator");
 
     @Test
     public void testDoFilterAllowed() throws ServletException, IOException {
@@ -79,6 +84,30 @@ public class ConcurrencyLimitServletFilterTest {
 
         filter.doFilter(new MockHttpServletRequest(), response, new MockFilterChain());
 
+        assertEquals(customThrottleStatus, response.getStatus(), "custom status should be respected");
+    }
+
+    @Test
+    public void testDoFilterBypassCheckPassed() throws ServletException, IOException {
+        ConcurrencyLimitServletFilter filter = new ConcurrencyLimitServletFilter(limiter, bypassActuatorEndpointPredicate);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/actuator/health");
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        verify(limiter, never()).acquire(any());
+    }
+
+    @Test
+    public void testDoFilterBypassCheckFailed() throws ServletException, IOException {
+        final int customThrottleStatus = 503;
+        ConcurrencyLimitServletFilter filter = new ConcurrencyLimitServletFilter(limiter, customThrottleStatus, bypassActuatorEndpointPredicate);
+        when(limiter.acquire(any())).thenReturn(Optional.empty());
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/users");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new MockFilterChain());
+
+        verify(limiter).acquire(any());
         assertEquals(customThrottleStatus, response.getStatus(), "custom status should be respected");
     }
 }

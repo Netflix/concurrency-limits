@@ -29,19 +29,19 @@
             "locked": "4.13.2"
         },
         "org.eclipse.jetty:jetty-server": {
-            "locked": "9.4.48.v20220622"
+            "locked": "9.4.53.v20231009"
         },
         "org.eclipse.jetty:jetty-servlet": {
-            "locked": "9.4.48.v20220622"
+            "locked": "9.4.53.v20231009"
         },
         "org.junit.jupiter:junit-jupiter-api": {
-            "locked": "5.9.0"
+            "locked": "5.10.2"
         },
         "org.mockito:mockito-core": {
-            "locked": "4.7.0"
+            "locked": "4.11.0"
         },
         "org.mockito:mockito-junit-jupiter": {
-            "locked": "4.7.0"
+            "locked": "4.11.0"
         },
         "org.slf4j:slf4j-api": {
             "locked": "1.7.36"
@@ -50,7 +50,7 @@
             "locked": "1.7.36"
         },
         "org.springframework:spring-test": {
-            "locked": "5.3.22"
+            "locked": "5.3.31"
         }
     },
     "testRuntimeClasspath": {
@@ -58,25 +58,25 @@
             "project": true
         },
         "org.eclipse.jetty:jetty-server": {
-            "locked": "9.4.48.v20220622"
+            "locked": "9.4.53.v20231009"
         },
         "org.eclipse.jetty:jetty-servlet": {
-            "locked": "9.4.48.v20220622"
+            "locked": "9.4.53.v20231009"
         },
         "org.junit.jupiter:junit-jupiter-api": {
-            "locked": "5.9.0"
+            "locked": "5.10.2"
         },
         "org.junit.jupiter:junit-jupiter-engine": {
-            "locked": "5.9.0"
+            "locked": "5.10.2"
         },
         "org.junit.vintage:junit-vintage-engine": {
-            "locked": "5.9.0"
+            "locked": "5.10.2"
         },
         "org.mockito:mockito-core": {
-            "locked": "4.7.0"
+            "locked": "4.11.0"
         },
         "org.mockito:mockito-junit-jupiter": {
-            "locked": "4.7.0"
+            "locked": "4.11.0"
         },
         "org.slf4j:slf4j-api": {
             "firstLevelTransitive": [
@@ -88,7 +88,7 @@
             "locked": "1.7.36"
         },
         "org.springframework:spring-test": {
-            "locked": "5.3.22"
+            "locked": "5.3.31"
         }
     }
 }

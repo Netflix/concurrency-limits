@@ -22,10 +22,10 @@
     },
     "testRuntimeClasspath": {
         "org.junit.jupiter:junit-jupiter-engine": {
-            "locked": "5.9.0"
+            "locked": "5.10.2"
         },
         "org.junit.vintage:junit-vintage-engine": {
-            "locked": "5.9.0"
+            "locked": "5.10.2"
         },
         "org.slf4j:slf4j-api": {
             "locked": "1.7.36"
