@@ -8,6 +8,7 @@ import org.junit.Test;
 
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class AbstractPartitionedLimiterTest {
     public static class TestPartitionedLimiter extends AbstractPartitionedLimiter<String> {
@@ -24,6 +25,13 @@ public class AbstractPartitionedLimiterTest {
 
         public TestPartitionedLimiter(Builder builder) {
             super(builder);
+        }
+    }
+
+    public static class ShouldBypassPredicate implements Predicate<String> {
+        @Override
+        public boolean test(String s) {
+            return s.contains("admin");
         }
     }
 
@@ -155,5 +163,55 @@ public class AbstractPartitionedLimiterTest {
         Assert.assertEquals(6, limiter.getPartition("batch").getLimit());
         Assert.assertEquals(1, limiter.getPartition("batch").getInflight());
         Assert.assertEquals(1, limiter.getInflight());
+    }
+
+    @Test
+    public void testBypassPartitionedLimiter() {
+
+        AbstractPartitionedLimiter<String> limiter = (AbstractPartitionedLimiter<String>) TestPartitionedLimiter.newBuilder()
+                .partitionResolver(Function.identity())
+                .partition("batch", 0.1)
+                .partition("live", 0.9)
+                .limit(FixedLimit.of(10))
+                .shouldBypass(new ShouldBypassPredicate())
+                .build();
+
+        for (int i = 0; i < 1; i++) {
+            Assert.assertTrue(limiter.acquire("batch").isPresent());
+            Assert.assertEquals(i+1, limiter.getPartition("batch").getInflight());
+            Assert.assertTrue(limiter.acquire("admin").isPresent());
+        }
+
+        for (int i = 0; i < 9; i++) {
+            Assert.assertTrue(limiter.acquire("live").isPresent());
+            Assert.assertEquals(i+1, limiter.getPartition("live").getInflight());
+            Assert.assertTrue(limiter.acquire("admin").isPresent());
+        }
+    }
+
+    @Test
+    public void testBypassSimpleLimiter() {
+
+        SimpleLimiter<String> limiter = (SimpleLimiter<String>) TestPartitionedLimiter.newBuilder()
+                .limit(FixedLimit.of(10))
+                .shouldBypass(new ShouldBypassPredicate())
+                .build();
+
+        int inflightCount = 0;
+        for (int i = 0; i < 5; i++) {
+            Assert.assertTrue(limiter.acquire("request").isPresent());
+            Assert.assertEquals(i+1, limiter.getInflight());
+            inflightCount++;
+        }
+
+        for (int i = 0; i < 15; i++) {
+            Assert.assertTrue(limiter.acquire("admin").isPresent());
+            Assert.assertEquals(inflightCount, limiter.getInflight());
+        }
+
+        for (int i = 0; i < 5; i++) {
+            Assert.assertTrue(limiter.acquire("request").isPresent());
+            Assert.assertEquals(inflightCount+i+1, limiter.getInflight());
+        }
     }
 }

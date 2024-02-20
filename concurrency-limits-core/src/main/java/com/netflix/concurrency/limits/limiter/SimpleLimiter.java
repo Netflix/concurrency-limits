@@ -23,6 +23,18 @@ import java.util.Optional;
 import java.util.concurrent.Semaphore;
 
 public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
+
+    public static class BypassLimiterBuilder<ContextT> extends AbstractLimiter.BypassLimiterBuilder<BypassLimiterBuilder<ContextT>, ContextT> {
+        public SimpleLimiter<ContextT> build() {
+            return new SimpleLimiter<>(this);
+        }
+
+        @Override
+        protected BypassLimiterBuilder<ContextT> self() {
+            return this;
+        }
+    }
+
     public static class Builder extends AbstractLimiter.Builder<Builder> {
         public <ContextT> SimpleLimiter<ContextT> build() {
             return new SimpleLimiter<>(this);
@@ -34,6 +46,10 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
         }
     }
 
+    public static <ContextT> BypassLimiterBuilder<ContextT> newBypassLimiterBuilder() {
+        return new BypassLimiterBuilder<>();
+    }
+
     public static Builder newBuilder() {
         return new Builder();
     }
@@ -42,7 +58,6 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
 
     public SimpleLimiter(AbstractLimiter.Builder<?> builder) {
         super(builder);
-
         this.inflightDistribution = builder.registry.distribution(MetricIds.INFLIGHT_NAME);
         this.semaphore = new AdjustableSemaphore(getLimit());
     }
@@ -50,13 +65,15 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
     @Override
     public Optional<Limiter.Listener> acquire(ContextT context) {
         Optional<Limiter.Listener> listener;
-        if (!semaphore.tryAcquire()) {
+        if (shouldBypass.test(context)){
+            listener = createBypassListener();
+        }
+        else if (!semaphore.tryAcquire()) {
             listener = createRejectedListener();
         }
         else {
             listener = Optional.of(new Listener(createListener()));
         }
-
         inflightDistribution.addSample(getInflight());
         return listener;
     }

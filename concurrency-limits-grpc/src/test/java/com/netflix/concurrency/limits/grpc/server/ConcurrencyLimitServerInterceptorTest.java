@@ -3,19 +3,12 @@ package com.netflix.concurrency.limits.grpc.server;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.netflix.concurrency.limits.Limiter;
-import com.netflix.concurrency.limits.grpc.StringMarshaller;
-import com.netflix.concurrency.limits.grpc.mockito.OptionalResultCaptor;
+import com.netflix.concurrency.limits.grpc.util.OptionalResultCaptor;
 import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.netflix.concurrency.limits.spectator.SpectatorMetricRegistry;
 import com.netflix.spectator.api.DefaultRegistry;
-import com.netflix.spectator.api.Meter;
-import com.netflix.spectator.api.Timer;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
-import io.grpc.ClientCall;
-import io.grpc.Metadata;
-import io.grpc.MethodDescriptor;
-import io.grpc.MethodDescriptor.MethodType;
 import io.grpc.Server;
 import io.grpc.ServerInterceptors;
 import io.grpc.ServerServiceDefinition;
@@ -34,37 +27,40 @@ import org.junit.rules.TestName;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
+
+import static com.netflix.concurrency.limits.grpc.util.InterceptorTestUtil.BYPASS_METHOD_DESCRIPTOR;
+import static com.netflix.concurrency.limits.grpc.util.InterceptorTestUtil.METHOD_DESCRIPTOR;
+import static com.netflix.concurrency.limits.grpc.util.InterceptorTestUtil.TEST_METRIC_NAME;
+import static com.netflix.concurrency.limits.grpc.util.InterceptorTestUtil.verifyCounts;
 
 public class ConcurrencyLimitServerInterceptorTest {
     @Rule
     public TestName testName = new TestName();
 
-    private static final MethodDescriptor<String, String> METHOD_DESCRIPTOR = MethodDescriptor.<String, String>newBuilder()
-            .setType(MethodType.UNARY)
-            .setFullMethodName("service/method")
-            .setRequestMarshaller(StringMarshaller.INSTANCE)
-            .setResponseMarshaller(StringMarshaller.INSTANCE)
-            .build();
-
-    private DefaultRegistry registry = new DefaultRegistry();
-
+    Limiter<GrpcServerRequestContext> limiter;
+    SimpleLimiter<GrpcServerRequestContext> bypassEnabledLimiter;
+    OptionalResultCaptor<Limiter.Listener> listener;
+    DefaultRegistry registry = new DefaultRegistry();
+    SpectatorMetricRegistry spectatorMetricRegistry = new SpectatorMetricRegistry(registry, registry.createId(TEST_METRIC_NAME));
     private Server server;
     private Channel channel;
-
-    Limiter<GrpcServerRequestContext> limiter;
-    OptionalResultCaptor<Limiter.Listener> listener;
 
     @Before
     public void beforeEachTest() {
         limiter = Mockito.spy(SimpleLimiter.newBuilder()
                 .named(testName.getMethodName())
-                .metricRegistry(new SpectatorMetricRegistry(registry, registry.createId("unit.test.limiter")))
+                .metricRegistry(spectatorMetricRegistry)
+                .build());
+
+        bypassEnabledLimiter = Mockito.spy(SimpleLimiter.<GrpcServerRequestContext>newBypassLimiterBuilder()
+                .shouldBypass(new ServerBypassMethodPredicate())
+                .named(testName.getMethodName())
+                .metricRegistry(spectatorMetricRegistry)
                 .build());
 
         listener = OptionalResultCaptor.forClass(Limiter.Listener.class);
-
         Mockito.doAnswer(listener).when(limiter).acquire(Mockito.any());
     }
 
@@ -80,12 +76,13 @@ public class ConcurrencyLimitServerInterceptorTest {
         registry.distributionSummaries().forEach(t -> System.out.println("  " + t.id() + " " + t.count() + " " + t.totalAmount()));
     }
 
-    private void startServer(ServerCalls.UnaryMethod<String, String> method) {
+    private void startServer(ServerCalls.UnaryMethod<String, String> method, Limiter<GrpcServerRequestContext> limiter) {
         try {
             server = NettyServerBuilder.forPort(0)
                     .addService(ServerInterceptors.intercept(
                             ServerServiceDefinition.builder("service")
                                     .addMethod(METHOD_DESCRIPTOR, ServerCalls.asyncUnaryCall(method))
+                                    .addMethod(BYPASS_METHOD_DESCRIPTOR, ServerCalls.asyncUnaryCall(method))
                                     .build(),
                             ConcurrencyLimitServerInterceptor.newBuilder(limiter)
                                     .build())
@@ -107,13 +104,13 @@ public class ConcurrencyLimitServerInterceptorTest {
         startServer((req, observer) -> {
             observer.onNext("response");
             observer.onCompleted();
-        });
+        }, limiter);
 
         ClientCalls.blockingUnaryCall(channel, METHOD_DESCRIPTOR, CallOptions.DEFAULT, "foo");
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
         Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onSuccess();
 
-        verifyCounts(0, 0, 1, 0);
+        verifyCounts(0, 0, 1, 0, 0, registry, testName.getMethodName());
     }
 
     @Test
@@ -121,7 +118,7 @@ public class ConcurrencyLimitServerInterceptorTest {
         // Setup server
         startServer((req, observer) -> {
             observer.onError(Status.INVALID_ARGUMENT.asRuntimeException());
-        });
+        }, limiter);
 
         try {
             ClientCalls.blockingUnaryCall(channel, METHOD_DESCRIPTOR, CallOptions.DEFAULT, "foo");
@@ -132,7 +129,7 @@ public class ConcurrencyLimitServerInterceptorTest {
         // Verify
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
 
-        verifyCounts(0, 0, 1, 0);
+        verifyCounts(0, 0, 1, 0, 0, registry, testName.getMethodName());
     }
 
     @Test
@@ -140,7 +137,7 @@ public class ConcurrencyLimitServerInterceptorTest {
         // Setup server
         startServer((req, observer) -> {
             throw new RuntimeException("failure");
-        });
+        }, limiter);
 
         try {
             ClientCalls.blockingUnaryCall(channel, METHOD_DESCRIPTOR, CallOptions.DEFAULT, "foo");
@@ -152,7 +149,7 @@ public class ConcurrencyLimitServerInterceptorTest {
         Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
         Mockito.verify(listener.getResult().get(), Mockito.timeout(1000).times(1)).onIgnore();
 
-        verifyCounts(0, 1, 0, 0);
+        verifyCounts(0, 1, 0, 0, 0, registry, testName.getMethodName());
     }
 
     @Test
@@ -162,7 +159,7 @@ public class ConcurrencyLimitServerInterceptorTest {
             Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
             observer.onNext("delayed_response");
             observer.onCompleted();
-        });
+        }, limiter);
 
         ListenableFuture<String> future = ClientCalls.futureUnaryCall(channel.newCall(METHOD_DESCRIPTOR, CallOptions.DEFAULT), "foo");
         Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
@@ -174,7 +171,7 @@ public class ConcurrencyLimitServerInterceptorTest {
 
         Mockito.verify(listener.getResult().get(), Mockito.timeout(2000).times(1)).onSuccess();
 
-        verifyCounts(0, 0, 1, 0);
+        verifyCounts(0, 0, 1, 0, 0, registry, testName.getMethodName());
     }
 
     @Test
@@ -184,7 +181,7 @@ public class ConcurrencyLimitServerInterceptorTest {
             Uninterruptibles.sleepUninterruptibly(2, TimeUnit.SECONDS);
             observer.onNext("delayed_response");
             observer.onCompleted();
-        });
+        }, limiter);
 
         try {
             ClientCalls.blockingUnaryCall(channel.newCall(METHOD_DESCRIPTOR, CallOptions.DEFAULT.withDeadlineAfter(1, TimeUnit.SECONDS)), "foo");
@@ -197,17 +194,57 @@ public class ConcurrencyLimitServerInterceptorTest {
 
         Mockito.verify(listener.getResult().get(), Mockito.timeout(2000).times(1)).onSuccess();
 
-        verifyCounts(0, 0, 1, 0);
+        verifyCounts(0, 0, 1, 0, 0, registry, testName.getMethodName());
     }
 
-    public void verifyCounts(int dropped, int ignored, int success, int rejected) {
-        try {
-            TimeUnit.SECONDS.sleep(1);
-        } catch (InterruptedException e) {
+    @Test
+    public void verifyBypassCountWhenBypassConditionAdded() {
+        // Setup server with a bypass condition enabled limiter
+        startServer((req, observer) -> {
+            observer.onNext("response");
+            observer.onCompleted();
+        }, bypassEnabledLimiter);
+
+        // Calling a method for which the predicate condition passes
+        ClientCalls.blockingUnaryCall(channel, BYPASS_METHOD_DESCRIPTOR, CallOptions.DEFAULT, "foo");
+        Mockito.verify(bypassEnabledLimiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
+
+        verifyCounts(0, 0, 0, 0, 1, registry, testName.getMethodName());
+    }
+
+    @Test
+    public void verifyBypassCountWhenBypassConditionFailed() {
+        // Setup server with a bypass condition enabled limiter
+        startServer((req, observer) -> {
+            observer.onNext("response");
+            observer.onCompleted();
+        }, bypassEnabledLimiter);
+
+        // Calling a method for which the predicate condition fails
+        ClientCalls.blockingUnaryCall(channel, METHOD_DESCRIPTOR, CallOptions.DEFAULT, "foo");
+        Mockito.verify(bypassEnabledLimiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
+
+        verifyCounts(0, 0, 1, 0, 0, registry, testName.getMethodName());
+    }
+
+    @Test
+    public void verifyBypassCountWhenNoBypassConditionAdded() {
+        // Setup server with no bypass condition enabled
+        startServer((req, observer) -> {
+            observer.onNext("response");
+            observer.onCompleted();
+        }, limiter);
+
+        ClientCalls.blockingUnaryCall(channel, BYPASS_METHOD_DESCRIPTOR, CallOptions.DEFAULT, "foo");
+        Mockito.verify(limiter, Mockito.times(1)).acquire(Mockito.isA(GrpcServerRequestContext.class));
+
+        verifyCounts(0, 0, 1, 0, 0, registry, testName.getMethodName());
+    }
+
+    public static class ServerBypassMethodPredicate implements Predicate<GrpcServerRequestContext> {
+        @Override
+        public boolean test(GrpcServerRequestContext grpcServerRequestContext) {
+            return grpcServerRequestContext.getCall().getMethodDescriptor().getFullMethodName().contains("bypass");
         }
-        Assert.assertEquals(dropped, registry.counter("unit.test.limiter.call", "id", testName.getMethodName(), "status", "dropped").count());
-        Assert.assertEquals(ignored, registry.counter("unit.test.limiter.call", "id", testName.getMethodName(), "status", "ignored").count());
-        Assert.assertEquals(success, registry.counter("unit.test.limiter.call", "id", testName.getMethodName(), "status", "success").count());
-        Assert.assertEquals(rejected, registry.counter("unit.test.limiter.call", "id", testName.getMethodName(), "status", "rejected").count());
     }
 }
