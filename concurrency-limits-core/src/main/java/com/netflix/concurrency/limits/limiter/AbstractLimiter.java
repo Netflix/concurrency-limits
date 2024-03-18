@@ -22,6 +22,8 @@ import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.limit.VegasLimit;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
@@ -31,20 +33,25 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     public static final String ID_TAG = "id";
     public static final String STATUS_TAG = "status";
 
-    // Will not bypass any calls by default
-    public Predicate<ContextT> shouldBypass = (context) -> false;
-
     /**
-     * Constructs a new builder with a bypass condition.
-     * If the shouldBypass predicate condition is satisfied,
+     * Constructs a new builder with a list of bypass resolvers.
+     * If the predicate condition in any of the resolver is satisfied,
      * the call is bypassed without increasing the limiter inflight count
      * and affecting the algorithm.
      */
     public abstract static class BypassLimiterBuilder<BuilderT extends BypassLimiterBuilder<BuilderT, ContextT>, ContextT> extends Builder<BuilderT> {
-        protected Predicate<ContextT> shouldBypass = (context) -> false;
 
-        public BuilderT shouldBypass(Predicate<ContextT> shouldBypass) {
-            this.shouldBypass = shouldBypass;
+        private final List<Predicate<ContextT>> bypassResolvers = new ArrayList<>();
+
+        /**
+         * Add a bypass resolver predicate from context. Multiple resolvers may be added and if any of the predicate
+         * condition returns true the call is bypassed without increasing the limiter inflight count and affecting
+         * the algorithm. Will not bypass any calls by default if no resolvers are added.
+         * @param shouldBypass Predicate condition
+         * @return Chainable builder
+         */
+        public BuilderT bypassLimitResolver(Predicate<ContextT> shouldBypass) {
+            this.bypassResolvers.add(shouldBypass);
             return self();
         }
     }
@@ -89,6 +96,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     private final MetricRegistry.Counter ignoredCounter;
     private final MetricRegistry.Counter rejectedCounter;
     private final MetricRegistry.Counter bypassCounter;
+    private List<Predicate<ContextT>> bypassResolvers = new ArrayList<>();
 
     private volatile int limit;
 
@@ -98,7 +106,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         this.limit = limitAlgorithm.getLimit();
         this.limitAlgorithm.notifyOnChange(this::onNewLimit);
         if (builder instanceof BypassLimiterBuilder) {
-            this.shouldBypass = ((BypassLimiterBuilder) builder).shouldBypass;
+            this.bypassResolvers = ((BypassLimiterBuilder) builder).bypassResolvers;
         }
         builder.registry.gauge(MetricIds.LIMIT_NAME, this::getLimit);
         this.successCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "success");
@@ -106,6 +114,10 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         this.ignoredCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "ignored");
         this.rejectedCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "rejected");
         this.bypassCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "bypassed");
+    }
+
+    protected boolean shouldBypass(ContextT context){
+        return bypassResolvers.stream().anyMatch(bypassResolver -> bypassResolver.test(context));
     }
 
     protected Optional<Listener> createRejectedListener() {

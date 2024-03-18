@@ -28,7 +28,6 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Predicate;
 
 import static com.netflix.concurrency.limits.grpc.util.InterceptorTestUtil.BYPASS_METHOD_DESCRIPTOR;
 import static com.netflix.concurrency.limits.grpc.util.InterceptorTestUtil.METHOD_DESCRIPTOR;
@@ -40,7 +39,7 @@ public class ConcurrencyLimitServerInterceptorTest {
     public TestName testName = new TestName();
 
     Limiter<GrpcServerRequestContext> limiter;
-    SimpleLimiter<GrpcServerRequestContext> bypassEnabledLimiter;
+    Limiter<GrpcServerRequestContext> bypassEnabledLimiter;
     OptionalResultCaptor<Limiter.Listener> listener;
     DefaultRegistry registry = new DefaultRegistry();
     SpectatorMetricRegistry spectatorMetricRegistry = new SpectatorMetricRegistry(registry, registry.createId(TEST_METRIC_NAME));
@@ -54,8 +53,8 @@ public class ConcurrencyLimitServerInterceptorTest {
                 .metricRegistry(spectatorMetricRegistry)
                 .build());
 
-        bypassEnabledLimiter = Mockito.spy(SimpleLimiter.<GrpcServerRequestContext>newBypassLimiterBuilder()
-                .shouldBypass(new ServerBypassMethodPredicate())
+        bypassEnabledLimiter = Mockito.spy(new GrpcServerLimiterBuilder()
+                .bypassLimitByMethod("service/bypass")
                 .named(testName.getMethodName())
                 .metricRegistry(spectatorMetricRegistry)
                 .build());
@@ -241,10 +240,4 @@ public class ConcurrencyLimitServerInterceptorTest {
         verifyCounts(0, 0, 1, 0, 0, registry, testName.getMethodName());
     }
 
-    public static class ServerBypassMethodPredicate implements Predicate<GrpcServerRequestContext> {
-        @Override
-        public boolean test(GrpcServerRequestContext grpcServerRequestContext) {
-            return grpcServerRequestContext.getCall().getMethodDescriptor().getFullMethodName().contains("bypass");
-        }
-    }
 }

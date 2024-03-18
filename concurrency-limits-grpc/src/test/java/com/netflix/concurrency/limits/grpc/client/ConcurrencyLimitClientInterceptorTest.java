@@ -21,7 +21,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Predicate;
 
 import org.junit.Before;
 import org.junit.Ignore;
@@ -41,7 +40,7 @@ public class ConcurrencyLimitClientInterceptorTest {
     public TestName testName = new TestName();
 
     Limiter<GrpcClientRequestContext> limiter;
-    SimpleLimiter<GrpcClientRequestContext> bypassEnabledLimiter;
+    Limiter<GrpcClientRequestContext> bypassEnabledLimiter;
     OptionalResultCaptor<Limiter.Listener> listener;
     DefaultRegistry registry = new DefaultRegistry();
     SpectatorMetricRegistry spectatorMetricRegistry = new SpectatorMetricRegistry(registry, registry.createId(TEST_METRIC_NAME));
@@ -55,8 +54,8 @@ public class ConcurrencyLimitClientInterceptorTest {
                 .metricRegistry(spectatorMetricRegistry)
                 .build());
 
-        bypassEnabledLimiter = Mockito.spy(SimpleLimiter.<GrpcClientRequestContext>newBypassLimiterBuilder()
-                .shouldBypass(new ClientBypassMethodPredicate())
+        bypassEnabledLimiter = Mockito.spy(new GrpcClientLimiterBuilder()
+                .bypassLimitByMethod("service/bypass")
                 .named(testName.getMethodName())
                 .metricRegistry(spectatorMetricRegistry)
                 .build());
@@ -198,10 +197,4 @@ public class ConcurrencyLimitClientInterceptorTest {
         }
     }
 
-    public static class ClientBypassMethodPredicate implements Predicate<GrpcClientRequestContext> {
-        @Override
-        public boolean test(GrpcClientRequestContext grpcClientRequestContext) {
-            return grpcClientRequestContext.getMethod().getFullMethodName().contains("bypass");
-        }
-    }
 }

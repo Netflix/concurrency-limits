@@ -215,7 +215,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
         try {
             lock.lock();
-            if (shouldBypass.test(context)){
+            if (shouldBypass(context)){
                 return createBypassListener();
             }
             if (getInflight() >= getLimit() && partition.isLimitExceeded()) {

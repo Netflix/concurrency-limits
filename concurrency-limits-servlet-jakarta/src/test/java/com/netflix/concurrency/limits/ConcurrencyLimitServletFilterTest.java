@@ -1,7 +1,7 @@
 package com.netflix.concurrency.limits;
 
-import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.netflix.concurrency.limits.servlet.jakarta.ConcurrencyLimitServletFilter;
+import com.netflix.concurrency.limits.servlet.jakarta.ServletLimiterBuilder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -15,7 +15,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.Optional;
-import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -28,12 +27,8 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 public class ConcurrencyLimitServletFilterTest {
 
-    Predicate<HttpServletRequest> bypassActuatorEndpointPredicate = (request) ->
-            request.getRequestURI().contains("/admin");
     @Spy
-    Limiter<HttpServletRequest> limiter = SimpleLimiter.<HttpServletRequest>newBypassLimiterBuilder()
-            .shouldBypass(bypassActuatorEndpointPredicate)
-            .build();
+    Limiter<HttpServletRequest> limiter = new ServletLimiterBuilder().bypassLimitByRequestUri("/admin/health").build();
 
     @Mock
     Limiter.Listener listener;

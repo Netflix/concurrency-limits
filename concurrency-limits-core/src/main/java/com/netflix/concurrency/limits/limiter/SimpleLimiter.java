@@ -65,7 +65,7 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
     @Override
     public Optional<Limiter.Listener> acquire(ContextT context) {
         Optional<Limiter.Listener> listener;
-        if (shouldBypass.test(context)){
+        if (shouldBypass(context)) {
             listener = createBypassListener();
         }
         else if (!semaphore.tryAcquire()) {

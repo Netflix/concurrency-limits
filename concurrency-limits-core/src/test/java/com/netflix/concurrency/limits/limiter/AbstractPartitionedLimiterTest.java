@@ -173,7 +173,7 @@ public class AbstractPartitionedLimiterTest {
                 .partition("batch", 0.1)
                 .partition("live", 0.9)
                 .limit(FixedLimit.of(10))
-                .shouldBypass(new ShouldBypassPredicate())
+                .bypassLimitResolver(new ShouldBypassPredicate())
                 .build();
 
         for (int i = 0; i < 1; i++) {
@@ -194,7 +194,7 @@ public class AbstractPartitionedLimiterTest {
 
         SimpleLimiter<String> limiter = (SimpleLimiter<String>) TestPartitionedLimiter.newBuilder()
                 .limit(FixedLimit.of(10))
-                .shouldBypass(new ShouldBypassPredicate())
+                .bypassLimitResolver(new ShouldBypassPredicate())
                 .build();
 
         int inflightCount = 0;
