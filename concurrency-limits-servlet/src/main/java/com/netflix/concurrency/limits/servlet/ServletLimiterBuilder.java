@@ -110,13 +110,13 @@ public final class ServletLimiterBuilder extends AbstractPartitionedLimiter.Buil
     }
 
     /**
-     * Bypass limit if the request URI matches the specified URI.
-     * @param uri The URI to check against the {@link HttpServletRequest } URI.
-     *            If the request's URI matches this URI, the limit will be bypassed.
+     * Bypass limit if the request path info matches the specified path.
+     * @param pathInfo The path info to check against the {@link HttpServletRequest } pathInfo.
+     *            If the request's pathInfo matches this, the limit will be bypassed.
      * @return Chainable builder
      */
-    public ServletLimiterBuilder bypassLimitByRequestUri(String uri) {
-        return bypassLimitResolver((context) -> uri.equals(context.getRequestURI()));
+    public ServletLimiterBuilder bypassLimitByPathInfo(String pathInfo) {
+        return bypassLimitResolver((context) -> pathInfo.equals(context.getPathInfo()));
     }
 
     /**
