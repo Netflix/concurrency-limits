@@ -176,17 +176,23 @@ public class AbstractPartitionedLimiterTest {
                 .bypassLimitResolver(new ShouldBypassPredicate())
                 .build();
 
-        for (int i = 0; i < 1; i++) {
-            Assert.assertTrue(limiter.acquire("batch").isPresent());
-            Assert.assertEquals(i+1, limiter.getPartition("batch").getInflight());
-            Assert.assertTrue(limiter.acquire("admin").isPresent());
-        }
+        Assert.assertTrue(limiter.acquire("batch").isPresent());
+        Assert.assertEquals(1, limiter.getPartition("batch").getInflight());
+        Assert.assertTrue(limiter.acquire("admin").isPresent());
 
         for (int i = 0; i < 9; i++) {
             Assert.assertTrue(limiter.acquire("live").isPresent());
             Assert.assertEquals(i+1, limiter.getPartition("live").getInflight());
             Assert.assertTrue(limiter.acquire("admin").isPresent());
         }
+
+        // Verify that bypassed requests are able to proceed even when the limiter is full
+        Assert.assertFalse(limiter.acquire("batch").isPresent());
+        Assert.assertEquals(1, limiter.getPartition("batch").getInflight());
+        Assert.assertFalse(limiter.acquire("live").isPresent());
+        Assert.assertEquals(9, limiter.getPartition("live").getInflight());
+        Assert.assertEquals(10, limiter.getInflight());
+        Assert.assertTrue(limiter.acquire("admin").isPresent());
     }
 
     @Test
