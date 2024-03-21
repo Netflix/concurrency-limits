@@ -39,7 +39,8 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
      */
     public abstract static class BypassLimiterBuilder<BuilderT extends BypassLimiterBuilder<BuilderT, ContextT>, ContextT> extends Builder<BuilderT> {
 
-        private Predicate<ContextT> bypassResolver = (context) -> false;
+        private final Predicate<ContextT> ALWAYS_FALSE = (context) -> false;
+        private Predicate<ContextT> bypassResolver = ALWAYS_FALSE;
 
         /**
          * Add a chainable bypass resolver predicate from context. Multiple resolvers may be added and if any of the
@@ -49,7 +50,11 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
          * @return Chainable builder
          */
         public BuilderT bypassLimitResolver(Predicate<ContextT> shouldBypass) {
-            this.bypassResolver = bypassResolver.or(shouldBypass);
+            if (this.bypassResolver == ALWAYS_FALSE) {
+                this.bypassResolver = shouldBypass;
+            } else {
+                this.bypassResolver = bypassResolver.or(shouldBypass);
+            }
             return self();
         }
     }
