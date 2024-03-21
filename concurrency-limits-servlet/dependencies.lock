@@ -25,17 +25,23 @@
         "com.netflix.concurrency-limits:concurrency-limits-core": {
             "project": true
         },
+        "com.netflix.concurrency-limits:concurrency-limits-spectator": {
+            "project": true
+        },
+        "com.netflix.spectator:spectator-api": {
+            "firstLevelTransitive": [
+                "com.netflix.concurrency-limits:concurrency-limits-spectator"
+            ],
+            "locked": "1.7.9"
+        },
         "junit:junit": {
             "locked": "4.13.2"
         },
         "org.eclipse.jetty:jetty-server": {
-            "locked": "9.4.53.v20231009"
+            "locked": "9.4.54.v20240208"
         },
         "org.eclipse.jetty:jetty-servlet": {
-            "locked": "9.4.53.v20231009"
-        },
-        "org.junit.jupiter:junit-jupiter-api": {
-            "locked": "5.10.2"
+            "locked": "9.4.54.v20240208"
         },
         "org.mockito:mockito-core": {
             "locked": "4.11.0"
@@ -50,21 +56,30 @@
             "locked": "1.7.36"
         },
         "org.springframework:spring-test": {
-            "locked": "5.3.31"
+            "locked": "5.3.33"
         }
     },
     "testRuntimeClasspath": {
         "com.netflix.concurrency-limits:concurrency-limits-core": {
+            "firstLevelTransitive": [
+                "com.netflix.concurrency-limits:concurrency-limits-spectator"
+            ],
             "project": true
         },
+        "com.netflix.concurrency-limits:concurrency-limits-spectator": {
+            "project": true
+        },
+        "com.netflix.spectator:spectator-api": {
+            "firstLevelTransitive": [
+                "com.netflix.concurrency-limits:concurrency-limits-spectator"
+            ],
+            "locked": "1.7.9"
+        },
         "org.eclipse.jetty:jetty-server": {
-            "locked": "9.4.53.v20231009"
+            "locked": "9.4.54.v20240208"
         },
         "org.eclipse.jetty:jetty-servlet": {
-            "locked": "9.4.53.v20231009"
-        },
-        "org.junit.jupiter:junit-jupiter-api": {
-            "locked": "5.10.2"
+            "locked": "9.4.54.v20240208"
         },
         "org.junit.jupiter:junit-jupiter-engine": {
             "locked": "5.10.2"
@@ -80,7 +95,8 @@
         },
         "org.slf4j:slf4j-api": {
             "firstLevelTransitive": [
-                "com.netflix.concurrency-limits:concurrency-limits-core"
+                "com.netflix.concurrency-limits:concurrency-limits-core",
+                "com.netflix.concurrency-limits:concurrency-limits-spectator"
             ],
             "locked": "1.7.36"
         },
@@ -88,7 +104,7 @@
             "locked": "1.7.36"
         },
         "org.springframework:spring-test": {
-            "locked": "5.3.31"
+            "locked": "5.3.33"
         }
     }
 }

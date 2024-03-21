@@ -213,5 +213,12 @@ public class AbstractPartitionedLimiterTest {
             Assert.assertTrue(limiter.acquire("request").isPresent());
             Assert.assertEquals(inflightCount+i+1, limiter.getInflight());
         }
+
+        // Calls with passing bypass condition will return a token
+        // whereas remaining calls will be throttled since inflight count is greater than the limit
+        for (int i = 0; i < 10; i++) {
+            Assert.assertFalse(limiter.acquire("request").isPresent());
+            Assert.assertTrue(limiter.acquire("admin").isPresent());
+        }
     }
 }

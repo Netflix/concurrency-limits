@@ -32,7 +32,7 @@
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-spectator"
             ],
-            "locked": "1.7.7"
+            "locked": "1.7.9"
         },
         "io.grpc:grpc-netty": {
             "locked": "1.9.0"
@@ -70,7 +70,7 @@
             "firstLevelTransitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-spectator"
             ],
-            "locked": "1.7.7"
+            "locked": "1.7.9"
         },
         "io.grpc:grpc-netty": {
             "locked": "1.9.0"
