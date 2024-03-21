@@ -44,6 +44,40 @@ public class GrpcServerLimiterBuilder extends AbstractPartitionedLimiter.Builder
         return partitionResolver(context -> context.getCall().getAttributes().get(attribute));
     }
 
+    /**
+     * Bypass limit if the request's full method name matches the specified gRPC method's full name.
+     * @param fullMethodName The full method name to check against the {@link GrpcServerRequestContext}'s method.
+     *                       If the request's method matches this fullMethodName, the limit will be bypassed.
+     * @return Chainable builder
+     */
+    public GrpcServerLimiterBuilder bypassLimitByMethod(String fullMethodName) {
+        return bypassLimitResolver(context  -> fullMethodName.equals(context.getCall().getMethodDescriptor().getFullMethodName()));
+    }
+
+    /**
+     * Bypass limit if the value of the specified header matches the provided value.
+     * @param header The header key to check against the {@link GrpcServerRequestContext}'s headers.
+     * @param value The value to compare against the value of the specified header in the request.
+     *              If they match, the limit will be bypassed.
+     * @param <T> The type of the header value.
+     * @return Chainable builder
+     */
+    public <T> GrpcServerLimiterBuilder bypassLimitByHeader(Metadata.Key<String> header, T value) {
+        return bypassLimitResolver(context -> value.equals(context.getHeaders().get(header)));
+    }
+
+    /**
+     * Bypass limit if the value of the specified attribute matches the provided value.
+     * @param attribute The attribute key to check against the {@link GrpcServerRequestContext}'s attributes.
+     * @param value The value to compare against the value of the specified attribute in the request.
+     *              If they match, the limit will be bypassed.
+     * @param <T> The type of the attribute value.
+     * @return Chainable builder
+     */
+    public <T> GrpcServerLimiterBuilder bypassLimitByAttribute(Attributes.Key<String> attribute, T value) {
+        return bypassLimitResolver(context -> value.equals(context.getCall().getAttributes().get(attribute)));
+    }
+
     @Override
     protected GrpcServerLimiterBuilder self() {
         return this;

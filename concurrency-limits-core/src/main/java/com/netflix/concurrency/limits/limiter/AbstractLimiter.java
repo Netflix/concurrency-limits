@@ -24,11 +24,40 @@ import com.netflix.concurrency.limits.limit.VegasLimit;
 
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     public static final String ID_TAG = "id";
     public static final String STATUS_TAG = "status";
+
+    /**
+     * Constructs a new builder with a list of bypass resolvers.
+     * If the predicate condition in any of the resolver is satisfied,
+     * the call is bypassed without increasing the limiter inflight count
+     * and affecting the algorithm.
+     */
+    public abstract static class BypassLimiterBuilder<BuilderT extends BypassLimiterBuilder<BuilderT, ContextT>, ContextT> extends Builder<BuilderT> {
+
+        private final Predicate<ContextT> ALWAYS_FALSE = (context) -> false;
+        private Predicate<ContextT> bypassResolver = ALWAYS_FALSE;
+
+        /**
+         * Add a chainable bypass resolver predicate from context. Multiple resolvers may be added and if any of the
+         * predicate condition returns true the call is bypassed without increasing the limiter inflight count and
+         * affecting the algorithm. Will not bypass any calls by default if no resolvers are added.
+         * @param shouldBypass Predicate condition to bypass limit
+         * @return Chainable builder
+         */
+        public BuilderT bypassLimitResolver(Predicate<ContextT> shouldBypass) {
+            if (this.bypassResolver == ALWAYS_FALSE) {
+                this.bypassResolver = shouldBypass;
+            } else {
+                this.bypassResolver = bypassResolver.or(shouldBypass);
+            }
+            return self();
+        }
+    }
 
     public abstract static class Builder<BuilderT extends Builder<BuilderT>> {
         private static final AtomicInteger idCounter = new AtomicInteger();
@@ -69,6 +98,8 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     private final MetricRegistry.Counter droppedCounter;
     private final MetricRegistry.Counter ignoredCounter;
     private final MetricRegistry.Counter rejectedCounter;
+    private final MetricRegistry.Counter bypassCounter;
+    private Predicate<ContextT> bypassResolver = (context) -> false;
 
     private volatile int limit;
 
@@ -77,17 +108,45 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         this.limitAlgorithm = builder.limit;
         this.limit = limitAlgorithm.getLimit();
         this.limitAlgorithm.notifyOnChange(this::onNewLimit);
-
+        if (builder instanceof BypassLimiterBuilder) {
+            this.bypassResolver = ((BypassLimiterBuilder) builder).bypassResolver;
+        }
         builder.registry.gauge(MetricIds.LIMIT_NAME, this::getLimit);
         this.successCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "success");
         this.droppedCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "dropped");
         this.ignoredCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "ignored");
         this.rejectedCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "rejected");
+        this.bypassCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "bypassed");
+    }
+
+    protected boolean shouldBypass(ContextT context){
+        return bypassResolver.test(context);
     }
 
     protected Optional<Listener> createRejectedListener() {
         this.rejectedCounter.increment();
         return Optional.empty();
+    }
+
+    protected Optional<Listener> createBypassListener() {
+        this.bypassCounter.increment();
+        return Optional.of(new Listener() {
+
+            @Override
+            public void onSuccess() {
+                // Do nothing
+            }
+
+            @Override
+            public void onIgnore() {
+                // Do nothing
+            }
+
+            @Override
+            public void onDropped() {
+                // Do nothing
+            }
+        });
     }
 
     protected Listener createListener() {

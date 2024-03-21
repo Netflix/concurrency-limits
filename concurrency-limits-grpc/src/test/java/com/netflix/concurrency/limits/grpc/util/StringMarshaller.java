@@ -1,4 +1,4 @@
-package com.netflix.concurrency.limits.grpc;
+package com.netflix.concurrency.limits.grpc.util;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

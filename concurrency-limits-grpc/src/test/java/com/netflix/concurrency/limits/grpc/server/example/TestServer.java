@@ -13,12 +13,9 @@ import org.apache.commons.math3.distribution.LogNormalDistribution;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.netflix.concurrency.limits.Limiter;
-import com.netflix.concurrency.limits.grpc.StringMarshaller;
 import com.netflix.concurrency.limits.grpc.server.ConcurrencyLimitServerInterceptor;
 import com.netflix.concurrency.limits.grpc.server.GrpcServerRequestContext;
 
-import io.grpc.MethodDescriptor;
-import io.grpc.MethodDescriptor.MethodType;
 import io.grpc.Server;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptors;
@@ -31,15 +28,10 @@ import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.netflix.concurrency.limits.grpc.util.InterceptorTestUtil.METHOD_DESCRIPTOR;
+
 public class TestServer {
     private static final Logger LOG = LoggerFactory.getLogger(TestServer.class);
-
-    public static final MethodDescriptor<String, String> METHOD_DESCRIPTOR = MethodDescriptor.<String, String>newBuilder()
-            .setType(MethodType.UNARY)
-            .setFullMethodName("service/method")
-            .setRequestMarshaller(StringMarshaller.INSTANCE)
-            .setResponseMarshaller(StringMarshaller.INSTANCE)
-            .build();
 
     private interface Segment {
         long duration();

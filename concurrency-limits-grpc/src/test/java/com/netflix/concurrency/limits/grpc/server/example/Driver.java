@@ -1,9 +1,6 @@
 package com.netflix.concurrency.limits.grpc.server.example;
 
 import com.google.common.util.concurrent.Uninterruptibles;
-import com.netflix.concurrency.limits.grpc.client.ConcurrencyLimitClientInterceptor;
-import com.netflix.concurrency.limits.limit.FixedLimit;
-import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
 import io.grpc.ClientInterceptors;
@@ -24,6 +21,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import static com.netflix.concurrency.limits.grpc.util.InterceptorTestUtil.METHOD_DESCRIPTOR;
 
 public class Driver {
     public static final Metadata.Key<String> ID_HEADER = Metadata.Key.of("id", Metadata.ASCII_STRING_MARSHALLER);
@@ -158,7 +157,7 @@ public class Driver {
                     
                     long startTime = System.nanoTime();
                     Uninterruptibles.sleepUninterruptibly(Math.max(0, segment.nextDelay()), TimeUnit.MILLISECONDS);
-                    ClientCalls.asyncUnaryCall(channel.newCall(TestServer.METHOD_DESCRIPTOR, CallOptions.DEFAULT.withWaitForReady()), "request",
+                    ClientCalls.asyncUnaryCall(channel.newCall(METHOD_DESCRIPTOR, CallOptions.DEFAULT.withWaitForReady()), "request",
                             new StreamObserver<String>() {
                                 @Override
                                 public void onNext(String value) {

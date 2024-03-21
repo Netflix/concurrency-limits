@@ -72,7 +72,63 @@ public final class ServletLimiterBuilder extends AbstractPartitionedLimiter.Buil
     public ServletLimiterBuilder partitionByPathInfo(Function<String, String> pathToGroup) {
         return partitionResolver(request -> Optional.ofNullable(request.getPathInfo()).map(pathToGroup).orElse(null));
     }
-    
+
+    /**
+     * Bypass the limit if the value of the provided header name matches the specified value.
+     * @param name The name of the header to check.
+     *             This should match exactly with the header name in the {@link HttpServletRequest } context.
+     * @param value The value to compare against.
+     *              If the value of the header in the context matches this value, the limit will be bypassed.
+     * @return Chainable builder
+     */
+    public ServletLimiterBuilder bypassLimitByHeader(String name, String value) {
+        return bypassLimitResolver((context) -> value.equals(context.getHeader(name)));
+    }
+
+    /**
+     * Bypass limit if the value of the provided attribute name matches the specified value.
+     * @param name The name of the attribute to check.
+     *             This should match exactly with the attribute name in the {@link HttpServletRequest } context.
+     * @param value The value to compare against.
+     *              If the value of the attribute in the context matches this value, the limit will be bypassed.
+     * @return Chainable builder
+     */
+    public ServletLimiterBuilder bypassLimitByAttribute(String name, String value) {
+        return bypassLimitResolver((context) -> value.equals(context.getAttribute(name).toString()));
+    }
+
+    /**
+     * Bypass limit if the value of the provided parameter name matches the specified value.
+     * @param name The name of the parameter to check.
+     *             This should match exactly with the parameter name in the {@link HttpServletRequest } context.
+     * @param value The value to compare against.
+     *              If the value of the parameter in the context matches this value, the limit will be bypassed.
+     * @return Chainable builder
+     */
+    public ServletLimiterBuilder bypassLimitByParameter(String name, String value) {
+        return bypassLimitResolver((context) -> value.equals(context.getParameter(name)));
+    }
+
+    /**
+     * Bypass limit if the request path info matches the specified path.
+     * @param pathInfo The path info to check against the {@link HttpServletRequest } pathInfo.
+     *            If the request's pathInfo matches this, the limit will be bypassed.
+     * @return Chainable builder
+     */
+    public ServletLimiterBuilder bypassLimitByPathInfo(String pathInfo) {
+        return bypassLimitResolver((context) -> pathInfo.equals(context.getPathInfo()));
+    }
+
+    /**
+     * Bypass limit if the request method matches the specified method.
+     * @param method The HTTP method (e.g. GET, POST, or PUT) to check against the {@link HttpServletRequest } method.
+     *               If the request's method matches this method, the limit will be bypassed.
+     * @return Chainable builder
+     */
+    public ServletLimiterBuilder bypassLimitByMethod(String method) {
+        return bypassLimitResolver((context) -> method.equals(context.getMethod()));
+    }
+
     @Override
     protected ServletLimiterBuilder self() {
         return this;

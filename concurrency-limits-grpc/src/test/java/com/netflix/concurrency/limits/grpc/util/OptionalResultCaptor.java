@@ -1,4 +1,4 @@
-package com.netflix.concurrency.limits.grpc.mockito;
+package com.netflix.concurrency.limits.grpc.util;
 
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
