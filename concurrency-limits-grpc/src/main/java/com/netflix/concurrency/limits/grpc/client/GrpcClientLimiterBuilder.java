@@ -19,6 +19,7 @@ import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limiter.AbstractPartitionedLimiter;
 import com.netflix.concurrency.limits.limiter.BlockingLimiter;
 import io.grpc.CallOptions;
+import java.util.function.Predicate;
 
 /**
  * Builder to simplify creating a {@link Limiter} specific to GRPC clients. 
@@ -32,6 +33,18 @@ public final class GrpcClientLimiterBuilder extends AbstractPartitionedLimiter.B
     
     public GrpcClientLimiterBuilder partitionByCallOption(CallOptions.Key<String> option) {
         return partitionResolver(context -> context.getCallOptions().getOption(option));
+    }
+
+    /**
+     * Add a chainable bypass resolver predicate from context. Multiple resolvers may be added and if any of the
+     * predicate condition returns true the call is bypassed without increasing the limiter inflight count and
+     * affecting the algorithm. Will not bypass any calls by default if no resolvers are added.
+     *
+     * @param shouldBypass Predicate condition to bypass limit
+     * @return Chainable builder
+     */
+    public GrpcClientLimiterBuilder bypassLimitResolver(Predicate<GrpcClientRequestContext> shouldBypass) {
+        return bypassLimitResolverInternal(shouldBypass);
     }
 
     /**

@@ -48,9 +48,9 @@ public class SimpleLimiterTest {
 
     @Test
     public void testSimpleBypassLimiter() {
-        SimpleLimiter<String> limiter = SimpleLimiter.<String>newBypassLimiterBuilder()
+        SimpleLimiter<String> limiter = SimpleLimiter.<String>newBuilder()
                 .limit(FixedLimit.of(10))
-                .bypassLimitResolver((context) -> context.equals("admin"))
+                .bypassLimitResolverInternal((context) -> context.equals("admin"))
                 .build();
 
         for (int i = 0; i < 10; i++) {
@@ -68,7 +68,7 @@ public class SimpleLimiterTest {
 
     @Test
     public void testSimpleBypassLimiterDefault() {
-        SimpleLimiter<String> limiter = SimpleLimiter.<String>newBypassLimiterBuilder()
+        SimpleLimiter<String> limiter = SimpleLimiter.<String>newBuilder()
                 .limit(FixedLimit.of(10))
                 .build();
 
