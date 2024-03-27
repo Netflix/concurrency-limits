@@ -76,7 +76,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
          * @param shouldBypass Predicate condition to bypass limit
          * @return Chainable builder
          */
-        protected BuilderT bypassLimitResolverInternal(Predicate<?> shouldBypass) {
+        protected final BuilderT bypassLimitResolverInternal(Predicate<?> shouldBypass) {
             if (this.bypassResolver == ALWAYS_FALSE) {
                 this.bypassResolver = (Predicate<Object>) shouldBypass;
             } else {
@@ -94,7 +94,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     private final MetricRegistry.Counter ignoredCounter;
     private final MetricRegistry.Counter rejectedCounter;
     private final MetricRegistry.Counter bypassCounter;
-    private Predicate<ContextT> bypassResolver = (context) -> false;
+    private final Predicate<ContextT> bypassResolver;
 
     private volatile int limit;
 
