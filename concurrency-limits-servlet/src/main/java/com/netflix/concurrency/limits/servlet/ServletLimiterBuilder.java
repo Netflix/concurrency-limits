@@ -18,6 +18,7 @@ package com.netflix.concurrency.limits.servlet;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limiter.AbstractPartitionedLimiter;
 
+import java.util.function.Predicate;
 import javax.servlet.http.HttpServletRequest;
 import java.security.Principal;
 import java.util.Optional;
@@ -71,6 +72,18 @@ public final class ServletLimiterBuilder extends AbstractPartitionedLimiter.Buil
      */
     public ServletLimiterBuilder partitionByPathInfo(Function<String, String> pathToGroup) {
         return partitionResolver(request -> Optional.ofNullable(request.getPathInfo()).map(pathToGroup).orElse(null));
+    }
+
+    /**
+     * Add a chainable bypass resolver predicate from context. Multiple resolvers may be added and if any of the
+     * predicate condition returns true the call is bypassed without increasing the limiter inflight count and
+     * affecting the algorithm. Will not bypass any calls by default if no resolvers are added.
+     *
+     * @param shouldBypass Predicate condition to bypass limit
+     * @return Chainable builder
+     */
+    public ServletLimiterBuilder bypassLimitResolver(Predicate<HttpServletRequest> shouldBypass) {
+        return bypassLimitResolverInternal(shouldBypass);
     }
 
     /**

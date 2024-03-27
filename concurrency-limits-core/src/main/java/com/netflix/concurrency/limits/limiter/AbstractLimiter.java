@@ -31,34 +31,6 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     public static final String ID_TAG = "id";
     public static final String STATUS_TAG = "status";
 
-    /**
-     * Constructs a new builder with a list of bypass resolvers.
-     * If the predicate condition in any of the resolver is satisfied,
-     * the call is bypassed without increasing the limiter inflight count
-     * and affecting the algorithm.
-     */
-    public abstract static class BypassLimiterBuilder<BuilderT extends BypassLimiterBuilder<BuilderT, ContextT>, ContextT> extends Builder<BuilderT> {
-
-        private final Predicate<ContextT> ALWAYS_FALSE = (context) -> false;
-        private Predicate<ContextT> bypassResolver = ALWAYS_FALSE;
-
-        /**
-         * Add a chainable bypass resolver predicate from context. Multiple resolvers may be added and if any of the
-         * predicate condition returns true the call is bypassed without increasing the limiter inflight count and
-         * affecting the algorithm. Will not bypass any calls by default if no resolvers are added.
-         * @param shouldBypass Predicate condition to bypass limit
-         * @return Chainable builder
-         */
-        public BuilderT bypassLimitResolver(Predicate<ContextT> shouldBypass) {
-            if (this.bypassResolver == ALWAYS_FALSE) {
-                this.bypassResolver = shouldBypass;
-            } else {
-                this.bypassResolver = bypassResolver.or(shouldBypass);
-            }
-            return self();
-        }
-    }
-
     public abstract static class Builder<BuilderT extends Builder<BuilderT>> {
         private static final AtomicInteger idCounter = new AtomicInteger();
 
@@ -67,6 +39,9 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
 
         protected String name = "unnamed-" + idCounter.incrementAndGet();
         protected MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
+
+        private final Predicate<Object> ALWAYS_FALSE = (context) -> false;
+        private Predicate<Object> bypassResolver = ALWAYS_FALSE;
 
         public BuilderT named(String name) {
             this.name = name;
@@ -89,6 +64,26 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         }
 
         protected abstract BuilderT self();
+
+        /**
+         * Add a chainable bypass resolver predicate from context. Multiple resolvers may be added and if any of the
+         * predicate condition returns true the call is bypassed without increasing the limiter inflight count and
+         * affecting the algorithm. Will not bypass any calls by default if no resolvers are added.
+         *
+         * Due to the builders not having access to the ContextT, it is the duty of subclasses to ensure that
+         * implementations are type safe.
+         *
+         * @param shouldBypass Predicate condition to bypass limit
+         * @return Chainable builder
+         */
+        protected final BuilderT bypassLimitResolverInternal(Predicate<?> shouldBypass) {
+            if (this.bypassResolver == ALWAYS_FALSE) {
+                this.bypassResolver = (Predicate<Object>) shouldBypass;
+            } else {
+                this.bypassResolver = bypassResolver.or((Predicate<Object>) shouldBypass);
+            }
+            return self();
+        }
     }
 
     private final AtomicInteger inFlight = new AtomicInteger();
@@ -99,7 +94,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     private final MetricRegistry.Counter ignoredCounter;
     private final MetricRegistry.Counter rejectedCounter;
     private final MetricRegistry.Counter bypassCounter;
-    private Predicate<ContextT> bypassResolver = (context) -> false;
+    private final Predicate<ContextT> bypassResolver;
 
     private volatile int limit;
 
@@ -108,9 +103,8 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         this.limitAlgorithm = builder.limit;
         this.limit = limitAlgorithm.getLimit();
         this.limitAlgorithm.notifyOnChange(this::onNewLimit);
-        if (builder instanceof BypassLimiterBuilder) {
-            this.bypassResolver = ((BypassLimiterBuilder) builder).bypassResolver;
-        }
+        this.bypassResolver = (Predicate<ContextT>) builder.bypassResolver;
+
         builder.registry.gauge(MetricIds.LIMIT_NAME, this::getLimit);
         this.successCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "success");
         this.droppedCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "dropped");
