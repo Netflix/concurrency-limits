@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class AIMDLimit extends AbstractLimit {
     private static final long DEFAULT_TIMEOUT = TimeUnit.SECONDS.toNanos(5);
-    private static final Logger log = LoggerFactory.getLogger(AIMDLimit.class);
+    private static final Logger LOG = LoggerFactory.getLogger(AIMDLimit.class);
 
     public static class Builder {
         private int minLimit = 20;
@@ -72,7 +72,7 @@ public final class AIMDLimit extends AbstractLimit {
         
         public AIMDLimit build() {
             if (initialLimit > maxLimit) {
-                log.warn("Initial limit {} exceeded maximum limit {}", initialLimit, maxLimit);
+                LOG.warn("Initial limit {} exceeded maximum limit {}", initialLimit, maxLimit);
             }
             return new AIMDLimit(this);
         }
