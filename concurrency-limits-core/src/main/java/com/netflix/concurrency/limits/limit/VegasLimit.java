@@ -136,6 +136,9 @@ public class VegasLimit extends AbstractLimit {
         }
         
         public VegasLimit build() {
+            if (initialLimit > maxConcurrency) {
+                LOG.warn("Initial limit {} exceeded maximum limit {}", initialLimit, maxConcurrency);
+            }
             return new VegasLimit(this);
         }
     }

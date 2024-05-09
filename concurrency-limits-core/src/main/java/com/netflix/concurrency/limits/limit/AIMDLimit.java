@@ -74,6 +74,9 @@ public final class AIMDLimit extends AbstractLimit {
             if (initialLimit > maxLimit) {
                 LOG.warn("Initial limit {} exceeded maximum limit {}", initialLimit, maxLimit);
             }
+            if (initialLimit < minLimit) {
+                LOG.warn("Initial limit {} is less than minimum limit {}", initialLimit, minLimit);
+            }
             return new AIMDLimit(this);
         }
     }
