@@ -17,6 +17,8 @@ package com.netflix.concurrency.limits.limit;
 
 import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.internal.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 
@@ -26,6 +28,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class AIMDLimit extends AbstractLimit {
     private static final long DEFAULT_TIMEOUT = TimeUnit.SECONDS.toNanos(5);
+    private static final Logger LOG = LoggerFactory.getLogger(AIMDLimit.class);
 
     public static class Builder {
         private int minLimit = 20;
@@ -68,6 +71,12 @@ public final class AIMDLimit extends AbstractLimit {
         }
         
         public AIMDLimit build() {
+            if (initialLimit > maxLimit) {
+                LOG.warn("Initial limit {} exceeded maximum limit {}", initialLimit, maxLimit);
+            }
+            if (initialLimit < minLimit) {
+                LOG.warn("Initial limit {} is less than minimum limit {}", initialLimit, minLimit);
+            }
             return new AIMDLimit(this);
         }
     }

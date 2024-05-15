@@ -184,6 +184,12 @@ public final class GradientLimit extends AbstractLimit {
         }
         
         public GradientLimit build() {
+            if (initialLimit > maxConcurrency) {
+                LOG.warn("Initial limit {} exceeded maximum limit {}", initialLimit, maxConcurrency);
+            }
+            if (initialLimit < minLimit) {
+                LOG.warn("Initial limit {} is less than minimum limit {}", initialLimit, minLimit);
+            }
             return new GradientLimit(this);
         }
     }
