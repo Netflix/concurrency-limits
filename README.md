@@ -55,7 +55,7 @@ In this example a GRPC server is configured with a single adaptive limiter that 
 // Create and configure a server builder
 ServerBuilder builder = ...;
 
-builder.addService(ServerInterceptor.intercept(service,
+builder.addService(ServerInterceptors.intercept(service,
     ConcurrencyLimitServerInterceptor.newBuilder(
         new GrpcServerLimiterBuilder()
             .partitionByHeader(GROUP_HEADER)
