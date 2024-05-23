@@ -4,9 +4,6 @@ on:
     tags:
       - v*.*.*
       - v*.*.*-rc.*
-  release:
-    types:
-      - published
 
 jobs:
   build:
