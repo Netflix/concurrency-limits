@@ -154,6 +154,44 @@ public class GroupServletLimiterTest {
         Mockito.verify(pathToGroup, Mockito.times(0)).get(Mockito.<String>any());
     }
 
+    @Test
+    public void requestMatchesGroup() {
+        Map<String, String> requestMethodToGroup = Mockito.spy(new HashMap<>());
+        requestMethodToGroup.put("PATCH", "live");
+
+        Limiter<HttpServletRequest> limiter = new ServletLimiterBuilder()
+                .limit(VegasLimit.newDefault())
+                .partitionByRequest(request -> requestMethodToGroup.get(request.getMethod()))
+                .partition("live", 0.8)
+                .partition("batch", 0.2)
+                .build();
+
+        HttpServletRequest request = createMockRequestWithType("PATCH");
+        Optional<Listener> listener = limiter.acquire(request);
+
+        Assert.assertTrue(listener.isPresent());
+        Mockito.verify(requestMethodToGroup, Mockito.times(1)).get("PATCH");
+    }
+
+    @Test
+    public void requestDoesNotMatchesGroup() {
+        Map<String, String> requestMethodToGroup = Mockito.spy(new HashMap<>());
+        requestMethodToGroup.put("PATCH", "live");
+
+        Limiter<HttpServletRequest> limiter = new ServletLimiterBuilder()
+                .limit(VegasLimit.newDefault())
+                .partitionByRequest(request -> requestMethodToGroup.get(request.getMethod()))
+                .partition("live", 0.8)
+                .partition("batch", 0.2)
+                .build();
+
+        HttpServletRequest request = createMockRequestWithType("PUT");
+        Optional<Listener> listener = limiter.acquire(request);
+
+        Assert.assertTrue(listener.isPresent());
+        Mockito.verify(requestMethodToGroup, Mockito.times(1)).get("PUT");
+    }
+
     private HttpServletRequest createMockRequestWithPrincipal(String name) {
         HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
         Principal principal = Mockito.mock(Principal.class);
@@ -167,6 +205,13 @@ public class GroupServletLimiterTest {
         HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
 
         Mockito.when(request.getPathInfo()).thenReturn(name);
+        return request;
+    }
+
+    private HttpServletRequest createMockRequestWithType(String type) {
+        HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
+
+        Mockito.when(request.getMethod()).thenReturn(type);
         return request;
     }
 }
