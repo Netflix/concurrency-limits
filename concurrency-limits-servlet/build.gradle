@@ -2,7 +2,9 @@ plugins {
     id 'java'
 }
 
-sourceCompatibility = JavaVersion.VERSION_1_8
+java {
+    sourceCompatibility = JavaVersion.VERSION_18
+}
 
 dependencies {
     api project(":concurrency-limits-core")
