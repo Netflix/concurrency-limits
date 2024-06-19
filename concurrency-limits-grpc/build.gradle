@@ -2,14 +2,16 @@ plugins {
     id 'java'
 }
 
-sourceCompatibility = JavaVersion.VERSION_1_8
+java {
+    sourceCompatibility = JavaVersion.VERSION_18
+}
 
 dependencies {
     implementation "org.slf4j:slf4j-api:${slf4jVersion}"
     implementation project(":concurrency-limits-core")
 
     compileOnly "io.grpc:grpc-core:${grpcVersion}"
-    
+
     testImplementation project(":concurrency-limits-spectator")
 
     testCompileOnly "junit:junit:${jUnitLegacyVersion}"
