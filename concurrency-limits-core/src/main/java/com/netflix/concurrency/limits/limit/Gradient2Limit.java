@@ -22,11 +22,9 @@ import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
 import com.netflix.concurrency.limits.limit.measurement.ExpAvgMeasurement;
 import com.netflix.concurrency.limits.limit.measurement.Measurement;
-import com.netflix.concurrency.limits.limit.measurement.SingleMeasurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 

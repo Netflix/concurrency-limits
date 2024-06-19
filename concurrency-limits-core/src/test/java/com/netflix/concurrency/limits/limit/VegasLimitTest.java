@@ -1,6 +1,6 @@
 package com.netflix.concurrency.limits.limit;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;

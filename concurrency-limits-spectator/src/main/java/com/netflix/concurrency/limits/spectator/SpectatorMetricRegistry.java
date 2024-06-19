@@ -18,7 +18,6 @@ package com.netflix.concurrency.limits.spectator;
 import java.util.function.Supplier;
 
 import com.netflix.concurrency.limits.MetricRegistry;
-import com.netflix.spectator.api.Counter;
 import com.netflix.spectator.api.DistributionSummary;
 import com.netflix.spectator.api.Id;
 import com.netflix.spectator.api.Registry;

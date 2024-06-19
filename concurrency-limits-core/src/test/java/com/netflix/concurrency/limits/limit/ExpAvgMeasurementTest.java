@@ -1,11 +1,9 @@
 package com.netflix.concurrency.limits.limit;
 
 import com.netflix.concurrency.limits.limit.measurement.ExpAvgMeasurement;
+
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.Arrays;
-import java.util.List;
 
 public class ExpAvgMeasurementTest {
     @Test
