@@ -137,9 +137,15 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
             return busy.get() >= limit;
         }
 
-        void acquire() {
-            int newValue = busy.incrementAndGet();
-            inflightDistribution.addSample(newValue);
+        int acquire() {
+            return busy.incrementAndGet();
+        }
+
+        // explicitly split this out because the metric might be expensive,
+        // and we want to allow the lock to release as early as possible
+        // the additional coupling is OK because we are in the same class
+        void acquirePostSample(int nowBusy) {
+            inflightDistribution.addSample(nowBusy);
         }
 
         void release() {
@@ -234,8 +240,9 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
                 return createRejectedListener();
             }
 
-            partition.acquire();
+            int busy = partition.acquire();
             lock.unlock();
+            partition.acquirePostSample(busy);
 
             final Listener listener = createListener();
             return Optional.of(new Listener() {
