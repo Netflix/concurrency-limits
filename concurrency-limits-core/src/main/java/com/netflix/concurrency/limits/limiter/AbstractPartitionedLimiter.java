@@ -261,12 +261,15 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
     }
 
     private void releasePartition(Partition partition) {
-        try {
-            lock.lock();
-            partition.release();
-        } finally {
-            lock.unlock();
-        }
+        // safety note:
+        // above, we enforce that only one thread can acquire at a time,
+        // and that code checks if the limit is exceeded before acquire
+        //
+        // possible that thread A checks and finds limit is exceeded and
+        // will go into backoff, while we do a concurrent release --
+        // but that is the same outcome (backoff) as if we had fully
+        // locked here and stalled before doing a release
+        partition.release();
     }
 
     @Override
