@@ -2,7 +2,6 @@ package com.netflix.concurrency.limits.grpc.server.example;
 
 import com.netflix.concurrency.limits.grpc.server.GrpcServerLimiterBuilder;
 import com.netflix.concurrency.limits.limit.Gradient2Limit;
-import com.netflix.concurrency.limits.limit.GradientLimit;
 import com.netflix.concurrency.limits.limit.WindowedLimit;
 
 import java.io.IOException;
@@ -10,8 +9,6 @@ import java.text.MessageFormat;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 public class Example {
     public static void main(String[] args) throws IOException {
@@ -61,7 +58,7 @@ public class Example {
                 e.printStackTrace();
             }
         }, 1, 1, TimeUnit.SECONDS);
-        
+
         // Create a client
         driver.run();
     }
