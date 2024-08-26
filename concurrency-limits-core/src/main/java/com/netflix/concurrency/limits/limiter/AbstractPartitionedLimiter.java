@@ -105,10 +105,10 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
     static class Partition {
         private final String name;
+        private final AtomicInteger busy = new AtomicInteger(0);
 
         private double percent = 0.0;
         private int limit = 0;
-        private int busy = 0;
         private long backoffMillis = 0;
         private MetricRegistry.SampleListener inflightDistribution;
 
@@ -134,17 +134,16 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         }
 
         boolean isLimitExceeded() {
-            return busy >= limit;
+            return busy.get() >= limit;
         }
 
         void acquire() {
-            busy++;
-            inflightDistribution.addSample(busy);
-
+            int newValue = busy.incrementAndGet();
+            inflightDistribution.addSample(newValue);
         }
 
         void release() {
-            busy--;
+            busy.decrementAndGet();
         }
 
         int getLimit() {
@@ -152,7 +151,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         }
 
         public int getInflight() {
-            return busy;
+            return busy.get();
         }
 
         double getPercent() {
@@ -166,7 +165,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
         @Override
         public String toString() {
-            return "Partition [pct=" + percent + ", limit=" + limit + ", busy=" + busy + "]";
+            return "Partition [pct=" + percent + ", limit=" + limit + ", busy=" + busy.get() + "]";
         }
     }
 
