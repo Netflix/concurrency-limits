@@ -108,7 +108,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         private final AtomicInteger busy = new AtomicInteger(0);
 
         private double percent = 0.0;
-        private int limit = 0;
+        private volatile int limit = 0;
         private long backoffMillis = 0;
         private MetricRegistry.SampleListener inflightDistribution;
 
