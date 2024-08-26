@@ -137,14 +137,36 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
             return busy.get() >= limit;
         }
 
-        int acquire() {
+	/**
+         * @deprecated
+         * Prefer acquireAndGet() and acquirePostSample() instead.
+         */
+        @Deprecated
+        void acquire() {
+            busy.incrementAndGet();
+        }
+
+	/**
+	 * Increment the busy count and return the new value.
+	 *
+	 * This method is intended to be used in conjunction with acquirePostSample().
+	 *
+	 * @return the new value of busy after incrementing
+	 */
+        private int acquireAndGet() {
             return busy.incrementAndGet();
         }
 
-        // explicitly split this out because the metric might be expensive,
-        // and we want to allow the lock to release as early as possible
-        // the additional coupling is OK because we are in the same class
-        void acquirePostSample(int nowBusy) {
+	/**
+	 * Record the current busy count metric.
+	 *
+	 * This method is intended to be used in conjunction with acquireAndGet().
+	 */
+        private void acquirePostSample(int nowBusy) {
+            // explicitly split this out because the metric might be expensive,
+            // and we want to allow the lock to release as early as possible
+
+            // the additional coupling is ugly but tolerated in the same class
             inflightDistribution.addSample(nowBusy);
         }
 
@@ -240,7 +262,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
                 return createRejectedListener();
             }
 
-            int busy = partition.acquire();
+            int busy = partition.acquireAndGet();
             lock.unlock();
             partition.acquirePostSample(busy);
 
