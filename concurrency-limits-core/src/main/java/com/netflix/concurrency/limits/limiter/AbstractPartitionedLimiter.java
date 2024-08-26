@@ -215,6 +215,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         try {
             lock.lock();
             if (shouldBypass(context)){
+                lock.unlock();
                 return createBypassListener();
             }
             if (getInflight() >= getLimit() && partition.isLimitExceeded()) {
@@ -234,6 +235,8 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
             }
 
             partition.acquire();
+            lock.unlock();
+
             final Listener listener = createListener();
             return Optional.of(new Listener() {
                 @Override
@@ -255,6 +258,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
                 }
             });
         } finally {
+            // in theory a subclass could throw
             if (lock.isHeldByCurrentThread())
                 lock.unlock();
         }
