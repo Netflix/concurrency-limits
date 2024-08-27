@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimiter<ContextT> {
@@ -137,10 +136,6 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
             return busy.get() >= limit;
         }
 
-        /**
-         * @deprecated Prefer acquireAndGet() and acquirePostSample() instead.
-         */
-        @Deprecated
         void acquire() {
             int nowBusy = busy.incrementAndGet();
             inflightDistribution.addSample(nowBusy);
@@ -176,7 +171,6 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
     private final Map<String, Partition> partitions;
     private final Partition unknownPartition;
     private final List<Function<ContextT, String>> partitionResolvers;
-    private final ReentrantLock lock = new ReentrantLock();
     private final AtomicInteger delayedThreads = new AtomicInteger();
     private final int maxDelayedThreads;
 
@@ -220,14 +214,14 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
             return createBypassListener();
         }
 
-        final boolean overLimit;
-        lock.lock();
-        try {
-            overLimit = getInflight() >= getLimit() && partition.isLimitExceeded();
-        } finally {
-            // in theory a subclass could throw
-            lock.unlock();
-        }
+        // safety note:
+        // - the ordering between getInflight and getLimit is not important; if we were
+        //   able to guarantee sequential ordering, and limit is updated second, then
+        //   the global limit check could pass
+        // - in addition, the partition logic follows similar ordering rules; if another
+        //   thread modifies the limit, we might end up briefly over the limit, but this
+        //   would also happen with sequential execution
+        final boolean overLimit = getInflight() >= getLimit() && partition.isLimitExceeded();
 
         if (overLimit) {
             if (partition.backoffMillis > 0 && delayedThreads.get() < maxDelayedThreads) {
@@ -269,14 +263,6 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
     }
 
     private void releasePartition(Partition partition) {
-        // safety note:
-        // above, we enforce that only one thread can acquire at a time,
-        // and that code checks if the limit is exceeded before acquire
-        //
-        // possible that thread A checks and finds limit is exceeded and
-        // will go into backoff, while we do a concurrent release --
-        // but that is the same outcome (backoff) as if we had fully
-        // locked here and stalled before doing a release
         partition.release();
     }
 
