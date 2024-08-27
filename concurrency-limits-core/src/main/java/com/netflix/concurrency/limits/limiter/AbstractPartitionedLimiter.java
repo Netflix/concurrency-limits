@@ -137,31 +137,30 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
             return busy.get() >= limit;
         }
 
-	/**
-         * @deprecated
-         * Prefer acquireAndGet() and acquirePostSample() instead.
+        /**
+         * @deprecated Prefer acquireAndGet() and acquirePostSample() instead.
          */
         @Deprecated
         void acquire() {
             busy.incrementAndGet();
         }
 
-	/**
-	 * Increment the busy count and return the new value.
-	 *
-	 * This method is intended to be used in conjunction with acquirePostSample().
-	 *
-	 * @return the new value of busy after incrementing
-	 */
+        /**
+         * Increment the busy count and return the new value.
+         *
+         * This method is intended to be used in conjunction with acquirePostSample().
+         *
+         * @return the new value of busy after incrementing
+         */
         private int acquireAndGet() {
             return busy.incrementAndGet();
         }
 
-	/**
-	 * Record the current busy count metric.
-	 *
-	 * This method is intended to be used in conjunction with acquireAndGet().
-	 */
+        /**
+         * Record the current busy count metric.
+         *
+         * This method is intended to be used in conjunction with acquireAndGet().
+         */
         private void acquirePostSample(int nowBusy) {
             // explicitly split this out because the metric might be expensive,
             // and we want to allow the lock to release as early as possible
