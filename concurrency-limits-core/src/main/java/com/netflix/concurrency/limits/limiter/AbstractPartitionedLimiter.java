@@ -225,11 +225,11 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
     @Override
     public Optional<Listener> acquire(ContextT context) {
-        final Partition partition = resolvePartition(context);
-
         if (shouldBypass(context)){
             return createBypassListener();
         }
+
+        final Partition partition = resolvePartition(context);
 
         // This is a little unusual in that the partition is not a hard limit. It is
         // only a limit that it is applied if the global limit is exceeded. This allows
