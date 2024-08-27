@@ -141,6 +141,23 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
             inflightDistribution.addSample(nowBusy);
         }
 
+        /**
+         * Try to acquire a slot, returning false if the limit is exceeded.
+         * @return
+         */
+        boolean tryAcquire() {
+            while (true) {
+                int current = busy.get();
+                if (current >= limit) {
+                    return false;
+                }
+                if (busy.compareAndSet(current, current + 1)) {
+                    inflightDistribution.addSample(current + 1);
+                    return true;
+                }
+            }
+        }
+
         void release() {
             busy.decrementAndGet();
         }
@@ -214,14 +231,21 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
             return createBypassListener();
         }
 
-        // safety note:
-        // - the ordering between getInflight and getLimit is not important; if we were
-        //   able to guarantee sequential ordering, and limit is updated second, then
-        //   the global limit check could pass
-        // - in addition, the partition logic follows similar ordering rules; if another
-        //   thread modifies the limit, we might end up briefly over the limit, but this
-        //   would also happen with sequential execution
-        final boolean overLimit = getInflight() >= getLimit() && partition.isLimitExceeded();
+        // This is a little unusual in that the partition is not a hard limit. It is
+        // only a limit that it is applied if the global limit is exceeded. This allows
+        // for excess capacity in each partition to allow for bursting over the limit,
+        // but only if there is spare global capacity.
+
+        final boolean overLimit;
+        if (getInflight() >= getLimit()) {
+            // over global limit, so respect partition limit
+            boolean couldAcquire = partition.tryAcquire();
+            overLimit = !couldAcquire;
+        } else {
+            // we are below global limit, so no need to respect partition limit
+            partition.acquire();
+            overLimit = false;
+        }
 
         if (overLimit) {
             if (partition.backoffMillis > 0 && delayedThreads.get() < maxDelayedThreads) {
@@ -237,8 +261,6 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
             return createRejectedListener();
         }
-
-        partition.acquire();
 
         final Listener listener = createListener();
         return Optional.of(new Listener() {
