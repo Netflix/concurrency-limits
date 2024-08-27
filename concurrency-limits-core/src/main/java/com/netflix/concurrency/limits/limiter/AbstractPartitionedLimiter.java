@@ -142,30 +142,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
          */
         @Deprecated
         void acquire() {
-            busy.incrementAndGet();
-        }
-
-        /**
-         * Increment the busy count and return the new value.
-         *
-         * This method is intended to be used in conjunction with acquirePostSample().
-         *
-         * @return the new value of busy after incrementing
-         */
-        private int acquireAndGet() {
-            return busy.incrementAndGet();
-        }
-
-        /**
-         * Record the current busy count metric.
-         *
-         * This method is intended to be used in conjunction with acquireAndGet().
-         */
-        private void acquirePostSample(int nowBusy) {
-            // explicitly split this out because the metric might be expensive,
-            // and we want to allow the lock to release as early as possible
-
-            // the additional coupling is ugly but tolerated in the same class
+            int nowBusy = busy.incrementAndGet();
             inflightDistribution.addSample(nowBusy);
         }
 
@@ -243,53 +220,52 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
             return createBypassListener();
         }
 
+        final boolean overLimit;
+        lock.lock();
         try {
-            lock.lock();
-            if (getInflight() >= getLimit() && partition.isLimitExceeded()) {
-                lock.unlock();
-                if (partition.backoffMillis > 0 && delayedThreads.get() < maxDelayedThreads) {
-                    try {
-                        delayedThreads.incrementAndGet();
-                        TimeUnit.MILLISECONDS.sleep(partition.backoffMillis);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    } finally {
-                        delayedThreads.decrementAndGet();
-                    }
-                }
-
-                return createRejectedListener();
-            }
-
-            int busy = partition.acquireAndGet();
-            lock.unlock();
-            partition.acquirePostSample(busy);
-
-            final Listener listener = createListener();
-            return Optional.of(new Listener() {
-                @Override
-                public void onSuccess() {
-                    listener.onSuccess();
-                    releasePartition(partition);
-                }
-
-                @Override
-                public void onIgnore() {
-                    listener.onIgnore();
-                    releasePartition(partition);
-                }
-
-                @Override
-                public void onDropped() {
-                    listener.onDropped();
-                    releasePartition(partition);
-                }
-            });
+            overLimit = getInflight() >= getLimit() && partition.isLimitExceeded();
         } finally {
             // in theory a subclass could throw
-            if (lock.isHeldByCurrentThread())
-                lock.unlock();
+            lock.unlock();
         }
+
+        if (overLimit) {
+            if (partition.backoffMillis > 0 && delayedThreads.get() < maxDelayedThreads) {
+                try {
+                    delayedThreads.incrementAndGet();
+                    TimeUnit.MILLISECONDS.sleep(partition.backoffMillis);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    delayedThreads.decrementAndGet();
+                }
+            }
+
+            return createRejectedListener();
+        }
+
+        partition.acquire();
+
+        final Listener listener = createListener();
+        return Optional.of(new Listener() {
+            @Override
+            public void onSuccess() {
+                listener.onSuccess();
+                releasePartition(partition);
+            }
+
+            @Override
+            public void onIgnore() {
+                listener.onIgnore();
+                releasePartition(partition);
+            }
+
+            @Override
+            public void onDropped() {
+                listener.onDropped();
+                releasePartition(partition);
+            }
+        });
     }
 
     private void releasePartition(Partition partition) {
