@@ -73,6 +73,10 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
          * Due to the builders not having access to the ContextT, it is the duty of subclasses to ensure that
          * implementations are type safe.
          *
+         * Predicates should not rely strictly on state of the Limiter (such as inflight count) when evaluating
+         * whether to bypass. There is no guarantee that the state will be synchronized or consistent with respect to
+         * the bypass predicate, and the bypass predicate may be called by multiple threads concurrently.
+         *
          * @param shouldBypass Predicate condition to bypass limit
          * @return Chainable builder
          */

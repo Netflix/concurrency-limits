@@ -239,12 +239,12 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
     public Optional<Listener> acquire(ContextT context) {
         final Partition partition = resolvePartition(context);
 
+        if (shouldBypass(context)){
+            return createBypassListener();
+        }
+
         try {
             lock.lock();
-            if (shouldBypass(context)){
-                lock.unlock();
-                return createBypassListener();
-            }
             if (getInflight() >= getLimit() && partition.isLimitExceeded()) {
                 lock.unlock();
                 if (partition.backoffMillis > 0 && delayedThreads.get() < maxDelayedThreads) {
