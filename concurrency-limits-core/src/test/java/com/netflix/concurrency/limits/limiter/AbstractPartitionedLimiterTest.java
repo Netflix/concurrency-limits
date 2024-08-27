@@ -1,12 +1,21 @@
 package com.netflix.concurrency.limits.limiter;
 
 import com.netflix.concurrency.limits.Limiter;
+import com.netflix.concurrency.limits.Limiter.Listener;
 import com.netflix.concurrency.limits.limit.FixedLimit;
 import com.netflix.concurrency.limits.limit.SettableLimit;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.Arrays;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -227,4 +236,86 @@ public class AbstractPartitionedLimiterTest {
             Assert.assertTrue(limiter.acquire("admin").isPresent());
         }
     }
+
+    @Test
+    public void testConcurrentPartitions() throws InterruptedException {
+        final int THREAD_COUNT = 5;
+        final int ITERATIONS = 500;
+        final int LIMIT = 20;
+
+        AbstractPartitionedLimiter<String> limiter = (AbstractPartitionedLimiter<String>) TestPartitionedLimiter.newBuilder()
+                .limit(FixedLimit.of(LIMIT))
+                .partitionResolver(Function.identity())
+                .partition("A", 0.5)
+                .partition("B", 0.3)
+                .partition("C", 0.2)
+                .build();
+
+        ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT * 3);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch endLatch = new CountDownLatch(THREAD_COUNT * 3);
+        Map<String, AtomicInteger> successCounts = new ConcurrentHashMap<>();
+        Map<String, AtomicInteger> rejectionCounts = new ConcurrentHashMap<>();
+        Map<String, AtomicInteger> maxConcurrents = new ConcurrentHashMap<>();
+        AtomicInteger globalMaxInflight = new AtomicInteger(0);
+
+        for (String partition : Arrays.asList("A", "B", "C")) {
+            successCounts.put(partition, new AtomicInteger(0));
+            rejectionCounts.put(partition, new AtomicInteger(0));
+            maxConcurrents.put(partition, new AtomicInteger(0));
+
+            for (int i = 0; i < THREAD_COUNT; i++) {
+                executor.submit(() -> {
+                    try {
+                        startLatch.await();
+                        for (int j = 0; j < ITERATIONS; j++) {
+                            Optional<Listener> listener = limiter.acquire(partition);
+                            if (listener.isPresent()) {
+                                try {
+                                    int current = limiter.getPartition(partition).getInflight();
+                                    maxConcurrents.get(partition).updateAndGet(max -> Math.max(max, current));
+                                    successCounts.get(partition).incrementAndGet();
+                                    globalMaxInflight.updateAndGet(max -> Math.max(max, limiter.getInflight()));
+                                    Thread.sleep(1); // Simulate some work
+                                } finally {
+                                    listener.get().onSuccess();
+                                }
+                            } else {
+                                rejectionCounts.get(partition).incrementAndGet();
+                            }
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        endLatch.countDown();
+                    }
+                });
+            }
+        }
+
+        startLatch.countDown();
+        endLatch.await();
+        executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
+
+        for (String partition : Arrays.asList("A", "B", "C")) {
+            System.out.println(partition + " success count: " + successCounts.get(partition).get());
+            System.out.println(partition + " rejection count: " + rejectionCounts.get(partition).get());
+            System.out.println(partition + " max concurrent: " + maxConcurrents.get(partition).get());
+
+            // remember that we borrow unused capacity, so have to ignore local limit!
+            Assert.assertTrue("Max concurrent for " + partition + " should not exceed global limit, was: "
+                    + maxConcurrents.get(partition).get(),
+                    maxConcurrents.get(partition).get() <= LIMIT);
+            Assert.assertEquals("Total attempts for " + partition + " should equal success + rejections",
+                                THREAD_COUNT * ITERATIONS,
+                                successCounts.get(partition).get() + rejectionCounts.get(partition).get());
+        }
+
+        // to test a global limit, we need to ensure that max inflight globally
+        // does not exceed the total limit, we allow some wiggle room for each thread to burst 1 over
+        Assert.assertTrue("Global max inflight should not exceed total limit, was: " + globalMaxInflight.get(),
+                          globalMaxInflight.get() <= LIMIT + THREAD_COUNT);
+    }
+
 }
