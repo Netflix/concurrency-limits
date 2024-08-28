@@ -146,16 +146,16 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
          * @return
          */
         boolean tryAcquire() {
-            while (true) {
-                int current = busy.get();
-                if (current >= limit) {
-                    return false;
-                }
+            int current = busy.get();
+            while (current < limit) {
                 if (busy.compareAndSet(current, current + 1)) {
                     inflightDistribution.addSample(current + 1);
                     return true;
                 }
+                current = busy.get();
             }
+
+            return false;
         }
 
         void release() {
