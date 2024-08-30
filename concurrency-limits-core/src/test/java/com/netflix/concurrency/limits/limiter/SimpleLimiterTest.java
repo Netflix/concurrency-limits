@@ -140,12 +140,15 @@ public class SimpleLimiterTest {
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
 
-        System.out.println("Success count: " + successCount.get());
-        System.out.println("Rejection count: " + rejectionCount.get());
-        System.out.println("Max concurrent: " + maxConcurrent.get());
+        StringBuilder resultBuilder = new StringBuilder();
+        resultBuilder.append("Success count: ").append(successCount.get())
+                     .append(" | Rejection count: ").append(rejectionCount.get())
+                     .append(" | Max concurrent: ").append(maxConcurrent.get());
+        String results = resultBuilder.toString();
 
-        Assert.assertTrue("Max concurrent should not exceed limit", maxConcurrent.get() <= LIMIT);
-        Assert.assertEquals("Total attempts should equal success + rejections", 
+        Assert.assertTrue("Max concurrent should not exceed limit. " + results,
+                          maxConcurrent.get() <= LIMIT);
+        Assert.assertEquals("Total attempts should equal success + rejections. " + results,
                             THREAD_COUNT * ITERATIONS, successCount.get() + rejectionCount.get());
     }
 

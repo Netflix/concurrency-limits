@@ -298,23 +298,23 @@ public class AbstractPartitionedLimiterTest {
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
 
+        StringBuilder resultSummary = new StringBuilder();
         for (String partition : Arrays.asList("A", "B", "C")) {
-            System.out.println(partition + " success count: " + successCounts.get(partition).get());
-            System.out.println(partition + " rejection count: " + rejectionCounts.get(partition).get());
-            System.out.println(partition + " max concurrent: " + maxConcurrents.get(partition).get());
+            int successCount = successCounts.get(partition).get();
+            int rejectionCount = rejectionCounts.get(partition).get();
+            int maxConcurrent = maxConcurrents.get(partition).get();
 
-            // remember that we borrow unused capacity, so have to ignore local limit!
-            Assert.assertTrue("Max concurrent for " + partition + " should not exceed global limit, was: "
-                    + maxConcurrents.get(partition).get(),
-                    maxConcurrents.get(partition).get() <= LIMIT);
-            Assert.assertEquals("Total attempts for " + partition + " should equal success + rejections",
+            resultSummary.append(String.format("%s(success=%d,reject=%d,maxConcurrent=%d) ",
+                                 partition, successCount, rejectionCount, maxConcurrent));
+
+            Assert.assertTrue("Max concurrent for " + partition + " should not exceed global limit. " + resultSummary,
+                    maxConcurrent <= LIMIT);
+            Assert.assertEquals("Total attempts for " + partition + " should equal success + rejections. " + resultSummary,
                                 THREAD_COUNT * ITERATIONS,
-                                successCounts.get(partition).get() + rejectionCounts.get(partition).get());
+                                successCount + rejectionCount);
         }
 
-        // to test a global limit, we need to ensure that max inflight globally
-        // does not exceed the total limit, we allow some wiggle room for each thread to burst 1 over
-        Assert.assertTrue("Global max inflight should not exceed total limit, was: " + globalMaxInflight.get(),
+        Assert.assertTrue("Global max inflight should not exceed total limit. " + resultSummary,
                           globalMaxInflight.get() <= LIMIT + THREAD_COUNT);
     }
 
