@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimiter<ContextT> {
@@ -105,10 +104,10 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
     static class Partition {
         private final String name;
+        private final AtomicInteger busy = new AtomicInteger(0);
 
         private double percent = 0.0;
-        private int limit = 0;
-        private int busy = 0;
+        private volatile int limit = 0;
         private long backoffMillis = 0;
         private MetricRegistry.SampleListener inflightDistribution;
 
@@ -134,17 +133,33 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         }
 
         boolean isLimitExceeded() {
-            return busy >= limit;
+            return busy.get() >= limit;
         }
 
         void acquire() {
-            busy++;
-            inflightDistribution.addSample(busy);
+            int nowBusy = busy.incrementAndGet();
+            inflightDistribution.addSample(nowBusy);
+        }
 
+        /**
+         * Try to acquire a slot, returning false if the limit is exceeded.
+         * @return
+         */
+        boolean tryAcquire() {
+            int current = busy.get();
+            while (current < limit) {
+                if (busy.compareAndSet(current, current + 1)) {
+                    inflightDistribution.addSample(current + 1);
+                    return true;
+                }
+                current = busy.get();
+            }
+
+            return false;
         }
 
         void release() {
-            busy--;
+            busy.decrementAndGet();
         }
 
         int getLimit() {
@@ -152,7 +167,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         }
 
         public int getInflight() {
-            return busy;
+            return busy.get();
         }
 
         double getPercent() {
@@ -166,14 +181,13 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
         @Override
         public String toString() {
-            return "Partition [pct=" + percent + ", limit=" + limit + ", busy=" + busy + "]";
+            return "Partition [pct=" + percent + ", limit=" + limit + ", busy=" + busy.get() + "]";
         }
     }
 
     private final Map<String, Partition> partitions;
     private final Partition unknownPartition;
     private final List<Function<ContextT, String>> partitionResolvers;
-    private final ReentrantLock lock = new ReentrantLock();
     private final AtomicInteger delayedThreads = new AtomicInteger();
     private final int maxDelayedThreads;
 
@@ -211,63 +225,67 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
     @Override
     public Optional<Listener> acquire(ContextT context) {
+        if (shouldBypass(context)){
+            return createBypassListener();
+        }
+
         final Partition partition = resolvePartition(context);
 
-        try {
-            lock.lock();
-            if (shouldBypass(context)){
-                return createBypassListener();
-            }
-            if (getInflight() >= getLimit() && partition.isLimitExceeded()) {
-                lock.unlock();
-                if (partition.backoffMillis > 0 && delayedThreads.get() < maxDelayedThreads) {
-                    try {
-                        delayedThreads.incrementAndGet();
-                        TimeUnit.MILLISECONDS.sleep(partition.backoffMillis);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    } finally {
-                        delayedThreads.decrementAndGet();
-                    }
-                }
+        // This is a little unusual in that the partition is not a hard limit. It is
+        // only a limit that it is applied if the global limit is exceeded. This allows
+        // for excess capacity in each partition to allow for bursting over the limit,
+        // but only if there is spare global capacity.
 
-                return createRejectedListener();
-            }
-
+        final boolean overLimit;
+        if (getInflight() >= getLimit()) {
+            // over global limit, so respect partition limit
+            boolean couldAcquire = partition.tryAcquire();
+            overLimit = !couldAcquire;
+        } else {
+            // we are below global limit, so no need to respect partition limit
             partition.acquire();
-            final Listener listener = createListener();
-            return Optional.of(new Listener() {
-                @Override
-                public void onSuccess() {
-                    listener.onSuccess();
-                    releasePartition(partition);
-                }
-
-                @Override
-                public void onIgnore() {
-                    listener.onIgnore();
-                    releasePartition(partition);
-                }
-
-                @Override
-                public void onDropped() {
-                    listener.onDropped();
-                    releasePartition(partition);
-                }
-            });
-        } finally {
-            if (lock.isHeldByCurrentThread())
-                lock.unlock();
+            overLimit = false;
         }
+
+        if (overLimit) {
+            if (partition.backoffMillis > 0 && delayedThreads.get() < maxDelayedThreads) {
+                try {
+                    delayedThreads.incrementAndGet();
+                    TimeUnit.MILLISECONDS.sleep(partition.backoffMillis);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    delayedThreads.decrementAndGet();
+                }
+            }
+
+            return createRejectedListener();
+        }
+
+        final Listener listener = createListener();
+        return Optional.of(new Listener() {
+            @Override
+            public void onSuccess() {
+                listener.onSuccess();
+                releasePartition(partition);
+            }
+
+            @Override
+            public void onIgnore() {
+                listener.onIgnore();
+                releasePartition(partition);
+            }
+
+            @Override
+            public void onDropped() {
+                listener.onDropped();
+                releasePartition(partition);
+            }
+        });
     }
 
     private void releasePartition(Partition partition) {
-        try {
-            lock.lock();
-            partition.release();
-        } finally {
-            lock.unlock();
-        }
+        partition.release();
     }
 
     @Override
