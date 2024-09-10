@@ -23,6 +23,7 @@ import com.netflix.concurrency.limits.limit.window.SampleWindowFactory;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 public class WindowedLimit implements Limit {
@@ -103,7 +104,7 @@ public class WindowedLimit implements Limit {
 
     private final long minRttThreshold;
 
-    private final Object lock = new Object();
+    private final ReentrantLock lock = new ReentrantLock();
 
     private final SampleWindowFactory sampleWindowFactory;
 
@@ -129,7 +130,7 @@ public class WindowedLimit implements Limit {
 
     @Override
     public void onSample(long startTime, long rtt, int inflight, boolean didDrop) {
-        long endTime = startTime + rtt;
+        final long endTime = startTime + rtt;
 
         if (rtt < minRttThreshold) {
             return;
@@ -138,15 +139,25 @@ public class WindowedLimit implements Limit {
         sample.updateAndGet(current -> current.addSample(rtt, inflight, didDrop));
 
         if (endTime > nextUpdateTime) {
-            synchronized (lock) {
-                // Double check under the lock
-                if (endTime > nextUpdateTime) {
-                    SampleWindow current = sample.getAndSet(sampleWindowFactory.newInstance());
-                    nextUpdateTime = endTime + Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
+            // Only allow one thread at propagate the sample to the delegate.
+            // Other threads are free to continue. They will continue to accumulate
+            // against 'sample'.
+            boolean haveLock = lock.tryLock();
+            if (haveLock) {
+                try {
+                    // Double check under the lock, in case of the flow:
+                    // A : check end time ,  lock ,                , set nextUpdateTime , unlock ,
+                    // B :                 check end time ,                                        lock , [[nextUpdateTime has changed!]]
+                    if (endTime > nextUpdateTime) {
+                        SampleWindow current = sample.getAndSet(sampleWindowFactory.newInstance());
+                        nextUpdateTime = endTime + Math.min(Math.max(current.getCandidateRttNanos() * 2, minWindowTime), maxWindowTime);
 
-                    if (isWindowReady(current)) {
-                        delegate.onSample(startTime, current.getTrackedRttNanos(), current.getMaxInFlight(), current.didDrop());
+                        if (isWindowReady(current)) {
+                            delegate.onSample(startTime, current.getTrackedRttNanos(), current.getMaxInFlight(), current.didDrop());
+                        }
                     }
+                } finally {
+                    lock.unlock();
                 }
             }
         }
