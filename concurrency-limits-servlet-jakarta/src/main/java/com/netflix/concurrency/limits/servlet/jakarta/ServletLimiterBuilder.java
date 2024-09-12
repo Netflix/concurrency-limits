@@ -65,6 +65,16 @@ public final class ServletLimiterBuilder extends AbstractPartitionedLimiter.Buil
     }
 
     /**
+     * Partition the limit by the request instance. Percentages of the limit are partitioned to named
+     * groups.  Group membership is derived from the provided mapping function.
+     * @param requestToGroup Mapping function from request to a named group.
+     * @return Chainable builder
+     */
+    public ServletLimiterBuilder partitionByRequest(Function<HttpServletRequest, String> requestToGroup) {
+        return partitionResolver(request -> Optional.ofNullable(request).map(requestToGroup).orElse(null));
+    }
+
+    /**
      * Partition the limit by the full path. Percentages of the limit are partitioned to named
      * groups.  Group membership is derived from the provided mapping function.
      * @param pathToGroup Mapping function from full path to a named group.
@@ -140,6 +150,16 @@ public final class ServletLimiterBuilder extends AbstractPartitionedLimiter.Buil
      */
     public ServletLimiterBuilder bypassLimitByMethod(String method) {
         return bypassLimitResolver((context) -> method.equals(context.getMethod()));
+    }
+
+    /**
+     * Bypass limit if the predicate function returns true.
+     * @param predicate The predicate function to which {@link HttpServletRequest } instance is passed.
+     *               If the predicate return true, the limit will be bypassed.
+     * @return Chainable builder
+     */
+    public ServletLimiterBuilder bypassLimitByPredicate(Function<HttpServletRequest, Boolean> predicate) {
+        return bypassLimitResolver((context) -> predicate.apply(context));
     }
 
     @Override
