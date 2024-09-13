@@ -37,10 +37,13 @@ import java.util.function.Function;
  * applied to the base RTT so that the value is kept stable yet is allowed to adapt to long term changes in latency
  * characteristics.
  *
- * The core algorithm re-calculates the limit every sampling window (ex. 1 second) using the formula
+ * The core algorithm re-calculates the limit on each request
  *
  *      // Calculate the gradient limiting to the range [0.5, 1.0] to filter outliers
  *      gradient = max(0.5, min(1.0, longtermRtt / currentRtt));
+ *
+ *      // If gradient is 1.0 and in-flight requests are less than half of the currentLimit, skip
+ *      // adjusting the limit.
  *
  *      // Calculate the new limit by applying the gradient and allowing for some queuing
  *      newLimit = gradient * currentLimit + queueSize;
@@ -58,7 +61,7 @@ import java.util.function.Function;
  * 2.  Transition from steady state to load
  *
  * In this state either the RPS to latency has spiked. The gradient is {@literal <} 1.0 due to a growing request queue that
- * cannot be handled by the system. Excessive requests and rejected due to the low limit. The baseline RTT grows using
+ * cannot be handled by the system. Excessive requests are rejected due to the low limit. The baseline RTT grows using
  * exponential decay but lags the current measurement, which keeps the gradient {@literal <} 1.0 and limit low.
  *
  * 3.  Transition from load to steady state
@@ -262,15 +265,12 @@ public final class Gradient2Limit extends AbstractLimit {
 
     @Override
     public int _update(final long startTime, final long rtt, final int inflight, final boolean didDrop) {
-        final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
-
         this.lastRtt = rtt;
         final double shortRtt = (double)rtt;
         final double longRtt = this.longRtt.add(rtt).doubleValue();
 
         shortRttSampleListener.addSample(shortRtt);
         longRttSampleListener.addSample(longRtt);
-        queueSizeSampleListener.addSample(queueSize);
 
         // If the long RTT is substantially larger than the short RTT then reduce the long RTT measurement.
         // This can happen when latency returns to normal after a prolonged prior of excessive load.  Reducing the
@@ -279,16 +279,24 @@ public final class Gradient2Limit extends AbstractLimit {
             this.longRtt.update(current -> current.doubleValue() * 0.95);
         }
 
-        // Don't grow the limit if we are app limited
-        if (inflight < estimatedLimit / 2) {
-            return (int) estimatedLimit;
+        // Rtt could be higher than longRtt because of smoothing longRtt updates
+        // so set to 1.0 to indicate no queuing.  Otherwise calculate the slope and don't
+        // allow it to be reduced by more than half to avoid aggressive load-shedding due to
+        // outliers. If a request is dropped, choose lowest gradient value to initiate
+        // load-shedding.
+        final double gradient = didDrop ? 0.5
+                : Math.max(0.5, Math.min(1.0, tolerance * longRtt / shortRtt));
+
+        double queueSize = 0;
+        if (gradient == 1.0) {
+            if (inflight < estimatedLimit / 2) {
+                // Don't grow the limit if not necessary
+                return (int) estimatedLimit;
+            }
+            queueSize = this.queueSize.apply((int)this.estimatedLimit);
+            queueSizeSampleListener.addSample(queueSize);
         }
 
-        // Rtt could be higher than rtt_noload because of smoothing rtt noload updates
-        // so set to 1.0 to indicate no queuing.  Otherwise calculate the slope and don't
-        // allow it to be reduced by more than half to avoid aggressive load-shedding due to 
-        // outliers.
-        final double gradient = Math.max(0.5, Math.min(1.0, tolerance * longRtt / shortRtt));
         double newLimit = estimatedLimit * gradient + queueSize;
         newLimit = estimatedLimit * (1 - smoothing) + newLimit * smoothing;
         newLimit = Math.max(minLimit, Math.min(maxLimit, newLimit));
