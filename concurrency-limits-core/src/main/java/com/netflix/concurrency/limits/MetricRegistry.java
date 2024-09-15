@@ -27,6 +27,14 @@ public interface MetricRegistry {
      */
     interface SampleListener {
         void addSample(Number value);
+
+        default void addLongSample(long value) {
+            addSample(value);
+        }
+
+        default void addDoubleSample(double value) {
+            addSample(value);
+        }
     }
 
     interface Counter {

@@ -59,7 +59,7 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
         else {
             listener = Optional.of(new Listener(createListener()));
         }
-        inflightDistribution.addSample(getInflight());
+        inflightDistribution.addLongSample(getInflight());
         return listener;
     }
 

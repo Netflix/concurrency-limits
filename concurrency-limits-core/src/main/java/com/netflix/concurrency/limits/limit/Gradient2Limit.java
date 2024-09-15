@@ -268,9 +268,9 @@ public final class Gradient2Limit extends AbstractLimit {
         final double shortRtt = (double)rtt;
         final double longRtt = this.longRtt.add(rtt).doubleValue();
 
-        shortRttSampleListener.addSample(shortRtt);
-        longRttSampleListener.addSample(longRtt);
-        queueSizeSampleListener.addSample(queueSize);
+        shortRttSampleListener.addDoubleSample(shortRtt);
+        longRttSampleListener.addDoubleSample(longRtt);
+        queueSizeSampleListener.addDoubleSample(queueSize);
 
         // If the long RTT is substantially larger than the short RTT then reduce the long RTT measurement.
         // This can happen when latency returns to normal after a prolonged prior of excessive load.  Reducing the

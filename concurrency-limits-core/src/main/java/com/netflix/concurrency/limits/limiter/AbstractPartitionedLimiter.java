@@ -138,7 +138,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
         void acquire() {
             int nowBusy = busy.incrementAndGet();
-            inflightDistribution.addSample(nowBusy);
+            inflightDistribution.addLongSample(nowBusy);
         }
 
         /**
@@ -149,7 +149,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
             int current = busy.get();
             while (current < limit) {
                 if (busy.compareAndSet(current, current + 1)) {
-                    inflightDistribution.addSample(current + 1);
+                    inflightDistribution.addLongSample(current + 1);
                     return true;
                 }
                 current = busy.get();
