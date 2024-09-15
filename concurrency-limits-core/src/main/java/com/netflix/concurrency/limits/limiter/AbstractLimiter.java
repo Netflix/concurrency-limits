@@ -30,6 +30,21 @@ import java.util.function.Supplier;
 public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     public static final String ID_TAG = "id";
     public static final String STATUS_TAG = "status";
+    private static final Listener NOOP_LISTENER = new Listener() {
+        @Override
+        public void onSuccess() {
+        }
+        @Override
+        public void onIgnore() {
+        }
+        @Override
+        public void onDropped() {
+        }
+        @Override
+        public String toString() {
+            return "{NoopListener}";
+        }
+    };
 
     public abstract static class Builder<BuilderT extends Builder<BuilderT>> {
         private static final AtomicInteger idCounter = new AtomicInteger();
@@ -128,23 +143,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
 
     protected Optional<Listener> createBypassListener() {
         this.bypassCounter.increment();
-        return Optional.of(new Listener() {
-
-            @Override
-            public void onSuccess() {
-                // Do nothing
-            }
-
-            @Override
-            public void onIgnore() {
-                // Do nothing
-            }
-
-            @Override
-            public void onDropped() {
-                // Do nothing
-            }
-        });
+        return Optional.of(NOOP_LISTENER);
     }
 
     protected Listener createListener() {
