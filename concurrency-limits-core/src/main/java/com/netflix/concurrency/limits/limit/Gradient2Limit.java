@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Concurrency limit algorithm that adjusts the limit based on the gradient of change of the current average RTT and
@@ -76,7 +77,7 @@ public final class Gradient2Limit extends AbstractLimit {
         private int maxConcurrency = 200;
 
         private double smoothing = 0.2;
-        private Function<Integer, Integer> queueSize = concurrency -> 4;
+        private IntUnaryOperator queueSize = concurrency -> 4;
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private int longWindow = 600;
         private double rttTolerance = 1.5;
@@ -127,10 +128,23 @@ public final class Gradient2Limit extends AbstractLimit {
         /**
          * Function to dynamically determine the amount the estimated limit can grow while
          * latencies remain low as a function of the current limit.
-         * @param queueSize
+         * @param queueSize the queue size function
+         * @return Chainable builder
+         * @deprecated use {@link #queueSizeFunction(IntUnaryOperator)}
+         */
+        @Deprecated
+        public Builder queueSize(Function<Integer, Integer> queueSize) {
+            this.queueSize = queueSize::apply;
+            return this;
+        }
+
+        /**
+         * Function to dynamically determine the amount the estimated limit can grow while
+         * latencies remain low as a function of the current limit.
+         * @param queueSize the queue size function
          * @return Chainable builder
          */
-        public Builder queueSize(Function<Integer, Integer> queueSize) {
+        public Builder queueSizeFunction(IntUnaryOperator queueSize) {
             this.queueSize = queueSize;
             return this;
         }
@@ -231,7 +245,7 @@ public final class Gradient2Limit extends AbstractLimit {
 
     private final int minLimit;
 
-    private final Function<Integer, Integer> queueSize;
+    private final IntUnaryOperator queueSize;
 
     private final double smoothing;
 
@@ -262,10 +276,11 @@ public final class Gradient2Limit extends AbstractLimit {
 
     @Override
     public int _update(final long startTime, final long rtt, final int inflight, final boolean didDrop) {
-        final double queueSize = this.queueSize.apply((int)this.estimatedLimit);
+        double estimatedLimit = this.estimatedLimit;
+        final double queueSize = this.queueSize.applyAsInt((int) estimatedLimit);
 
         this.lastRtt = rtt;
-        final double shortRtt = (double)rtt;
+        final double shortRtt = (double) rtt;
         final double longRtt = this.longRtt.add(rtt).doubleValue();
 
         shortRttSampleListener.addSample(shortRtt);
@@ -293,7 +308,7 @@ public final class Gradient2Limit extends AbstractLimit {
         newLimit = estimatedLimit * (1 - smoothing) + newLimit * smoothing;
         newLimit = Math.max(minLimit, Math.min(maxLimit, newLimit));
 
-        if ((int)estimatedLimit != newLimit) {
+        if ((int) estimatedLimit != newLimit && LOG.isDebugEnabled()) {
             LOG.debug("New limit={} shortRtt={} ms longRtt={} ms queueSize={} gradient={}",
                     (int)newLimit,
                     getLastRtt(TimeUnit.MICROSECONDS) / 1000.0,
@@ -302,9 +317,9 @@ public final class Gradient2Limit extends AbstractLimit {
                     gradient);
         }
 
-        estimatedLimit = newLimit;
+        this.estimatedLimit = newLimit;
 
-        return (int)estimatedLimit;
+        return (int) newLimit;
     }
 
     public long getLastRtt(TimeUnit units) {
