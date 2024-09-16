@@ -89,6 +89,6 @@ public class BlockingLimiterTest {
     @Test(expected = IllegalArgumentException.class)
     public void failOnHighTimeout() {
         SettableLimit limit = SettableLimit.startingAt(1);
-        BlockingLimiter<Void> limiter = BlockingLimiter.wrap(SimpleLimiter.newBuilder().limit(limit).build(), Duration.ofDays(1));
+        BlockingLimiter.wrap(SimpleLimiter.newBuilder().limit(limit).build(), Duration.ofDays(1));
     }
 }
