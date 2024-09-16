@@ -27,7 +27,7 @@ At the end of each sampling window the limit is increased by 1 if the queue is l
 
 ## Gradient2
 
-This algorithm attempts to address bias and drift when using minimum latency measurements. To do this the algorithm tracks uses the measure of divergence between two exponential averages over a long and short time time window. Using averages the algorithm can smooth out the impact of outliers for bursty traffic. Divergence duration is used as a proxy to identify a queueing trend at which point the algorithm aggresively reduces the limit.
+This algorithm attempts to address bias and drift when using minimum latency measurements. To do this the algorithm tracks uses the measure of divergence between two exponential averages over a long and short time time window. Using averages the algorithm can smooth out the impact of outliers for bursty traffic. Divergence duration is used as a proxy to identify a queueing trend at which point the algorithm aggressively reduces the limit.
 
 # Enforcement Strategies
 
