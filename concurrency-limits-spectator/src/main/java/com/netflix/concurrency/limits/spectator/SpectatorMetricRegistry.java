@@ -31,11 +31,24 @@ public final class SpectatorMetricRegistry implements MetricRegistry {
         this.registry = registry;
         this.baseId = baseId;
     }
-    
+
     @Override
     public SampleListener distribution(String id, String... tagNameValuePairs) {
         DistributionSummary summary = registry.distributionSummary(suffixBaseId(id).withTags(tagNameValuePairs));
-        return value -> summary.record(value.longValue());
+        return new SampleListener() {
+            @Override
+            public void addSample(Number value) {
+                summary.record(value.longValue());
+            }
+            @Override
+            public void addLongSample(long value) {
+                summary.record(value);
+            }
+            @Override
+            public void addDoubleSample(double value) {
+                summary.record((long) value);
+            }
+        };
     }
 
     @Override
@@ -52,7 +65,7 @@ public final class SpectatorMetricRegistry implements MetricRegistry {
     public Counter counter(String id, String... tagNameValuePairs) {
         Id metricId = suffixBaseId(id).withTags(tagNameValuePairs);
         com.netflix.spectator.api.Counter spectatorCounter = registry.counter(metricId);
-        return () -> spectatorCounter.increment();
+        return spectatorCounter::increment;
     }
 
     private Id suffixBaseId(String suffix) {

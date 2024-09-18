@@ -218,7 +218,7 @@ public class VegasLimit extends AbstractLimit {
             return (int)estimatedLimit;
         }
         
-        rttSampleListener.addSample(rtt_noload);
+        rttSampleListener.addLongSample(rtt_noload);
 
         return updateEstimatedLimit(rtt, inflight, didDrop);
     }
