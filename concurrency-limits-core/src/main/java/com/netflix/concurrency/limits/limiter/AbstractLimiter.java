@@ -24,6 +24,7 @@ import com.netflix.concurrency.limits.limit.VegasLimit;
 
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -35,7 +36,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         private static final AtomicInteger idCounter = new AtomicInteger();
 
         private Limit limit = VegasLimit.newDefault();
-        private Supplier<Long> clock = System::nanoTime;
+        private LongSupplier clock = System::nanoTime;
 
         protected String name = "unnamed-" + idCounter.incrementAndGet();
         protected MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
@@ -53,7 +54,16 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
             return self();
         }
 
+        /**
+         * @deprecated use {@link #nanoClock(LongSupplier)}
+         */
+        @Deprecated
         public BuilderT clock(Supplier<Long> clock) {
+            this.clock = clock::get;
+            return self();
+        }
+
+        public BuilderT nanoClock(LongSupplier clock) {
             this.clock = clock;
             return self();
         }
@@ -91,7 +101,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     }
 
     private final AtomicInteger inFlight = new AtomicInteger();
-    private final Supplier<Long> clock;
+    private final LongSupplier clock;
     private final Limit limitAlgorithm;
     private final MetricRegistry.Counter successCounter;
     private final MetricRegistry.Counter droppedCounter;
@@ -148,7 +158,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     }
 
     protected Listener createListener() {
-        final long startTime = clock.get();
+        final long startTime = clock.getAsLong();
         final int currentInflight = inFlight.incrementAndGet();
         return new Listener() {
             @Override
@@ -156,7 +166,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
                 inFlight.decrementAndGet();
                 successCounter.increment();
 
-                limitAlgorithm.onSample(startTime, clock.get() - startTime, currentInflight, false);
+                limitAlgorithm.onSample(startTime, clock.getAsLong() - startTime, currentInflight, false);
             }
 
             @Override
@@ -170,7 +180,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
                 inFlight.decrementAndGet();
                 droppedCounter.increment();
 
-                limitAlgorithm.onSample(startTime, clock.get() - startTime, currentInflight, true);
+                limitAlgorithm.onSample(startTime, clock.getAsLong() - startTime, currentInflight, true);
             }
         };
     }
