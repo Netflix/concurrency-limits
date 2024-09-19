@@ -19,7 +19,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 /**
- * Specialized utility function used by limiters to calculate thredsholds using square root
+ * Specialized utility function used by limiters to calculate thresholds using square root
  * of the current limit.  Here we pre-compute the square root of numbers up to 1000 because
  * the square root operation can be slow.
  */
