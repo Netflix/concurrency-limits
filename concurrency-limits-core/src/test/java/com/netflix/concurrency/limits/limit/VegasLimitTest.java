@@ -3,6 +3,9 @@ package com.netflix.concurrency.limits.limit;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class VegasLimitTest {
@@ -12,6 +15,17 @@ public class VegasLimitTest {
                 .beta(6)
                 .smoothing(1.0)
                 .initialLimit(10)
+                .maxConcurrency(20)
+                .build();
+    }
+
+    public static VegasLimit create(double bufferFactor) {
+        return VegasLimit.newBuilder()
+                .alpha(3)
+                .beta(6)
+                .smoothing(1.0)
+                .initialLimit(10)
+                .bufferFactor(bufferFactor)
                 .maxConcurrency(20)
                 .build();
     }
@@ -45,6 +59,15 @@ public class VegasLimitTest {
         limit.onSample(0, TimeUnit.MILLISECONDS.toNanos(50), 11, false);
         Assert.assertEquals(9, limit.getLimit());
     }
+
+    @Test
+    public void decreaseLimitWithBufferFactor() {
+        VegasLimit limit = create(1.0);
+        limit.onSample(0, TimeUnit.MILLISECONDS.toNanos(10), 10, false);
+        Assert.assertEquals(10, limit.getLimit());
+        limit.onSample(0, TimeUnit.MILLISECONDS.toNanos(50), 11, false);
+        Assert.assertEquals(10, limit.getLimit());
+    }
     
     @Test
     public void noChangeIfWithinThresholds() {
@@ -54,7 +77,16 @@ public class VegasLimitTest {
         limit.onSample(0, TimeUnit.MILLISECONDS.toNanos(14), 14, false);
         Assert.assertEquals(10, limit.getLimit());
     }
-    
+
+    @Test
+    public void noChangeIfWithinThresholdsWithBuffer() {
+        VegasLimit limit = create(1.0);
+        limit.onSample(0, TimeUnit.MILLISECONDS.toNanos(10), 10, false);
+        Assert.assertEquals(10, limit.getLimit());
+        limit.onSample(0, TimeUnit.MILLISECONDS.toNanos(5), 14, false);
+        Assert.assertEquals(10, limit.getLimit());
+    }
+
     @Test
     public void decreaseSmoothing() {
         VegasLimit limit = VegasLimit.newBuilder()
@@ -96,5 +128,16 @@ public class VegasLimitTest {
         // Second decrease
         limit.onSample(0, TimeUnit.MILLISECONDS.toNanos(20), 100, false);
         Assert.assertEquals(25, limit.getLimit());
+    }
+
+    @Test
+    public void pauseUpdateWhenProbe() {
+        VegasLimit limit = create(1.0);
+        List<Integer> limits = new ArrayList<>();
+        limit.notifyOnChange(v -> limits.add(v));
+        for (int i = 0; i < 600; ++i) {
+            limit.onSample(0, TimeUnit.MILLISECONDS.toNanos(10), 100, false);
+        }
+        Assert.assertEquals(Arrays.asList(16,20,10), limits);
     }
 }

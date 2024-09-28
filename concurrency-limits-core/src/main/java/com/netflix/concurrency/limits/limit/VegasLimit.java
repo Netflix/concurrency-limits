@@ -48,7 +48,7 @@ public class VegasLimit extends AbstractLimit {
         private int maxConcurrency = 1000;
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private double smoothing = 1.0;
-        
+        private double bufferFactor = 0.0;
         private Function<Integer, Integer> alphaFunc = (limit) -> 3 * LOG10.apply(limit.intValue());
         private Function<Integer, Integer> betaFunc = (limit) -> 6 * LOG10.apply(limit.intValue());
         private Function<Integer, Integer> thresholdFunc = (limit) -> LOG10.apply(limit.intValue());
@@ -104,7 +104,13 @@ public class VegasLimit extends AbstractLimit {
             this.decreaseFunc = decrease;
             return this;
         }
-        
+
+        public Builder bufferFactor(double bufferFactor) {
+            Preconditions.checkArgument(bufferFactor >= 0.0, "buffer factor must >= 0.0");
+            this.bufferFactor = bufferFactor;
+            return this;
+        }
+
         public Builder smoothing(double smoothing) {
             this.smoothing = smoothing;
             return this;
@@ -157,7 +163,8 @@ public class VegasLimit extends AbstractLimit {
     private volatile double estimatedLimit;
     
     private volatile long rtt_noload = 0;
-    
+
+    private volatile long pauseUpdateUntil = 0;
     /**
      * Maximum allowed limit providing an upper bound failsafe
      */
@@ -169,6 +176,8 @@ public class VegasLimit extends AbstractLimit {
     private final Function<Integer, Integer> thresholdFunc;
     private final Function<Double, Double> increaseFunc;
     private final Function<Double, Double> decreaseFunc;
+    private final double bufferFactor;
+    private final int initialLimit;
     private final SampleListener rttSampleListener;
     private final int probeMultiplier;
     private int probeCount = 0;
@@ -176,6 +185,7 @@ public class VegasLimit extends AbstractLimit {
 
     private VegasLimit(Builder builder) {
         super(builder.initialLimit);
+        this.initialLimit = builder.initialLimit;
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
         this.alphaFunc = builder.alphaFunc;
@@ -183,6 +193,7 @@ public class VegasLimit extends AbstractLimit {
         this.increaseFunc = builder.increaseFunc;
         this.decreaseFunc = builder.decreaseFunc;
         this.thresholdFunc = builder.thresholdFunc;
+        this.bufferFactor = builder.bufferFactor;
         this.smoothing = builder.smoothing;
         this.probeMultiplier = builder.probeMultiplier;
 
@@ -209,6 +220,10 @@ public class VegasLimit extends AbstractLimit {
             resetProbeJitter();
             probeCount = 0;
             rtt_noload = rtt;
+            if (bufferFactor > 0.0) {
+                pauseUpdateUntil = startTime + rtt + (long)(rtt * (bufferFactor / (bufferFactor + 1)));
+                estimatedLimit = Math.max(initialLimit, Math.ceil(estimatedLimit / (bufferFactor + 1)));
+            }
             return (int)estimatedLimit;
         }
         
@@ -220,11 +235,15 @@ public class VegasLimit extends AbstractLimit {
         
         rttSampleListener.addLongSample(rtt_noload);
 
+        if (pauseUpdateUntil != 0 && pauseUpdateUntil > startTime) {
+            return (int)estimatedLimit;
+        }
+
         return updateEstimatedLimit(rtt, inflight, didDrop);
     }
 
     private int updateEstimatedLimit(long rtt, int inflight, boolean didDrop) {
-        final int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload / rtt));
+        final int queueSize = (int) Math.ceil(estimatedLimit * (1 - (double)rtt_noload * (bufferFactor + 1) / rtt));
 
         double newLimit;
         // Treat any drop (i.e timeout) as needing to reduce the limit
