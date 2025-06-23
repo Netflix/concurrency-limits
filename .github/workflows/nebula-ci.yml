@@ -16,7 +16,7 @@ jobs:
         java: [ 8 ]
     name: CI with Java ${{ matrix.java }}
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v4
       - name: Setup git user
         run: |
           git config --global user.name "Netflix OSS Maintainers"
@@ -25,14 +25,14 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: ${{ matrix.java }}
-      - uses: actions/cache@v1
+      - uses: actions/cache@v4
         id: gradle-cache
         with:
           path: ~/.gradle/caches
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/gradle/dependency-locks/*.lockfile') }}
           restore-keys: |
             - ${{ runner.os }}-gradle-
-      - uses: actions/cache@v1
+      - uses: actions/cache@v4
         id: gradle-wrapper-cache
         with:
           path: ~/.gradle/wrapper
