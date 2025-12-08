@@ -67,7 +67,14 @@ public final class BlockingLimiter<ContextT> implements Limiter<ContextT> {
         this.delegate = limiter;
         this.timeout = timeout;
     }
-    
+
+    /**
+     * Returns the timeout used when blocking to acquire a permit.
+     */
+    public Duration getTimeout() {
+        return timeout;
+    }
+
     private Optional<Listener> tryAcquire(ContextT context) {
         final Instant deadline = Instant.now().plus(timeout);
         synchronized (lock) {

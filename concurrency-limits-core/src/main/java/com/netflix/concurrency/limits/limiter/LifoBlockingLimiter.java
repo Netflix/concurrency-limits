@@ -40,7 +40,9 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
 
         private final Limiter<ContextT> delegate;
         private int maxBacklogSize = 100;
-        private Function<ContextT, Long> maxBacklogTimeoutMillis = context -> 1_000L;
+        private Long fixedBacklogTimeoutMillis = 1_000L;
+        private Function<ContextT, Long> maxBacklogTimeoutMillis =
+                context -> fixedBacklogTimeoutMillis;
 
         private Builder(Limiter<ContextT> delegate) {
             this.delegate = delegate;
@@ -87,6 +89,7 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
          */
         public Builder<ContextT> backlogTimeoutMillis(long timeout) {
             this.maxBacklogTimeoutMillis = context -> timeout;
+            this.fixedBacklogTimeoutMillis = timeout;
             return this;
         }
 
@@ -99,6 +102,7 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
          */
         public Builder<ContextT> backlogTimeout(Function<ContextT, Long> mapper, TimeUnit units) {
             this.maxBacklogTimeoutMillis = context -> units.toMillis(mapper.apply(context));
+            this.fixedBacklogTimeoutMillis = null;
             return this;
         }
 
@@ -142,7 +146,19 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
 
     private final int backlogSize;
 
+    /**
+     * Function that computes the backlog timeout in milliseconds based on the
+     * request context. By default, this returns the fixed timeout.
+     */
     private final Function<ContextT, Long> backlogTimeoutMillis;
+
+    /**
+     * Fixed backlog timeout in milliseconds fixed for this limiter.
+     * <p>
+     * This is primarily intended for introspection and serialization. By
+     * default, the backlog timeout is 1 second.
+     */
+    private final Long fixedBacklogTimeoutMillis;
 
     private final Object lock = new Object();
 
@@ -150,6 +166,15 @@ public final class LifoBlockingLimiter<ContextT> implements Limiter<ContextT> {
         this.delegate = builder.delegate;
         this.backlogSize = builder.maxBacklogSize;
         this.backlogTimeoutMillis = builder.maxBacklogTimeoutMillis;
+        this.fixedBacklogTimeoutMillis = builder.fixedBacklogTimeoutMillis;
+    }
+
+    /**
+     * Returns the fixed backlog timeout in milliseconds, or  null if the
+     * timeout is derived from the request context.
+     */
+    public Long getFixedBacklogTimeoutMillis() {
+        return this.fixedBacklogTimeoutMillis;
     }
 
     private Optional<Listener> tryAcquire(ContextT context) {
