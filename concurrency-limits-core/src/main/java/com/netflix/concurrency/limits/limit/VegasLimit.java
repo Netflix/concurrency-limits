@@ -15,6 +15,8 @@
  */
 package com.netflix.concurrency.limits.limit;
 
+import static com.netflix.concurrency.limits.limiter.AbstractLimiter.ID_TAG;
+
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
@@ -239,7 +241,7 @@ public class VegasLimit extends AbstractLimit {
 
         resetProbeJitter();
 
-        this.rttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME);
+        this.rttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, ID_TAG, builder.name);
     }
 
     private void resetProbeJitter() {

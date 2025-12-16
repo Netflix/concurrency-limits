@@ -62,7 +62,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         public BuilderT partition(String name, double percent) {
             Preconditions.checkArgument(name != null, "Partition name may not be null");
             Preconditions.checkArgument(percent >= 0.0 && percent <= 1.0, "Partition percentage must be in the range [0.0, 1.0]");
-            partitions.computeIfAbsent(name, Partition::new).setPercent(percent);
+            partitions.computeIfAbsent(name, k -> new Partition(name, this.name)).setPercent(percent);
             return self();
         }
 
@@ -76,7 +76,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
          * @return Chainable builder
          */
         public BuilderT partitionRejectDelay(String name, long duration, TimeUnit units) {
-            partitions.computeIfAbsent(name, Partition::new).setBackoffMillis(units.toMillis(duration));
+            partitions.computeIfAbsent(name, k -> new Partition(name, this.name)).setBackoffMillis(units.toMillis(duration));
             return self();
         }
 
@@ -104,6 +104,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
 
     static class Partition {
         private final String name;
+        private final String id;
         private final AtomicInteger busy = new AtomicInteger(0);
 
         private double percent = 0.0;
@@ -111,8 +112,9 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         private long backoffMillis = 0;
         private MetricRegistry.SampleListener inflightDistribution;
 
-        Partition(String name) {
+        Partition(String name, String id) {
             this.name = name;
+            this.id = id;
         }
 
         Partition setPercent(double percent) {
@@ -175,8 +177,8 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         }
 
         void createMetrics(MetricRegistry registry) {
-            this.inflightDistribution = registry.distribution(MetricIds.INFLIGHT_NAME, PARTITION_TAG_NAME, name);
-            registry.gauge(MetricIds.PARTITION_LIMIT_NAME, this::getLimit, PARTITION_TAG_NAME, name);
+            this.inflightDistribution = registry.distribution(MetricIds.INFLIGHT_NAME, PARTITION_TAG_NAME, name, ID_TAG, id);
+            registry.gauge(MetricIds.PARTITION_LIMIT_NAME, this::getLimit, PARTITION_TAG_NAME, name, ID_TAG, id);
         }
 
         @Override
@@ -201,7 +203,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         this.partitions = new HashMap<>(builder.partitions);
         this.partitions.forEach((name, partition) -> partition.createMetrics(builder.registry));
 
-        this.unknownPartition = new Partition("unknown");
+        this.unknownPartition = new Partition("unknown", builder.name);
         this.unknownPartition.createMetrics(builder.registry);
 
         this.partitionResolvers = builder.partitionResolvers;
