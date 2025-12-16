@@ -23,14 +23,24 @@ import com.netflix.concurrency.limits.Limit;
  */
 public class SettableLimit extends AbstractLimit {
 
+    /**
+     * @deprecated use {@link #newBuilder()} instead
+     */
     public static SettableLimit startingAt(int limit) {
         return new SettableLimit(limit);
     }
-    
+
+    /**
+     * @deprecated use {@link #newBuilder()} instead
+     */
     public SettableLimit(int limit) {
-        super(limit);
+        this(new Builder().initialLimit(limit));
     }
-    
+
+    private SettableLimit(Builder builder) {
+        super(builder);
+    }
+
     @Override
     protected int _update(long startTime, long rtt, int inflight, boolean didDrop) {
         return getLimit();
@@ -43,5 +53,25 @@ public class SettableLimit extends AbstractLimit {
     @Override
     public String toString() {
         return "SettableLimit [limit=" + getLimit() + "]";
+    }
+
+    public static Builder newBuilder() {
+        return new Builder();
+    }
+
+    public static class Builder extends AbstractLimit.Builder<Builder> {
+
+        public Builder() {
+            super(-1);
+        }
+
+        @Override
+        protected Builder self() {
+            return this;
+        }
+
+        public SettableLimit build() {
+            return new SettableLimit(this);
+        }
     }
 }

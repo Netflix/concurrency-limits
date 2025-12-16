@@ -71,25 +71,17 @@ import java.util.function.IntUnaryOperator;
 public final class Gradient2Limit extends AbstractLimit {
     private static final Logger LOG = LoggerFactory.getLogger(Gradient2Limit.class);
 
-    public static class Builder {
-        private int initialLimit = 20;
+    public static class Builder extends AbstractLimit.Builder<Builder> {
         private int minLimit = 20;
         private int maxConcurrency = 200;
 
         private double smoothing = 0.2;
         private IntUnaryOperator queueSize = concurrency -> 4;
-        private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private int longWindow = 600;
         private double rttTolerance = 1.5;
 
-        /**
-         * Initial limit used by the limiter
-         * @param initialLimit
-         * @return Chainable builder
-         */
-        public Builder initialLimit(int initialLimit) {
-            this.initialLimit = initialLimit;
-            return this;
+        public Builder() {
+            super(20);
         }
 
         /**
@@ -183,16 +175,6 @@ public final class Gradient2Limit extends AbstractLimit {
             return this;
         }
 
-        /**
-         * Registry for reporting metrics about the limiter's internal state.
-         * @param registry
-         * @return Chainable builder
-         */
-        public Builder metricRegistry(MetricRegistry registry) {
-            this.registry = registry;
-            return this;
-        }
-
         @Deprecated
         public Builder shortWindow(int n) {
             return this;
@@ -200,6 +182,11 @@ public final class Gradient2Limit extends AbstractLimit {
 
         public Builder longWindow(int n) {
             this.longWindow = n;
+            return this;
+        }
+
+        @Override
+        protected Builder self() {
             return this;
         }
 
@@ -258,7 +245,7 @@ public final class Gradient2Limit extends AbstractLimit {
     private final double tolerance;
 
     private Gradient2Limit(Builder builder) {
-        super(builder.initialLimit);
+        super(builder);
 
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;

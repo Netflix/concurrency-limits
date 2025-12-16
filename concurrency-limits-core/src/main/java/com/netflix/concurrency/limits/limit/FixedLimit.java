@@ -20,12 +20,15 @@ package com.netflix.concurrency.limits.limit;
  */
 public final class FixedLimit extends AbstractLimit {
 
+    /**
+     * @deprecated use {@link #newBuilder()} instead
+     */
     public static FixedLimit of(int limit) {
-        return new FixedLimit(limit);
+        return new FixedLimit(new Builder().initialLimit(limit));
     }
-    
-    private FixedLimit(int limit) {
-        super(limit);
+
+    private FixedLimit(Builder builder) {
+        super(builder);
     }
 
     @Override
@@ -37,4 +40,25 @@ public final class FixedLimit extends AbstractLimit {
     public String toString() {
         return "FixedLimit [limit=" + getLimit() + "]";
     }
+
+    public static Builder newBuilder() {
+        return new Builder();
+    }
+
+    public static class Builder extends AbstractLimit.Builder<Builder> {
+
+        public Builder() {
+            super(-1);
+        }
+
+        @Override
+        protected Builder self() {
+            return this;
+        }
+
+        public FixedLimit build() {
+            return new FixedLimit(this);
+        }
+    }
+
 }

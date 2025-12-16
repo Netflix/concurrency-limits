@@ -44,8 +44,7 @@ public class VegasLimit extends AbstractLimit {
     
     private static final IntUnaryOperator LOG10 = Log10RootIntFunction.create(0);
 
-    public static class Builder {
-        private int initialLimit = 20;
+    public static class Builder extends AbstractLimit.Builder<Builder>{
         private int maxConcurrency = 1000;
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private double smoothing = 1.0;
@@ -58,6 +57,7 @@ public class VegasLimit extends AbstractLimit {
         private int probeMultiplier = 30;
         
         private Builder() {
+            super(20);
         }
         
         /**
@@ -180,7 +180,12 @@ public class VegasLimit extends AbstractLimit {
             this.registry = registry;
             return this;
         }
-        
+
+        @Override
+        protected Builder self() {
+            return this;
+        }
+
         public VegasLimit build() {
             if (initialLimit > maxConcurrency) {
                 LOG.warn("Initial limit {} exceeded maximum limit {}", initialLimit, maxConcurrency);
@@ -221,7 +226,7 @@ public class VegasLimit extends AbstractLimit {
     private double probeJitter;
 
     private VegasLimit(Builder builder) {
-        super(builder.initialLimit);
+        super(builder);
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
         this.alphaFunc = builder.alphaFunc;

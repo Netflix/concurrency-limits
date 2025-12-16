@@ -15,18 +15,27 @@
  */
 package com.netflix.concurrency.limits.limit;
 
+import static com.netflix.concurrency.limits.limiter.AbstractLimiter.ID_TAG;
+
 import com.netflix.concurrency.limits.Limit;
 
+import com.netflix.concurrency.limits.MetricIds;
+import com.netflix.concurrency.limits.MetricRegistry;
+import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
+import com.netflix.concurrency.limits.internal.Preconditions;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 public abstract class AbstractLimit implements Limit {
     private volatile int limit;
     private final List<Consumer<Integer>> listeners = new CopyOnWriteArrayList<>();
 
-    protected AbstractLimit(int initialLimit) {
-        this.limit = initialLimit;
+    protected AbstractLimit(Builder<?> builder) {
+        Preconditions.checkArgument(builder.initialLimit >= 0, "initialLimit must be greater than or equal to 0");
+        this.limit = builder.initialLimit;
+        builder.registry.gauge(MetricIds.LIMIT_NAME, this::getLimit, ID_TAG, builder.name);
     }
 
     @Override
@@ -52,5 +61,49 @@ public abstract class AbstractLimit implements Limit {
         this.listeners.add(consumer);
     }
 
+    public abstract static class Builder<BuilderT extends Builder<BuilderT>> {
+        private static final AtomicInteger idCounter = new AtomicInteger();
+
+        protected int initialLimit;
+        protected String name = "unnamed-" + idCounter.incrementAndGet();
+        protected MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
+
+        protected Builder(int initialLimit) {
+            this.initialLimit = initialLimit;
+        }
+
+        /**
+         * Initial limit used by the limiter
+         * @param initialLimit
+         * @return Chainable builder
+         */
+        public BuilderT initialLimit(int initialLimit) {
+            this.initialLimit = initialLimit;
+            return self();
+        }
+
+        /**
+         * Set the name of the limit for metric reporting
+         * @param name
+         * @return Chainable builder
+         */
+        public BuilderT named(String name) {
+            this.name = name;
+            return self();
+        }
+
+        /**
+         * Registry for reporting metrics about the limit's internal state.
+         * @param registry
+         * @return Chainable builder
+         */
+        public BuilderT metricRegistry(MetricRegistry registry) {
+            this.registry = registry;
+            return self();
+        }
+
+        protected abstract BuilderT self();
+
+    }
 
 }

@@ -42,17 +42,19 @@ public final class GradientLimit extends AbstractLimit {
 
     private static final Logger LOG = LoggerFactory.getLogger(GradientLimit.class);
     
-    public static class Builder {
-        private int initialLimit = 50;
+    public static class Builder extends AbstractLimit.Builder<Builder>{
         private int minLimit = 1;
         private int maxConcurrency = 1000;
 
         private double smoothing = 0.2;
         private Function<Integer, Integer> queueSize = SquareRootFunction.create(4);
-        private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private double rttTolerance = 2.0;
         private int probeInterval = 1000;
         private double backoffRatio = 0.9;
+
+        public Builder() {
+            super(50);
+        }
         
         /**
          * Minimum threshold for accepting a new rtt sample.  Any RTT lower than this threshold
@@ -64,16 +66,6 @@ public final class GradientLimit extends AbstractLimit {
          */
         @Deprecated
         public Builder minRttThreshold(long minRttThreshold, TimeUnit units) {
-            return this;
-        }
-        
-        /**
-         * Initial limit used by the limiter
-         * @param initialLimit
-         * @return Chainable builder
-         */
-        public Builder initialLimit(int initialLimit) {
-            this.initialLimit = initialLimit;
             return this;
         }
         
@@ -146,16 +138,6 @@ public final class GradientLimit extends AbstractLimit {
         }
         
         /**
-         * Registry for reporting metrics about the limiter's internal state.
-         * @param registry
-         * @return Chainable builder
-         */
-        public Builder metricRegistry(MetricRegistry registry) {
-            this.registry = registry;
-            return this;
-        }
-
-        /**
          * Ratio applied to the limit when a timeout was identified within the sampling window.  The default value is
          * 0.9.  A value of 1.0 means no backoff.
          * @param backoffRatio
@@ -182,7 +164,12 @@ public final class GradientLimit extends AbstractLimit {
             this.probeInterval = probeInterval;
             return this;
         }
-        
+
+        @Override
+        protected Builder self() {
+            return this;
+        }
+
         public GradientLimit build() {
             if (initialLimit > maxConcurrency) {
                 LOG.warn("Initial limit {} exceeded maximum limit {}", initialLimit, maxConcurrency);
@@ -237,8 +224,7 @@ public final class GradientLimit extends AbstractLimit {
     private int resetRttCounter;
     
     private GradientLimit(Builder builder) {
-        super(builder.initialLimit);
-        this.estimatedLimit = builder.initialLimit;
+        super(builder);
         this.maxLimit = builder.maxConcurrency;
         this.minLimit = builder.minLimit;
         this.queueSize = builder.queueSize;

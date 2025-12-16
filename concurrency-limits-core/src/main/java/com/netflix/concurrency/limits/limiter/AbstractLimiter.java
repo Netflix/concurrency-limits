@@ -134,7 +134,6 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         this.limitAlgorithm.notifyOnChange(this::onNewLimit);
         this.bypassResolver = (Predicate<ContextT>) builder.bypassResolver;
 
-        builder.registry.gauge(MetricIds.LIMIT_NAME, this::getLimit);
         this.successCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "success");
         this.droppedCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "dropped");
         this.ignoredCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "ignored");
