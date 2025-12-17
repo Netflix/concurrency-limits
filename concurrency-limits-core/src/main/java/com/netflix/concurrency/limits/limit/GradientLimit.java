@@ -51,8 +51,11 @@ public final class GradientLimit extends AbstractLimit {
         private int probeInterval = 1000;
         private double backoffRatio = 0.9;
 
+        /**
+         * Constructs a new builder with the initial limit set to 50 and kind set to "gradient".
+         */
         public Builder() {
-            super(50);
+            super(50, "gradient");
         }
         
         /**
@@ -234,9 +237,9 @@ public final class GradientLimit extends AbstractLimit {
         this.resetRttCounter = nextProbeCountdown();
         this.rttNoLoadMeasurement = new MinimumMeasurement();
         
-        this.minRttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, Tags.ID_NAME, builder.name);
-        this.minWindowRttSampleListener = builder.registry.distribution(MetricIds.WINDOW_MIN_RTT_NAME, Tags.ID_NAME, builder.name);
-        this.queueSizeSampleListener = builder.registry.distribution(MetricIds.WINDOW_QUEUE_SIZE_NAME, Tags.ID_NAME, builder.name);
+        this.minRttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
+        this.minWindowRttSampleListener = builder.registry.distribution(MetricIds.WINDOW_MIN_RTT_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
+        this.queueSizeSampleListener = builder.registry.distribution(MetricIds.WINDOW_QUEUE_SIZE_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
     }
 
     private int nextProbeCountdown() {

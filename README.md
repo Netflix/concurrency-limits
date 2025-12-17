@@ -146,11 +146,11 @@ Limiter limiter = SimpleLimiter.newBuilder()
 Then `meterRegistry.getMetersAsString()` will output:
 
 ```
-netflix.concurrency.limits.call(COUNTER)[id='testSimple', status='bypassed']; count=0.0
-netflix.concurrency.limits.call(COUNTER)[id='testSimple', status='dropped']; count=0.0
-netflix.concurrency.limits.call(COUNTER)[id='testSimple', status='success']; count=0.0
-netflix.concurrency.limits.call(COUNTER)[id='testSimple', status='rejected']; count=0.0
-netflix.concurrency.limits.call(COUNTER)[id='testSimple', status='ignored']; count=0.0
-netflix.concurrency.limits.inflight(DISTRIBUTION_SUMMARY)[id='testSimple']; count=0.0, total=0.0, max=0.0
-netflix.concurrency.limits.min_rtt(DISTRIBUTION_SUMMARY)[id='testVegas']; count=0.0, total=0.0, max=0.0
+netflix.concurrency.limits.call(COUNTER)[id='testSimple', kind='simple', status='success']; count=0.0
+netflix.concurrency.limits.call(COUNTER)[id='testSimple', kind='simple', status='ignored']; count=0.0
+netflix.concurrency.limits.call(COUNTER)[id='testSimple', kind='simple', status='dropped']; count=0.0
+netflix.concurrency.limits.call(COUNTER)[id='testSimple', kind='simple', status='bypassed']; count=0.0
+netflix.concurrency.limits.call(COUNTER)[id='testSimple', kind='simple', status='rejected']; count=0.0
+netflix.concurrency.limits.inflight(DISTRIBUTION_SUMMARY)[id='testSimple', kind='simple']; count=0.0, total=0.0, max=0.0
+netflix.concurrency.limits.min_rtt(DISTRIBUTION_SUMMARY)[id='testVegas', kind='vegas']; count=0.0, total=0.0, max=0.0
 ```

@@ -42,6 +42,10 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         private final Map<String, Partition> partitions = new LinkedHashMap<>();
         private int maxDelayedThreads = 100;
 
+        protected Builder(String kind) {
+            super(kind);
+        }
+
         /**
          * Add a resolver from context to a partition name.  Multiple resolvers may be added and will be processed in
          * order with this first non-null value response used as the partition name.  If all resolvers return null then
@@ -63,7 +67,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         public BuilderT partition(String name, double percent) {
             Preconditions.checkArgument(name != null, "Partition name may not be null");
             Preconditions.checkArgument(percent >= 0.0 && percent <= 1.0, "Partition percentage must be in the range [0.0, 1.0]");
-            partitions.computeIfAbsent(name, k -> new Partition(name, this.name)).setPercent(percent);
+            partitions.computeIfAbsent(name, k -> new Partition(name, this.name, this.kind)).setPercent(percent);
             return self();
         }
 
@@ -77,7 +81,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
          * @return Chainable builder
          */
         public BuilderT partitionRejectDelay(String name, long duration, TimeUnit units) {
-            partitions.computeIfAbsent(name, k -> new Partition(name, this.name)).setBackoffMillis(units.toMillis(duration));
+            partitions.computeIfAbsent(name, k -> new Partition(name, this.name, this.kind)).setBackoffMillis(units.toMillis(duration));
             return self();
         }
 
@@ -106,6 +110,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
     static class Partition {
         private final String name;
         private final String id;
+        private final String kind;
         private final AtomicInteger busy = new AtomicInteger(0);
 
         private double percent = 0.0;
@@ -113,9 +118,10 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         private long backoffMillis = 0;
         private MetricRegistry.SampleListener inflightDistribution;
 
-        Partition(String name, String id) {
+        Partition(String name, String id, String kind) {
             this.name = name;
             this.id = id;
+            this.kind = kind;
         }
 
         Partition setPercent(double percent) {
@@ -178,8 +184,8 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         }
 
         void createMetrics(MetricRegistry registry) {
-            this.inflightDistribution = registry.distribution(MetricIds.INFLIGHT_NAME, PARTITION_TAG_NAME, name, Tags.ID_NAME, id);
-            registry.gauge(MetricIds.PARTITION_LIMIT_NAME, this::getLimit, PARTITION_TAG_NAME, name, Tags.ID_NAME, id);
+            this.inflightDistribution = registry.distribution(MetricIds.INFLIGHT_NAME, PARTITION_TAG_NAME, name, Tags.ID_NAME, id, Tags.KIND_NAME, kind);
+            registry.gauge(MetricIds.PARTITION_LIMIT_NAME, this::getLimit, PARTITION_TAG_NAME, name, Tags.ID_NAME, id, Tags.KIND_NAME, kind);
         }
 
         @Override
@@ -204,7 +210,7 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         this.partitions = new HashMap<>(builder.partitions);
         this.partitions.forEach((name, partition) -> partition.createMetrics(builder.registry));
 
-        this.unknownPartition = new Partition("unknown", builder.name);
+        this.unknownPartition = new Partition("unknown", builder.name, builder.kind);
         this.unknownPartition.createMetrics(builder.registry);
 
         this.partitionResolvers = builder.partitionResolvers;

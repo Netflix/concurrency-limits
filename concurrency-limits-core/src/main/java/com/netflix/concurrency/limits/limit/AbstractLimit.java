@@ -34,7 +34,7 @@ public abstract class AbstractLimit implements Limit {
     protected AbstractLimit(Builder<?> builder) {
         Preconditions.checkArgument(builder.initialLimit >= 0, "initialLimit must be greater than or equal to 0");
         this.limit = builder.initialLimit;
-        builder.registry.gauge(MetricIds.LIMIT_NAME, this::getLimit, Tags.ID_NAME, builder.name);
+        builder.registry.gauge(MetricIds.LIMIT_NAME, this::getLimit, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
     }
 
     @Override
@@ -66,9 +66,11 @@ public abstract class AbstractLimit implements Limit {
         protected int initialLimit;
         protected String name = "unnamed-" + idCounter.incrementAndGet();
         protected MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
+        protected final String kind;
 
-        protected Builder(int initialLimit) {
+        protected Builder(int initialLimit, String kind) {
             this.initialLimit = initialLimit;
+            this.kind = kind;
         }
 
         /**

@@ -58,7 +58,7 @@ public class VegasLimit extends AbstractLimit {
         private int probeMultiplier = 30;
         
         private Builder() {
-            super(20);
+            super(20, "vegas");
         }
         
         /**
@@ -194,11 +194,19 @@ public class VegasLimit extends AbstractLimit {
             return new VegasLimit(this);
         }
     }
-    
+
+    /**
+     * Constructs a new builder with the initial limit set to 20, and kind set to "vegas".
+     * @return the Chainable builder
+     */
     public static Builder newBuilder() {
         return new Builder();
     }
-    
+
+    /**
+     * Constructs a new {@link VegasLimit} with initial limit set to 20, and kind set to "vegas".
+     * @return the new {@link VegasLimit} instance
+     */
     public static VegasLimit newDefault() {
         return newBuilder().build();
     }
@@ -240,7 +248,7 @@ public class VegasLimit extends AbstractLimit {
 
         resetProbeJitter();
 
-        this.rttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, Tags.ID_NAME, builder.name);
+        this.rttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
     }
 
     private void resetProbeJitter() {

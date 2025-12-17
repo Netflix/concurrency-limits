@@ -48,7 +48,7 @@ public final class FixedLimit extends AbstractLimit {
     public static class Builder extends AbstractLimit.Builder<Builder> {
 
         public Builder() {
-            super(-1);
+            super(-1, "fixed");
         }
 
         @Override

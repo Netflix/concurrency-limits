@@ -25,6 +25,10 @@ import java.util.concurrent.Semaphore;
 
 public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
     public static class Builder extends AbstractLimiter.Builder<Builder> {
+
+        public Builder() {
+            super("simple");
+        }
         public <ContextT> SimpleLimiter<ContextT> build() {
             return new SimpleLimiter<>(this);
         }
@@ -44,7 +48,7 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
     public SimpleLimiter(AbstractLimiter.Builder<?> builder) {
         super(builder);
 
-        this.inflightDistribution = builder.registry.distribution(MetricIds.INFLIGHT_NAME, Tags.ID_NAME, builder.name);
+        this.inflightDistribution = builder.registry.distribution(MetricIds.INFLIGHT_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
         this.semaphore = new AdjustableSemaphore(getLimit());
     }
 

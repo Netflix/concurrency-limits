@@ -19,6 +19,7 @@ public final class Tags {
 
     public static final String ID_NAME = "id";
     public static final String STATUS_NAME = "status";
+    public static final String KIND_NAME = "kind";
 
     private Tags() {
 

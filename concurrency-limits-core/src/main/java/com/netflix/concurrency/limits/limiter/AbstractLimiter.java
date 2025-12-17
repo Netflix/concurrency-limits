@@ -58,6 +58,12 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         private final Predicate<Object> ALWAYS_FALSE = (context) -> false;
         private Predicate<Object> bypassResolver = ALWAYS_FALSE;
 
+        protected final String kind;
+
+        protected Builder(String kind) {
+            this.kind = kind;
+        }
+
         public BuilderT named(String name) {
             this.name = name;
             return self();
@@ -133,11 +139,11 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         this.limitAlgorithm.notifyOnChange(this::onNewLimit);
         this.bypassResolver = (Predicate<ContextT>) builder.bypassResolver;
 
-        this.successCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.STATUS_NAME, "success");
-        this.droppedCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.STATUS_NAME, "dropped");
-        this.ignoredCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.STATUS_NAME, "ignored");
-        this.rejectedCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.STATUS_NAME, "rejected");
-        this.bypassCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.STATUS_NAME, "bypassed");
+        this.successCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind, Tags.STATUS_NAME, "success");
+        this.droppedCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind, Tags.STATUS_NAME, "dropped");
+        this.ignoredCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind, Tags.STATUS_NAME, "ignored");
+        this.rejectedCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind, Tags.STATUS_NAME, "rejected");
+        this.bypassCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind, Tags.STATUS_NAME, "bypassed");
     }
 
     protected boolean shouldBypass(ContextT context){

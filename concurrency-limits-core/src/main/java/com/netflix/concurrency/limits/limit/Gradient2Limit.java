@@ -79,8 +79,11 @@ public final class Gradient2Limit extends AbstractLimit {
         private int longWindow = 600;
         private double rttTolerance = 1.5;
 
+        /**
+         * Constructs a new builder with the initial limit set to {@code 20}, and the name set to "gradient2".
+         */
         public Builder() {
-            super(20);
+            super(20, "gradient2");
         }
 
         /**
@@ -255,9 +258,9 @@ public final class Gradient2Limit extends AbstractLimit {
         this.lastRtt = 0;
         this.longRtt = new ExpAvgMeasurement(builder.longWindow, 10);
 
-        this.longRttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, Tags.ID_NAME, builder.name);
-        this.shortRttSampleListener = builder.registry.distribution(MetricIds.WINDOW_MIN_RTT_NAME, Tags.ID_NAME, builder.name);
-        this.queueSizeSampleListener = builder.registry.distribution(MetricIds.WINDOW_QUEUE_SIZE_NAME, Tags.ID_NAME, builder.name);
+        this.longRttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
+        this.shortRttSampleListener = builder.registry.distribution(MetricIds.WINDOW_MIN_RTT_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
+        this.queueSizeSampleListener = builder.registry.distribution(MetricIds.WINDOW_QUEUE_SIZE_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
     }
 
     @Override

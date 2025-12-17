@@ -37,7 +37,7 @@ public final class AIMDLimit extends AbstractLimit {
         private long timeout = DEFAULT_TIMEOUT;
 
         public Builder() {
-            super(20);
+            super(20, "AIMD");
         }
 
         @Override

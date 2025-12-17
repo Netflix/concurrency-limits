@@ -21,6 +21,14 @@ import io.grpc.Metadata;
 import java.util.function.Predicate;
 
 public class GrpcServerLimiterBuilder extends AbstractPartitionedLimiter.Builder<GrpcServerLimiterBuilder, GrpcServerRequestContext> {
+
+    /**
+     * Constructs a new {@link GrpcServerLimiterBuilder} with kind set to "grpc-server".
+     */
+    public GrpcServerLimiterBuilder() {
+        super("grpc-server");
+    }
+
     /**
      * Partition the limit by method
      * @return Chainable builder
