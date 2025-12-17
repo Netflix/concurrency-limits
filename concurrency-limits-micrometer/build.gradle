@@ -1,0 +1,15 @@
+plugins {
+    id 'java'
+}
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+
+dependencies {
+    implementation project(":concurrency-limits-core")
+
+    api "io.micrometer:micrometer-core:${micrometerVersion}"
+
+    testCompileOnly "junit:junit:${jUnitLegacyVersion}"
+    testRuntimeOnly "org.junit.vintage:junit-vintage-engine:${jUnitVersion}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${jUnitVersion}"
+}

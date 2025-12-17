@@ -120,3 +120,37 @@ public void drainQueue(Queue<Runnable> tasks) {
 }
 
 ```
+
+## Micrometer
+
+An implementation of `MetricRegistry` is provided for [Micrometer](https://micrometer.io/) called `MicrometerMetricRegistry` available in Maven artifact `com.netflix.concurrency-limits:concurrency-limits-micrometer`.
+
+```java
+SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+// or inject any MeterRegistry
+
+MicrometerMetricRegistry metricRegistry = new MicrometerMetricRegistry(meterRegistry);
+
+Limit vegasLimit = VegasLimit.newBuilder()
+    .metricRegistry(metricRegistry)
+    .named("testVegas")
+    .build();
+
+Limiter limiter = SimpleLimiter.newBuilder()
+    .limit(limit)
+    .metricRegistry(metricRegistry)
+    .named("testSimple")
+    .build();
+```
+
+Then `meterRegistry.getMetersAsString()` will output:
+
+```
+netflix.concurrency.limits.call(COUNTER)[id='testSimple', status='bypassed']; count=0.0
+netflix.concurrency.limits.call(COUNTER)[id='testSimple', status='dropped']; count=0.0
+netflix.concurrency.limits.call(COUNTER)[id='testSimple', status='success']; count=0.0
+netflix.concurrency.limits.call(COUNTER)[id='testSimple', status='rejected']; count=0.0
+netflix.concurrency.limits.call(COUNTER)[id='testSimple', status='ignored']; count=0.0
+netflix.concurrency.limits.inflight(DISTRIBUTION_SUMMARY)[id='testSimple']; count=0.0, total=0.0, max=0.0
+netflix.concurrency.limits.min_rtt(DISTRIBUTION_SUMMARY)[id='testVegas']; count=0.0, total=0.0, max=0.0
+```

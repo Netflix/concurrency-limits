@@ -34,6 +34,7 @@ subprojects {
         grpcVersion = "1.9.0"
         jUnitVersion = "5.+"
         jUnitLegacyVersion = "4.+"
+        micrometerVersion = "1.+"
         mockitoVersion = "4.+"
         slf4jVersion = "1.7.+"
         spectatorVersion = "1.+"
