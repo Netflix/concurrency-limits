@@ -40,6 +40,7 @@ public class ConcurrencyLimitServletFilterTest {
         limiter = Mockito.spy(new ServletLimiterBuilder()
                 .bypassLimitByMethod("GET")
                 .bypassLimitByPathInfo("/admin/health")
+                .bypassLimitByPredicate(ctx -> ctx.getMethod().equals("PATCH"))
                 .named(testName.getMethodName())
                 .metricRegistry(spectatorMetricRegistry)
                 .build());
@@ -120,6 +121,24 @@ public class ConcurrencyLimitServletFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setMethod("POST");
         request.setPathInfo("/admin/health");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain filterChain = new MockFilterChain();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertEquals("Request should be passed to the downstream chain", request, filterChain.getRequest());
+        assertEquals("Response should be passed to the downstream chain", response, filterChain.getResponse());
+        verifyCounts(0, 0, 0, 0, 1);
+    }
+
+    @Test
+    public void testDoFilterBypassCheckPassedForPredicate() throws ServletException, IOException {
+
+        ConcurrencyLimitServletFilter filter = new ConcurrencyLimitServletFilter(limiter);
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setMethod("PATCH");
+        request.setPathInfo("/admin/patch");
         MockHttpServletResponse response = new MockHttpServletResponse();
         MockFilterChain filterChain = new MockFilterChain();
 
