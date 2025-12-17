@@ -18,6 +18,7 @@ package com.netflix.concurrency.limits.limiter;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
+import com.netflix.concurrency.limits.Tags;
 import com.netflix.concurrency.limits.internal.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -177,8 +178,8 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         }
 
         void createMetrics(MetricRegistry registry) {
-            this.inflightDistribution = registry.distribution(MetricIds.INFLIGHT_NAME, PARTITION_TAG_NAME, name, ID_TAG, id);
-            registry.gauge(MetricIds.PARTITION_LIMIT_NAME, this::getLimit, PARTITION_TAG_NAME, name, ID_TAG, id);
+            this.inflightDistribution = registry.distribution(MetricIds.INFLIGHT_NAME, PARTITION_TAG_NAME, name, Tags.ID_NAME, id);
+            registry.gauge(MetricIds.PARTITION_LIMIT_NAME, this::getLimit, PARTITION_TAG_NAME, name, Tags.ID_NAME, id);
         }
 
         @Override

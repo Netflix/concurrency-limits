@@ -15,13 +15,12 @@
  */
 package com.netflix.concurrency.limits.limit;
 
-import static com.netflix.concurrency.limits.limiter.AbstractLimiter.ID_TAG;
-
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.limit.functions.Log10RootIntFunction;
+import com.netflix.concurrency.limits.Tags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -241,7 +240,7 @@ public class VegasLimit extends AbstractLimit {
 
         resetProbeJitter();
 
-        this.rttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, ID_TAG, builder.name);
+        this.rttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, Tags.ID_NAME, builder.name);
     }
 
     private void resetProbeJitter() {

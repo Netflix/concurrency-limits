@@ -19,6 +19,7 @@ import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 
+import com.netflix.concurrency.limits.Tags;
 import java.util.Optional;
 import java.util.concurrent.Semaphore;
 
@@ -43,7 +44,7 @@ public class SimpleLimiter<ContextT> extends AbstractLimiter<ContextT> {
     public SimpleLimiter(AbstractLimiter.Builder<?> builder) {
         super(builder);
 
-        this.inflightDistribution = builder.registry.distribution(MetricIds.INFLIGHT_NAME, ID_TAG, builder.name);
+        this.inflightDistribution = builder.registry.distribution(MetricIds.INFLIGHT_NAME, Tags.ID_NAME, builder.name);
         this.semaphore = new AdjustableSemaphore(getLimit());
     }
 

@@ -19,6 +19,7 @@ import com.netflix.concurrency.limits.Limit;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
+import com.netflix.concurrency.limits.Tags;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.limit.VegasLimit;
 
@@ -29,8 +30,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
-    public static final String ID_TAG = "id";
-    public static final String STATUS_TAG = "status";
     private static final Listener NOOP_LISTENER = new Listener() {
         @Override
         public void onSuccess() {
@@ -134,11 +133,11 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
         this.limitAlgorithm.notifyOnChange(this::onNewLimit);
         this.bypassResolver = (Predicate<ContextT>) builder.bypassResolver;
 
-        this.successCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "success");
-        this.droppedCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "dropped");
-        this.ignoredCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "ignored");
-        this.rejectedCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "rejected");
-        this.bypassCounter = builder.registry.counter(MetricIds.CALL_NAME, ID_TAG, builder.name, STATUS_TAG, "bypassed");
+        this.successCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.STATUS_NAME, "success");
+        this.droppedCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.STATUS_NAME, "dropped");
+        this.ignoredCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.STATUS_NAME, "ignored");
+        this.rejectedCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.STATUS_NAME, "rejected");
+        this.bypassCounter = builder.registry.counter(MetricIds.CALL_NAME, Tags.ID_NAME, builder.name, Tags.STATUS_NAME, "bypassed");
     }
 
     protected boolean shouldBypass(ContextT context){

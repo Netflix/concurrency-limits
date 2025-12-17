@@ -15,14 +15,13 @@
  */
 package com.netflix.concurrency.limits.limit;
 
-import static com.netflix.concurrency.limits.limiter.AbstractLimiter.ID_TAG;
-
 import com.netflix.concurrency.limits.Limit;
 
 import com.netflix.concurrency.limits.MetricIds;
 import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.internal.Preconditions;
+import com.netflix.concurrency.limits.Tags;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,7 +34,7 @@ public abstract class AbstractLimit implements Limit {
     protected AbstractLimit(Builder<?> builder) {
         Preconditions.checkArgument(builder.initialLimit >= 0, "initialLimit must be greater than or equal to 0");
         this.limit = builder.initialLimit;
-        builder.registry.gauge(MetricIds.LIMIT_NAME, this::getLimit, ID_TAG, builder.name);
+        builder.registry.gauge(MetricIds.LIMIT_NAME, this::getLimit, Tags.ID_NAME, builder.name);
     }
 
     @Override

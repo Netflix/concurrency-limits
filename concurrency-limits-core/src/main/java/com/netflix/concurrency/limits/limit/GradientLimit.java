@@ -15,12 +15,9 @@
  */
 package com.netflix.concurrency.limits.limit;
 
-import static com.netflix.concurrency.limits.limiter.AbstractLimiter.ID_TAG;
-
 import com.netflix.concurrency.limits.MetricIds;
-import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
-import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
+import com.netflix.concurrency.limits.Tags;
 import com.netflix.concurrency.limits.internal.Preconditions;
 import com.netflix.concurrency.limits.limit.functions.SquareRootFunction;
 import com.netflix.concurrency.limits.limit.measurement.Measurement;
@@ -237,9 +234,9 @@ public final class GradientLimit extends AbstractLimit {
         this.resetRttCounter = nextProbeCountdown();
         this.rttNoLoadMeasurement = new MinimumMeasurement();
         
-        this.minRttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, ID_TAG, builder.name);
-        this.minWindowRttSampleListener = builder.registry.distribution(MetricIds.WINDOW_MIN_RTT_NAME, ID_TAG, builder.name);
-        this.queueSizeSampleListener = builder.registry.distribution(MetricIds.WINDOW_QUEUE_SIZE_NAME, ID_TAG, builder.name);
+        this.minRttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, Tags.ID_NAME, builder.name);
+        this.minWindowRttSampleListener = builder.registry.distribution(MetricIds.WINDOW_MIN_RTT_NAME, Tags.ID_NAME, builder.name);
+        this.queueSizeSampleListener = builder.registry.distribution(MetricIds.WINDOW_QUEUE_SIZE_NAME, Tags.ID_NAME, builder.name);
     }
 
     private int nextProbeCountdown() {
