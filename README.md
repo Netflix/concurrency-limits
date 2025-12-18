@@ -4,12 +4,12 @@ Java Library that implements and integrates concepts from TCP congestion control
 
 # Background
 
-When thinking of service availability operators traditionally think in terms of RPS (requests per second). Stress tests are normally performed to determine the RPS at which point the service tips over. RPS limits are then set somewhere below this tipping point (say 75% of this value) and enforced via a token bucket. However, in large distributed systems that auto-scale this value quickly goes out of date and the service falls over by becoming non-responsive as it is unable to gracefully shed excess load. Instead of thinking in terms of RPS, we should be thinking in terms of concurrent request where we apply queuing theory to determine the number of concurrent requests a service can handle before a queue starts to build up, latencies increase and the service eventually exhausts a hard limit such as CPU, memory, disk or network. This relationship is covered very nicely with Little's Law where `Limit = Average RPS * Average Latency`.
+When thinking of service availability operators traditionally think in terms of RPS (requests per second). Stress tests are normally performed to determine the RPS at which point the service tips over. RPS limits are then set somewhere below this tipping point (say 75% of this value) and enforced via a token bucket. However, in large distributed systems that auto-scale this value quickly goes out of date and the service falls over by becoming non-responsive as it is unable to gracefully shed excess load. Instead of thinking in terms of RPS, we should be thinking in terms of concurrent requests where we apply queuing theory to determine the number of concurrent requests a service can handle before a queue starts to build up, latencies increase and the service eventually exhausts a hard limit such as CPU, memory, disk or network. This relationship is covered very nicely with Little's Law where `Limit = Average RPS * Average Latency`.
 
 Concurrency limits are very easy to enforce but difficult to determine as they would require operators to fully understand the hardware services run on and coordinate how they scale. Instead we'd prefer to measure or estimate the concurrency limits at each point in the network.  As systems scale and hit limits each node will adjust and enforce its local view of the limit. To estimate the limit we borrow from common TCP congestion control algorithms by equating a system's concurrency limit to a TCP congestion window. 
 
 Before applying the algorithm we need to set some ground rules. 
-* We accept that every system has an inherent concurrency limit that is determined by a hard resources, such as number of CPU cores. 
+* We accept that every system has an inherent concurrency limit that is determined by a hard resource, such as number of CPU cores. 
 * We accept that this limit can change as a system auto-scales.  
 * For large and complex distributed systems it's impossible to know all the hard resources.
 * We can use latency measurements to determine when queuing happens.
@@ -27,7 +27,7 @@ At the end of each sampling window the limit is increased by 1 if the queue is l
 
 ## Gradient2
 
-This algorithm attempts to address bias and drift when using minimum latency measurements. To do this the algorithm tracks uses the measure of divergence between two exponential averages over a long and short time time window. Using averages the algorithm can smooth out the impact of outliers for bursty traffic. Divergence duration is used as a proxy to identify a queueing trend at which point the algorithm aggresively reduces the limit.
+This algorithm attempts to address bias and drift when using minimum latency measurements. To do this the algorithm tracks the measure of divergence between two exponential averages over a long and short time window. Using averages the algorithm can smooth out the impact of outliers for bursty traffic. Divergence duration is used as a proxy to identify a queueing trend at which point the algorithm aggressively reduces the limit.
 
 # Enforcement Strategies
 
