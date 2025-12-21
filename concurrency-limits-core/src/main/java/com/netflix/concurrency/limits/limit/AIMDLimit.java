@@ -30,15 +30,18 @@ public final class AIMDLimit extends AbstractLimit {
     private static final long DEFAULT_TIMEOUT = TimeUnit.SECONDS.toNanos(5);
     private static final Logger LOG = LoggerFactory.getLogger(AIMDLimit.class);
 
-    public static class Builder {
+    public static class Builder extends AbstractLimit.Builder<Builder> {
         private int minLimit = 20;
-        private int initialLimit = 20;
         private int maxLimit = 200;
         private double backoffRatio = 0.9;
         private long timeout = DEFAULT_TIMEOUT;
 
-        public Builder initialLimit(int initialLimit) {
-            this.initialLimit = initialLimit;
+        public Builder() {
+            super(20, "AIMD");
+        }
+
+        @Override
+        protected Builder self() {
             return this;
         }
 
@@ -91,7 +94,7 @@ public final class AIMDLimit extends AbstractLimit {
     private final int maxLimit;
 
     private AIMDLimit(Builder builder) {
-        super(builder.initialLimit);
+        super(builder);
         this.backoffRatio = builder.backoffRatio;
         this.timeout = builder.timeout;
         this.maxLimit = builder.maxLimit;

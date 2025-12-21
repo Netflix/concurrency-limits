@@ -1,0 +1,55 @@
+{
+    "compileClasspath": {
+        "com.netflix.concurrency-limits:concurrency-limits-core": {
+            "project": true
+        },
+        "io.micrometer:micrometer-core": {
+            "locked": "1.16.1"
+        }
+    },
+    "runtimeClasspath": {
+        "com.netflix.concurrency-limits:concurrency-limits-core": {
+            "project": true
+        },
+        "io.micrometer:micrometer-core": {
+            "locked": "1.16.1"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "com.netflix.concurrency-limits:concurrency-limits-core"
+            ],
+            "locked": "1.7.36"
+        }
+    },
+    "testCompileClasspath": {
+        "com.netflix.concurrency-limits:concurrency-limits-core": {
+            "project": true
+        },
+        "io.micrometer:micrometer-core": {
+            "locked": "1.16.1"
+        },
+        "junit:junit": {
+            "locked": "4.13.2"
+        }
+    },
+    "testRuntimeClasspath": {
+        "com.netflix.concurrency-limits:concurrency-limits-core": {
+            "project": true
+        },
+        "io.micrometer:micrometer-core": {
+            "locked": "1.16.1"
+        },
+        "org.junit.jupiter:junit-jupiter-engine": {
+            "locked": "5.10.2"
+        },
+        "org.junit.vintage:junit-vintage-engine": {
+            "locked": "5.10.2"
+        },
+        "org.slf4j:slf4j-api": {
+            "firstLevelTransitive": [
+                "com.netflix.concurrency-limits:concurrency-limits-core"
+            ],
+            "locked": "1.7.36"
+        }
+    }
+}

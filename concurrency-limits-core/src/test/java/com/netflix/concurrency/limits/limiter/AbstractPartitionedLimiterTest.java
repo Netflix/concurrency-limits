@@ -22,6 +22,11 @@ import java.util.function.Predicate;
 public class AbstractPartitionedLimiterTest {
     public static class TestPartitionedLimiter extends AbstractPartitionedLimiter<String> {
         public static class Builder extends AbstractPartitionedLimiter.Builder<Builder, String> {
+
+            public Builder() {
+                super("test");
+            }
+
             @Override
             protected Builder self() {
                 return this;

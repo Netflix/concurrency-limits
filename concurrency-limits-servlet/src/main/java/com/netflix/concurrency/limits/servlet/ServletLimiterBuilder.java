@@ -30,6 +30,14 @@ import java.util.function.Function;
  * based on one of many request attributes.  Only one type of partition may be specified.
  */
 public final class ServletLimiterBuilder extends AbstractPartitionedLimiter.Builder<ServletLimiterBuilder, HttpServletRequest> {
+
+    /**
+     * Constructs a new {@link ServletLimiterBuilder} with kind set to "servlet".
+     */
+    public ServletLimiterBuilder() {
+        super("servlet");
+    }
+
     /**
      * Partition the limit by header
      * @return Chainable builder

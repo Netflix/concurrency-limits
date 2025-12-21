@@ -27,6 +27,13 @@ import java.util.function.Predicate;
 public final class GrpcClientLimiterBuilder extends AbstractPartitionedLimiter.Builder<GrpcClientLimiterBuilder, GrpcClientRequestContext> {
     private boolean blockOnLimit = false;
 
+    /**
+     * Constructs a new {@link GrpcClientLimiterBuilder} with kind set to "grpc-client".
+     */
+    public GrpcClientLimiterBuilder() {
+        super("grpc-client");
+    }
+
     public GrpcClientLimiterBuilder partitionByMethod() {
         return partitionResolver(context -> context.getMethod().getFullMethodName());
     }
