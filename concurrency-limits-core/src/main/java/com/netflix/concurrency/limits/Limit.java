@@ -35,8 +35,8 @@ public interface Limit {
 
     /**
      * Update the limiter with a sample
-     * @param startTime
-     * @param rtt
+     * @param startTime start time in nanoseconds
+     * @param rtt round trip time in nanoseconds
      * @param inflight
      * @param didDrop
      */
