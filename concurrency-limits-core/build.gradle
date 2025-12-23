@@ -9,6 +9,7 @@ dependencies {
 
     testCompileOnly "junit:junit:${jUnitLegacyVersion}"
     testImplementation "org.slf4j:slf4j-log4j12:${slf4jVersion}"
+    testImplementation "org.mockito:mockito-core:${mockitoVersion}"
     testRuntimeOnly "org.junit.vintage:junit-vintage-engine:${jUnitVersion}"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${jUnitVersion}"
 }
