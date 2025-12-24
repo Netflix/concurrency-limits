@@ -29,6 +29,29 @@ public interface Limiter<ContextT> {
     /**
      */
     interface Listener {
+
+        enum Result {
+            SUCCESS,
+            IGNORE,
+            DROPPED
+        }
+
+        default void on(Result result) {
+            switch (result) {
+                case SUCCESS:
+                    onSuccess();
+                    break;
+                case IGNORE:
+                    onIgnore();
+                    break;
+                case DROPPED:
+                    onDropped();
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown result: " + result);
+            }
+        }
+
         /**
          * Notification that the operation succeeded and internally measured latency should be 
          * used as an RTT sample
