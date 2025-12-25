@@ -15,6 +15,9 @@
  */
 package com.netflix.concurrency.limits;
 
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Supplier;
@@ -37,4 +40,71 @@ public interface Bulkhead<ContextT> {
      * exceptionally with a {@link RejectedExecutionException}
      */
     <T> CompletionStage<T> executeCompletionStage(Supplier<? extends CompletionStage<T>> supplier, ContextT context);
+
+    /**
+     * A bulkhead that drains the backlog in parallel and executes its tasks in parallel (while
+     * limiting concurrency). This bulkhead offers additional methods to run synchronous tasks in
+     * calling threads (which is not recommended in a serial drainer).
+     *
+     * @param <ContextT> the context type to run tasks with
+     */
+    interface ParallelDrainingBulkhead<ContextT> extends Bulkhead<ContextT> {
+
+        /**
+         * Executes the given {@link Supplier} with the given context.
+         *
+         * @param supplier the task to run
+         * @param context  the context to run the task with
+         * @param <T>      the type of the result
+         * @return a {@link CompletionStage} with a completion result set by running the supplier,
+         * except for when this bulkhead cannot accept the task, in which case it completes
+         * exceptionally with a {@link RejectedExecutionException}
+         */
+        default <T> CompletionStage<T> executeSupplier(Supplier<T> supplier, ContextT context) {
+            return executeCompletionStage(() -> {
+                try {
+                    return CompletableFuture.completedFuture(supplier.get());
+                } catch (Throwable t) {
+                    CompletableFuture<T> failed = new CompletableFuture<>();
+                    failed.completeExceptionally(t);
+                    return failed;
+                }
+            }, context);
+        }
+
+        /**
+         * Executes the given {@link Runnable} with the given context.
+         *
+         * @param runnable the task to run
+         * @param context  the context to run the task with
+         * @return a {@link CompletionStage} with a completion result set by running the runnable,
+         * except for when this bulkhead cannot accept the task, in which case it completes
+         * exceptionally with a {@link RejectedExecutionException}
+         */
+        default CompletionStage<Void> execute(Runnable runnable, ContextT context) {
+            return executeSupplier(() -> {
+                runnable.run();
+                return null;
+            }, context);
+        }
+
+        /**
+         * Executes the given {@link Callable} with the given context.
+         *
+         * @param callable the task to run
+         * @param context  the context to run the task with
+         * @return a {@link CompletionStage} with a completion result set by running the callable,
+         * except for when this bulkhead cannot accept the task, in which case it completes
+         * exceptionally with a {@link RejectedExecutionException}
+         */
+        default <T> CompletionStage<T> execute(Callable<T> callable, ContextT context) {
+            return executeSupplier(() -> {
+                try {
+                    return callable.call();
+                } catch (Exception e) {
+                    throw new CompletionException(e);
+                }
+            }, context);
+        }
+    }
 }

@@ -16,6 +16,7 @@
 package com.netflix.concurrency.limits.bulkhead;
 
 import com.netflix.concurrency.limits.Bulkhead;
+import com.netflix.concurrency.limits.Bulkhead.ParallelDrainingBulkhead;
 import com.netflix.concurrency.limits.Limiter;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
@@ -32,7 +33,8 @@ import java.util.function.Function;
  * @param <ContextT> the context type to run tasks with
  * @see AbstractDispatcherBulkhead
  */
-public class RoundRobinDispatcherBulkhead<ContextT> extends AbstractDispatcherBulkhead<ContextT> {
+public class RoundRobinDispatcherBulkhead<ContextT> extends AbstractDispatcherBulkhead<ContextT>
+        implements ParallelDrainingBulkhead<ContextT> {
 
     private RoundRobinDispatcherBulkhead(Limiter<ContextT> limiter,
                                          BlockingQueue<BulkheadTask<?, ContextT>> backlog,
