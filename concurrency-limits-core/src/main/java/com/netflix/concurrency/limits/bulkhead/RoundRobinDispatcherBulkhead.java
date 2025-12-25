@@ -19,7 +19,7 @@ import com.netflix.concurrency.limits.Bulkhead;
 import com.netflix.concurrency.limits.Bulkhead.ParallelDrainingBulkhead;
 import com.netflix.concurrency.limits.Limiter;
 import java.util.Optional;
-import java.util.concurrent.BlockingQueue;
+import java.util.Queue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Function;
 
@@ -37,7 +37,7 @@ public class RoundRobinDispatcherBulkhead<ContextT> extends AbstractDispatcherBu
         implements ParallelDrainingBulkhead<ContextT> {
 
     private RoundRobinDispatcherBulkhead(Limiter<ContextT> limiter,
-                                         BlockingQueue<BulkheadTask<?, ContextT>> backlog,
+                                         Queue<BulkheadTask<?, ContextT>> backlog,
                                          Function<Throwable, Limiter.Listener.Result> exceptionClassifier,
                                          int maxDispatchPerCall) {
         super(limiter, backlog, exceptionClassifier, maxDispatchPerCall);

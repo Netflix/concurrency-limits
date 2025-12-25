@@ -18,7 +18,7 @@ package com.netflix.concurrency.limits.bulkhead;
 import com.netflix.concurrency.limits.Bulkhead;
 import com.netflix.concurrency.limits.Limiter;
 import java.util.Optional;
-import java.util.concurrent.BlockingQueue;
+import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
@@ -37,7 +37,7 @@ public class FifoDispatcherBulkhead<ContextT> extends AbstractDispatcherBulkhead
     private final AtomicInteger wip = new AtomicInteger();
 
     private FifoDispatcherBulkhead(Limiter<ContextT> limiter,
-                                   BlockingQueue<BulkheadTask<?, ContextT>> backlog,
+                                   Queue<BulkheadTask<?, ContextT>> backlog,
                                    Function<Throwable, Limiter.Listener.Result> exceptionClassifier,
                                    int maxDispatchPerCall) {
         super(limiter, backlog, exceptionClassifier, maxDispatchPerCall);

@@ -17,11 +17,13 @@ package com.netflix.concurrency.limits.bulkhead;
 
 import com.netflix.concurrency.limits.Bulkhead;
 import com.netflix.concurrency.limits.Limiter;
+import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -46,14 +48,14 @@ public abstract class AbstractDispatcherBulkhead<ContextT> implements Bulkhead<C
 
     protected final Limiter<ContextT> limiter;
 
-    protected final BlockingQueue<BulkheadTask<?, ContextT>> backlog;
+    protected final Queue<BulkheadTask<?, ContextT>> backlog;
 
     protected final Function<Throwable, Limiter.Listener.Result> exceptionClassifier;
 
     protected final int maxDispatchPerCall;
 
     protected AbstractDispatcherBulkhead(Limiter<ContextT> limiter,
-                                         BlockingQueue<BulkheadTask<?, ContextT>> backlog,
+                                         Queue<BulkheadTask<?, ContextT>> backlog,
                                          Function<Throwable, Limiter.Listener.Result> exceptionClassifier,
                                          int maxDispatchPerCall) {
         this.limiter = limiter;
@@ -64,10 +66,6 @@ public abstract class AbstractDispatcherBulkhead<ContextT> implements Bulkhead<C
 
     public final int getMaxDispatchPerCall() {
         return maxDispatchPerCall;
-    }
-
-    public final int getBacklogSize() {
-        return backlog.size();
     }
 
     @Override
@@ -128,7 +126,7 @@ public abstract class AbstractDispatcherBulkhead<ContextT> implements Bulkhead<C
 
         protected Limiter<ContextT> limiter;
 
-        protected BlockingQueue<BulkheadTask<?, ContextT>> backlog;
+        protected Queue<BulkheadTask<?, ContextT>> backlog;
 
         protected Function<Throwable, Limiter.Listener.Result> exceptionClassifier;
 
@@ -139,14 +137,14 @@ public abstract class AbstractDispatcherBulkhead<ContextT> implements Bulkhead<C
             return self();
         }
 
-        private BuilderT backlog(BlockingQueue<BulkheadTask<?, ContextT>> backlog) {
+        private BuilderT backlog(Queue<BulkheadTask<?, ContextT>> backlog) {
             this.backlog = backlog;
             return self();
         }
 
         public final BuilderT backlog(int size) {
             if (size < 0) {
-                return backlog(new LinkedBlockingQueue<>());
+                return backlog(new ConcurrentLinkedQueue<>());
             } else if (size == 0) {
                 return backlog(new SynchronousQueue<>());
             } else if (size >= 10_000) {
