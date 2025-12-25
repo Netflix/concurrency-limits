@@ -30,7 +30,8 @@ import java.util.function.Supplier;
 public interface Bulkhead<ContextT> {
 
     /**
-     * Executes the given {@link CompletionStage} with the given context.
+     * Executes the given {@link CompletionStage} with the given context. It is recommended to set
+     * a timeout on the given {@link CompletionStage} to ensure progress.
      *
      * @param supplier the task to run
      * @param context  the context to run the task with
