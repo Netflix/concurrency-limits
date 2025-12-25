@@ -24,13 +24,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class FifoDispatcherBulkheadTest {
+public class RoundRobinDispatcherBulkheadTest {
 
     @Test
     public void testSuccessfulExecution() {
         Limiter<Void> limiter = SimpleLimiter.newBuilder().limit(FixedLimit.of(1)).build();
 
-        FifoDispatcherBulkhead<Void> bulkhead = FifoDispatcherBulkhead.<Void>newBuilder()
+        RoundRobinDispatcherBulkhead<Void> bulkhead = RoundRobinDispatcherBulkhead.<Void>newBuilder()
                 .limiter(limiter)
                 .backlog(1)
                 .exceptionClassifier(t -> Limiter.Listener.Result.IGNORE)
