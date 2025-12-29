@@ -28,7 +28,7 @@ import java.util.function.Function;
  * can be obtained from the {@link Limiter}, tasks are added back to (the tail) of the queue. This
  * means there is no FIFO guarantee on the order of task execution. However, draining the queue can
  * be done in parallel, which may provide higher throughput, but higher latencies than
- * {@link FifoDispatcherBulkhead} in some scenarios.
+ * {@link FifoSerialDispatcherBulkhead} in some scenarios.
  *
  * @param <ContextT> the context type to run tasks with
  * @see AbstractDispatcherBulkhead

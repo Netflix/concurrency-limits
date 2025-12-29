@@ -32,14 +32,14 @@ import java.util.function.Function;
  * @param <ContextT> the context type to run tasks with
  * @see AbstractDispatcherBulkhead
  */
-public class FifoDispatcherBulkhead<ContextT> extends AbstractDispatcherBulkhead<ContextT> {
+public class FifoSerialDispatcherBulkhead<ContextT> extends AbstractDispatcherBulkhead<ContextT> {
 
     private final AtomicInteger wip = new AtomicInteger();
 
-    private FifoDispatcherBulkhead(Limiter<ContextT> limiter,
-                                   Queue<BulkheadTask<?, ContextT>> backlog,
-                                   Function<Throwable, Limiter.Listener.Result> exceptionClassifier,
-                                   int maxDispatchPerCall) {
+    private FifoSerialDispatcherBulkhead(Limiter<ContextT> limiter,
+                                         Queue<BulkheadTask<?, ContextT>> backlog,
+                                         Function<Throwable, Limiter.Listener.Result> exceptionClassifier,
+                                         int maxDispatchPerCall) {
         super(limiter, backlog, exceptionClassifier, maxDispatchPerCall);
     }
 
@@ -86,8 +86,8 @@ public class FifoDispatcherBulkhead<ContextT> extends AbstractDispatcherBulkhead
     public static class Builder<ContextT> extends AbstractBuilder<ContextT, Builder<ContextT>> {
 
         @Override
-        public FifoDispatcherBulkhead<ContextT> build() {
-            return new FifoDispatcherBulkhead<>(limiter, backlog, exceptionClassifier, maxDispatchPerCall);
+        public FifoSerialDispatcherBulkhead<ContextT> build() {
+            return new FifoSerialDispatcherBulkhead<>(limiter, backlog, exceptionClassifier, maxDispatchPerCall);
         }
     }
 }

@@ -108,4 +108,35 @@ public interface Bulkhead<ContextT> {
             }, context);
         }
     }
+
+    /**
+     * A bulkhead that executes its tasks without contexts. Implementations can freely exchange
+     * permits from {@link Limiter}s for tasks without consequences (e.g., maintaining total
+     * execution order), allowing for parallelism.
+     */
+    interface GlobalBulkhead extends Bulkhead<Void> {
+
+        default <T> CompletionStage<T> executeCompletionStage(Supplier<? extends CompletionStage<T>> supplier) {
+            return executeCompletionStage(supplier, null);
+        }
+    }
+
+    /**
+     * A bulkhead that drains the backlog in parallel and executes its tasks in parallel without
+     * contexts.
+     */
+    interface GlobalParallelDrainingBulkhead extends GlobalBulkhead, ParallelDrainingBulkhead<Void> {
+
+        default <T> CompletionStage<T> executeSupplier(Supplier<T> supplier) {
+            return executeSupplier(supplier, null);
+        }
+
+        default CompletionStage<Void> execute(Runnable runnable) {
+            return execute(runnable, null);
+        }
+
+        default <T> CompletionStage<T> execute(Callable<T> callable) {
+            return execute(callable, null);
+        }
+    }
 }
