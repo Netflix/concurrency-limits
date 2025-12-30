@@ -138,5 +138,19 @@ public interface Bulkhead<ContextT> {
         default <T> CompletionStage<T> execute(Callable<T> callable) {
             return execute(callable, null);
         }
+
+    }
+
+    /**
+     * A bulkhead that executes its tasks with contexts that have low cardinality (i.e., few
+     * distinct values). This allows for maintaining execution order by exchanging permits from
+     * {@link Limiter}s across tasks with equal contexts. Implementations can take advantage of
+     * this, e.g., by maintaining a partial FIFO order of task execution and parallize draining
+     * backlogs. Crucially, contexts should have proper {@link Object#equals(Object)} and
+     * {@link Object#hashCode()} implementations.
+     *
+     * @param <ContextT> the context type with low cardinality to run tasks with
+     */
+    interface LowCardinalityContextBulkhead<ContextT> extends Bulkhead<ContextT> {
     }
 }

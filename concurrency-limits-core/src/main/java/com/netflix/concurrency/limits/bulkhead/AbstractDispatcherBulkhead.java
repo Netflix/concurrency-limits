@@ -170,7 +170,7 @@ public abstract class AbstractDispatcherBulkhead<ContextT> implements Bulkhead<C
             return (BuilderT) this;
         }
 
-        public abstract AbstractDispatcherBulkhead<ContextT> build();
+        public abstract Bulkhead<ContextT> build();
     }
 
     protected static class BulkheadTask<T, ContextT> {
