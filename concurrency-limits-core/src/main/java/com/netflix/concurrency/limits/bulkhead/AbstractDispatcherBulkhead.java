@@ -132,7 +132,7 @@ public abstract class AbstractDispatcherBulkhead<ContextT> implements Bulkhead<C
 
         protected int maxDispatchPerCall;
 
-        protected BuilderT limiter(Limiter<ContextT> limiter) {
+        public final BuilderT limiter(Limiter<ContextT> limiter) {
             this.limiter = limiter;
             return self();
         }
