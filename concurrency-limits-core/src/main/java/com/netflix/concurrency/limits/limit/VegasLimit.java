@@ -20,6 +20,7 @@ import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
 import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
 import com.netflix.concurrency.limits.limit.functions.Log10RootIntFunction;
+import com.netflix.concurrency.limits.Tags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,8 +45,7 @@ public class VegasLimit extends AbstractLimit {
     
     private static final IntUnaryOperator LOG10 = Log10RootIntFunction.create(0);
 
-    public static class Builder {
-        private int initialLimit = 20;
+    public static class Builder extends AbstractLimit.Builder<Builder>{
         private int maxConcurrency = 1000;
         private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private double smoothing = 1.0;
@@ -58,6 +58,7 @@ public class VegasLimit extends AbstractLimit {
         private int probeMultiplier = 30;
         
         private Builder() {
+            super(20, "vegas");
         }
         
         /**
@@ -180,7 +181,12 @@ public class VegasLimit extends AbstractLimit {
             this.registry = registry;
             return this;
         }
-        
+
+        @Override
+        protected Builder self() {
+            return this;
+        }
+
         public VegasLimit build() {
             if (initialLimit > maxConcurrency) {
                 LOG.warn("Initial limit {} exceeded maximum limit {}", initialLimit, maxConcurrency);
@@ -188,11 +194,19 @@ public class VegasLimit extends AbstractLimit {
             return new VegasLimit(this);
         }
     }
-    
+
+    /**
+     * Constructs a new builder with the initial limit set to 20, and kind set to "vegas".
+     * @return the Chainable builder
+     */
     public static Builder newBuilder() {
         return new Builder();
     }
-    
+
+    /**
+     * Constructs a new {@link VegasLimit} with initial limit set to 20, and kind set to "vegas".
+     * @return the new {@link VegasLimit} instance
+     */
     public static VegasLimit newDefault() {
         return newBuilder().build();
     }
@@ -221,7 +235,7 @@ public class VegasLimit extends AbstractLimit {
     private double probeJitter;
 
     private VegasLimit(Builder builder) {
-        super(builder.initialLimit);
+        super(builder);
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
         this.alphaFunc = builder.alphaFunc;
@@ -234,7 +248,7 @@ public class VegasLimit extends AbstractLimit {
 
         resetProbeJitter();
 
-        this.rttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME);
+        this.rttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
     }
 
     private void resetProbeJitter() {

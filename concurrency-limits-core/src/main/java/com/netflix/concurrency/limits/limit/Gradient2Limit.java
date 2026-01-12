@@ -16,9 +16,8 @@
 package com.netflix.concurrency.limits.limit;
 
 import com.netflix.concurrency.limits.MetricIds;
-import com.netflix.concurrency.limits.MetricRegistry;
 import com.netflix.concurrency.limits.MetricRegistry.SampleListener;
-import com.netflix.concurrency.limits.internal.EmptyMetricRegistry;
+import com.netflix.concurrency.limits.Tags;
 import com.netflix.concurrency.limits.internal.Preconditions;
 import com.netflix.concurrency.limits.limit.measurement.ExpAvgMeasurement;
 import com.netflix.concurrency.limits.limit.measurement.Measurement;
@@ -71,25 +70,20 @@ import java.util.function.IntUnaryOperator;
 public final class Gradient2Limit extends AbstractLimit {
     private static final Logger LOG = LoggerFactory.getLogger(Gradient2Limit.class);
 
-    public static class Builder {
-        private int initialLimit = 20;
+    public static class Builder extends AbstractLimit.Builder<Builder> {
         private int minLimit = 20;
         private int maxConcurrency = 200;
 
         private double smoothing = 0.2;
         private IntUnaryOperator queueSize = concurrency -> 4;
-        private MetricRegistry registry = EmptyMetricRegistry.INSTANCE;
         private int longWindow = 600;
         private double rttTolerance = 1.5;
 
         /**
-         * Initial limit used by the limiter
-         * @param initialLimit
-         * @return Chainable builder
+         * Constructs a new builder with the initial limit set to {@code 20}, and the name set to "gradient2".
          */
-        public Builder initialLimit(int initialLimit) {
-            this.initialLimit = initialLimit;
-            return this;
+        public Builder() {
+            super(20, "gradient2");
         }
 
         /**
@@ -183,16 +177,6 @@ public final class Gradient2Limit extends AbstractLimit {
             return this;
         }
 
-        /**
-         * Registry for reporting metrics about the limiter's internal state.
-         * @param registry
-         * @return Chainable builder
-         */
-        public Builder metricRegistry(MetricRegistry registry) {
-            this.registry = registry;
-            return this;
-        }
-
         @Deprecated
         public Builder shortWindow(int n) {
             return this;
@@ -200,6 +184,11 @@ public final class Gradient2Limit extends AbstractLimit {
 
         public Builder longWindow(int n) {
             this.longWindow = n;
+            return this;
+        }
+
+        @Override
+        protected Builder self() {
             return this;
         }
 
@@ -258,7 +247,7 @@ public final class Gradient2Limit extends AbstractLimit {
     private final double tolerance;
 
     private Gradient2Limit(Builder builder) {
-        super(builder.initialLimit);
+        super(builder);
 
         this.estimatedLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
@@ -269,9 +258,9 @@ public final class Gradient2Limit extends AbstractLimit {
         this.lastRtt = 0;
         this.longRtt = new ExpAvgMeasurement(builder.longWindow, 10);
 
-        this.longRttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME);
-        this.shortRttSampleListener = builder.registry.distribution(MetricIds.WINDOW_MIN_RTT_NAME);
-        this.queueSizeSampleListener = builder.registry.distribution(MetricIds.WINDOW_QUEUE_SIZE_NAME);
+        this.longRttSampleListener = builder.registry.distribution(MetricIds.MIN_RTT_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
+        this.shortRttSampleListener = builder.registry.distribution(MetricIds.WINDOW_MIN_RTT_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
+        this.queueSizeSampleListener = builder.registry.distribution(MetricIds.WINDOW_QUEUE_SIZE_NAME, Tags.ID_NAME, builder.name, Tags.KIND_NAME, builder.kind);
     }
 
     @Override
