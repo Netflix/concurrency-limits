@@ -86,10 +86,12 @@ public final class BlockingAdaptiveExecutor implements Executor {
             }
 
             if (limiter == null) {
-                limiter = SimpleLimiter.newBuilder()
+                limiter = BlockingLimiter.wrap(SimpleLimiter.newBuilder()
                         .metricRegistry(metricRegistry)
                         .limit(AIMDLimit.newBuilder().build())
-                        .build();
+                        .build());
+            } else if (!(limiter instanceof BlockingLimiter)) {
+                limiter = BlockingLimiter.wrap(limiter);
             }
 
             return new BlockingAdaptiveExecutor(this);
