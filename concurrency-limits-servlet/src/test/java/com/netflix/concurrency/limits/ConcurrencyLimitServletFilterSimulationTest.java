@@ -46,8 +46,8 @@ public class ConcurrencyLimitServletFilterSimulationTest {
     @Ignore
     public void simulation() throws Exception {
         Limit limit = VegasLimit.newDefault();
-        BlockingAdaptiveExecutor executor = new BlockingAdaptiveExecutor(
-                SimpleLimiter.newBuilder().limit(limit).build());
+        BlockingAdaptiveExecutor executor =  BlockingAdaptiveExecutor.newBuilder().limiter(
+                SimpleLimiter.newBuilder().limit(limit).build()).build();
         AtomicInteger errors = new AtomicInteger();
         AtomicInteger success = new AtomicInteger();
         
