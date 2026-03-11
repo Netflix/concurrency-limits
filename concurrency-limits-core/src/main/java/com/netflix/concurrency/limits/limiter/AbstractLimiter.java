@@ -125,7 +125,7 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
     private final MetricRegistry.Counter bypassCounter;
     private final Predicate<ContextT> bypassResolver;
 
-    private volatile int limit;
+    protected volatile int limit;
 
     protected AbstractLimiter(Builder<?> builder) {
         this.clock = builder.clock;
@@ -192,6 +192,71 @@ public abstract class AbstractLimiter<ContextT> implements Limiter<ContextT> {
 
     protected void onNewLimit(int newLimit) {
         limit = newLimit;
+    }
+
+    /**
+     * @return The clock used for timing measurements
+     */
+    protected LongSupplier getClock() {
+        return clock;
+    }
+
+    /**
+     * Atomically try to increment the inflight count if under the limit.
+     * This provides a thread-safe way to acquire a slot without race conditions.
+     *
+     * @return true if successfully acquired a slot, false if at or over limit
+     */
+    protected boolean tryIncrementInflight() {
+        while (true) {
+            int current = inFlight.get();
+            if (current >= limit) {
+                return false;
+            }
+            if (inFlight.compareAndSet(current, current + 1)) {
+                return true;
+            }
+        }
+    }
+
+    /**
+     * Decrement the inflight count. Should be called when releasing a slot
+     * that was acquired via tryIncrementInflight().
+     */
+    protected void decrementInflight() {
+        inFlight.decrementAndGet();
+    }
+
+    /**
+     * Create a listener for a request where the inflight slot was already acquired
+     * via tryIncrementInflight(). This avoids double-incrementing the counter.
+     *
+     * @param startTime The time the request started (from getClock())
+     * @param currentInflight The inflight count at the time of acquisition
+     * @return A listener that will decrement inflight on completion
+     */
+    protected Listener createListenerPreAcquired(long startTime, int currentInflight) {
+        return new Listener() {
+            @Override
+            public void onSuccess() {
+                inFlight.decrementAndGet();
+                successCounter.increment();
+                limitAlgorithm.onSample(startTime, clock.getAsLong() - startTime, currentInflight, false);
+            }
+
+            @Override
+            public void onIgnore() {
+                inFlight.decrementAndGet();
+                ignoredCounter.increment();
+            }
+
+            @Override
+            public void onDropped() {
+                inFlight.decrementAndGet();
+                droppedCounter.increment();
+                limitAlgorithm.onSample(startTime, clock.getAsLong() - startTime, currentInflight, true);
+            }
+        };
     }
 
 }
