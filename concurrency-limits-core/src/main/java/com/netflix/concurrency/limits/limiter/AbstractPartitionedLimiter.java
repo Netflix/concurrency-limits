@@ -230,62 +230,88 @@ public abstract class AbstractPartitionedLimiter<ContextT> extends AbstractLimit
         }
 
         final Partition partition = resolvePartition(context);
+        final long startTime = getClock().getAsLong();
 
-        // This is a little unusual in that the partition is not a hard limit. It is
-        // only a limit that it is applied if the global limit is exceeded. This allows
-        // for excess capacity in each partition to allow for bursting over the limit,
-        // but only if there is spare global capacity.
+        // Atomically acquire global slot first to prevent exceeding the global limit.
+        // This fixes the race condition where multiple threads could all see they're
+        // "under the limit" and proceed without partition enforcement.
+        while (true) {
+            int currentInflight = getInflight();
 
-        final boolean overLimit;
-        if (getInflight() >= getLimit()) {
-            // over global limit, so respect partition limit
-            boolean couldAcquire = partition.tryAcquire();
-            overLimit = !couldAcquire;
-        } else {
-            // we are below global limit, so no need to respect partition limit
-            partition.acquire();
-            overLimit = false;
-        }
-
-        if (overLimit) {
-            if (partition.backoffMillis > 0 && delayedThreads.get() < maxDelayedThreads) {
-                try {
-                    delayedThreads.incrementAndGet();
-                    TimeUnit.MILLISECONDS.sleep(partition.backoffMillis);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                } finally {
-                    delayedThreads.decrementAndGet();
+            if (currentInflight >= getLimit()) {
+                // At global limit - must check partition capacity for guaranteed allocation
+                if (!partition.tryAcquire()) {
+                    // Partition is also at its limit - reject with optional backoff
+                    applyBackoff(partition);
+                    return createRejectedListener();
                 }
+
+                // Got partition slot, now try to get global slot
+                if (tryIncrementInflight()) {
+                    // Successfully acquired both - return listener
+                    return createAcquiredListener(partition, startTime);
+                }
+
+                // Global slot acquisition failed (race - someone else took it)
+                // Release partition and reject (don't spin indefinitely when full)
+                partition.release();
+                applyBackoff(partition);
+                return createRejectedListener();
             }
 
-            return createRejectedListener();
+            // Under global limit - try to acquire global slot atomically
+            if (tryIncrementInflight()) {
+                // Got global slot - partition can "burst" beyond its allocated %
+                // This is intentional: partitions only enforce limits when at global capacity
+                partition.acquire();
+                return createAcquiredListener(partition, startTime);
+            }
+            // CAS failed, another thread got the slot first - retry the loop
         }
+    }
 
-        final Listener listener = createListener();
+    /**
+     * Apply backoff delay if configured for the partition.
+     */
+    private void applyBackoff(Partition partition) {
+        if (partition.backoffMillis > 0 && delayedThreads.get() < maxDelayedThreads) {
+            try {
+                delayedThreads.incrementAndGet();
+                TimeUnit.MILLISECONDS.sleep(partition.backoffMillis);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                delayedThreads.decrementAndGet();
+            }
+        }
+    }
+
+    /**
+     * Create a listener for a successfully acquired request.
+     * The global inflight slot was already acquired via tryIncrementInflight().
+     */
+    private Optional<Listener> createAcquiredListener(Partition partition, long startTime) {
+        final int currentInflight = getInflight();
+        final Listener listener = createListenerPreAcquired(startTime, currentInflight);
         return Optional.of(new Listener() {
             @Override
             public void onSuccess() {
                 listener.onSuccess();
-                releasePartition(partition);
+                partition.release();
             }
 
             @Override
             public void onIgnore() {
                 listener.onIgnore();
-                releasePartition(partition);
+                partition.release();
             }
 
             @Override
             public void onDropped() {
                 listener.onDropped();
-                releasePartition(partition);
+                partition.release();
             }
         });
-    }
-
-    private void releasePartition(Partition partition) {
-        partition.release();
     }
 
     @Override

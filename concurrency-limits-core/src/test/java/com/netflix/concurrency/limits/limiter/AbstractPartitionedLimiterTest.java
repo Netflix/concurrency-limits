@@ -74,6 +74,14 @@ public class AbstractPartitionedLimiterTest {
         Assert.assertFalse(limiter.acquire("batch").isPresent());
     }
 
+    /**
+     * Test that when one partition uses all global capacity, another partition can reclaim
+     * its reserved share after the first partition releases slots.
+     * 
+     * Note: The global limit is a HARD cap. When batch uses all 10 global slots,
+     * live cannot acquire more until batch releases some. However, live's partition
+     * reservation guarantees it can acquire up to its limit when batch releases.
+     */
     @Test
     public void exceedTotalLimitForUnusedBin() {
         AbstractPartitionedLimiter<String> limiter = (AbstractPartitionedLimiter<String>) TestPartitionedLimiter.newBuilder()
@@ -83,18 +91,39 @@ public class AbstractPartitionedLimiterTest {
                 .limit(FixedLimit.of(10))
                 .build();
 
+        // Batch takes all 10 global slots (bursting beyond its 30% allocation)
+        java.util.List<Limiter.Listener> batchListeners = new java.util.ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            Assert.assertTrue(limiter.acquire("batch").isPresent());
+            Optional<Limiter.Listener> listener = limiter.acquire("batch");
+            Assert.assertTrue("batch should acquire slot " + i, listener.isPresent());
+            batchListeners.add(listener.get());
             Assert.assertEquals(i+1, limiter.getPartition("batch").getInflight());
         }
 
+        // Global limit is 10, so batch can't get any more
         Assert.assertFalse(limiter.acquire("batch").isPresent());
+        
+        // Global limit is 10 and fully used by batch, so live can't acquire either
+        // (even though live has 70% reservation, the global limit is a hard cap)
+        Assert.assertFalse("live cannot exceed global limit", limiter.acquire("live").isPresent());
+        Assert.assertEquals(10, limiter.getInflight());
 
+        // Release 7 batch slots to make room for live's guaranteed capacity
         for (int i = 0; i < 7; i++) {
-            Assert.assertTrue(limiter.acquire("live").isPresent());
+            batchListeners.get(i).onSuccess();
+        }
+        Assert.assertEquals(3, limiter.getInflight());
+        Assert.assertEquals(3, limiter.getPartition("batch").getInflight());
+
+        // Now live can acquire up to 7 slots (its guaranteed 70%)
+        for (int i = 0; i < 7; i++) {
+            Assert.assertTrue("live should acquire slot " + i, limiter.acquire("live").isPresent());
             Assert.assertEquals(i+1, limiter.getPartition("live").getInflight());
         }
 
+        // Global is at 10 again (3 batch + 7 live), so no more acquisitions
+        Assert.assertEquals(10, limiter.getInflight());
+        Assert.assertFalse(limiter.acquire("batch").isPresent());
         Assert.assertFalse(limiter.acquire("live").isPresent());
     }
 
@@ -315,7 +344,7 @@ public class AbstractPartitionedLimiterTest {
         }
 
         Assert.assertTrue("Global max inflight should not exceed total limit. " + resultSummary,
-                          globalMaxInflight.get() <= LIMIT + THREAD_COUNT);
+                          globalMaxInflight.get() <= LIMIT);
     }
 
 }
