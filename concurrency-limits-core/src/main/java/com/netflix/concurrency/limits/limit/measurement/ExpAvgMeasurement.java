@@ -60,8 +60,13 @@ public class ExpAvgMeasurement implements Measurement {
         sum = 0.0;
     }
 
+    /**
+     * Update the current estimate and end warmup. Subsequent samples are exponentially
+     * weighted against the updated value until {@link #reset()} is called.
+     */
     @Override
     public void update(Function<Number, Number> operation) {
         this.value = operation.apply(value).doubleValue();
+        this.count = warmupWindow;
     }
 }
