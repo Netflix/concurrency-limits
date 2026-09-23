@@ -26,7 +26,10 @@ import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -41,6 +44,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * ignored.
  */
 public final class BlockingAdaptiveExecutor implements Executor {
+    /**
+     * Hard upper bound on threads created by the default executor. This is a safety net
+     * only; in normal operation the {@link Limiter} keeps concurrency well below it.
+     */
+    private static final int DEFAULT_MAX_THREADS = 1000;
+
     public static class Builder {
         private static AtomicInteger idCounter = new AtomicInteger();
 
@@ -48,6 +57,7 @@ public final class BlockingAdaptiveExecutor implements Executor {
         private Executor executor;
         private Limiter<Void> limiter;
         private String name;
+        private int maxThreads = DEFAULT_MAX_THREADS;
 
         public Builder metricRegistry(MetricRegistry metricRegistry) {
             this.metricRegistry = metricRegistry;
@@ -69,13 +79,27 @@ public final class BlockingAdaptiveExecutor implements Executor {
             return this;
         }
 
+        /**
+         * Maximum number of threads the default executor may create. Once this many threads
+         * are busy, further submissions are rejected with {@link RejectedExecutionException}
+         * instead of spawning new native threads. Ignored if a custom executor is provided
+         * via {@link #executor(Executor)}.
+         */
+        public Builder maxThreads(int maxThreads) {
+            if (maxThreads <= 0) {
+                throw new IllegalArgumentException("maxThreads must be > 0, was " + maxThreads);
+            }
+            this.maxThreads = maxThreads;
+            return this;
+        }
+
         public BlockingAdaptiveExecutor build() {
             if (name == null) {
                 name = "unnamed-" + idCounter.incrementAndGet();
             }
 
             if (executor == null) {
-                executor = Executors.newCachedThreadPool(new ThreadFactory() {
+                executor = newBoundedCachedThreadPool(maxThreads, new ThreadFactory() {
                     @Override
                     public Thread newThread(Runnable r) {
                         Thread thread = new Thread(r);
@@ -100,6 +124,20 @@ public final class BlockingAdaptiveExecutor implements Executor {
         return new Builder();
     }
 
+    /**
+     * Same growth and idle-timeout behaviour as {@link Executors#newCachedThreadPool()}, but with
+     * a hard cap on the number of threads so that a misconfigured or runaway limit cannot exhaust
+     * native threads ({@code OutOfMemoryError: unable to create new native thread}).
+     */
+    private static ThreadPoolExecutor newBoundedCachedThreadPool(int maxThreads, ThreadFactory threadFactory) {
+        return new ThreadPoolExecutor(
+                0, maxThreads,
+                60L, TimeUnit.SECONDS,
+                new SynchronousQueue<Runnable>(),
+                threadFactory,
+                new ThreadPoolExecutor.AbortPolicy());
+    }
+
     private final Limiter<Void> limiter;
     private final Executor executor;
 
@@ -110,7 +148,7 @@ public final class BlockingAdaptiveExecutor implements Executor {
 
     @Deprecated
     public BlockingAdaptiveExecutor(Limiter<Void> limiter) {
-        this(limiter, Executors.newCachedThreadPool());
+        this(limiter, newBoundedCachedThreadPool(DEFAULT_MAX_THREADS, Executors.defaultThreadFactory()));
     }
 
     @Deprecated
