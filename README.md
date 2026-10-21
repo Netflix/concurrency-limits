@@ -104,6 +104,23 @@ Filter filter = new ConcurrencyLimitServletFilter(new ServletLimiterBuilder()
     .build());
 ```
 
+For asynchronous servlets, enable filter async support and map the initial `REQUEST`
+dispatch. Using the `filter` above:
+
+```java
+FilterRegistration.Dynamic registration = servletContext.addFilter("concurrencyLimit", filter);
+registration.setAsyncSupported(true);
+registration.addMappingForUrlPatterns(EnumSet.of(DispatcherType.REQUEST), false, "/*");
+```
+
+The filter retains the permit until `AsyncListener.onComplete`, follows subsequent
+async cycles, and does not acquire again on redispatch. Timeout and error callbacks
+record the outcome but do not release capacity before completion.
+
+This covers async processing active on entry or started within the filter chain.
+It does not cover an ERROR handler that starts async after the original chain returns.
+The limit covers HTTP lifetime, not backend work after a timeout or disconnect.
+
 ## Executor
 
 The BlockingAdaptiveExecutor adapts the size of an internal thread pool to match the concurrency limit based on measured latencies of Runnable commands and will block when the limit has been reached.

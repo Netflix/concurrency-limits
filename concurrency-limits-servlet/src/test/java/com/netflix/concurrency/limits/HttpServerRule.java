@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.Proxy;
 import java.net.URL;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -25,6 +26,7 @@ public class HttpServerRule extends ExternalResource {
     
     protected void before() throws Throwable {
         this.server = new Server(0);
+        ((ServerConnector) server.getConnectors()[0]).setHost("127.0.0.1");
         
         ServletHandler handler = new ServletHandler();
         server.setHandler(handler);
@@ -54,8 +56,8 @@ public class HttpServerRule extends ExternalResource {
     }
     
     public String get(String path) throws Exception {
-        URL url = new URL("http://localhost:" + getPort() + path);
-        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        URL url = new URL("http://127.0.0.1:" + getPort() + path);
+        HttpURLConnection con = (HttpURLConnection) url.openConnection(Proxy.NO_PROXY);
         con.setRequestMethod("GET");
         int responseCode = con.getResponseCode();
         if (responseCode != 200) {

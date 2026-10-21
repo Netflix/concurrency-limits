@@ -19,7 +19,12 @@ import com.netflix.concurrency.limits.Limiter;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
+import javax.servlet.AsyncContext;
+import javax.servlet.AsyncEvent;
+import javax.servlet.AsyncListener;
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
@@ -28,6 +33,7 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpServletRequestWrapper;
 
 /**
  * Servlet {@link Filter} that enforces concurrency limits on all requests into the servlet.
@@ -37,8 +43,11 @@ import javax.servlet.http.HttpServletResponse;
 public class ConcurrencyLimitServletFilter implements Filter {
 
     private static final int STATUS_TOO_MANY_REQUESTS = 429;
+    private static final AtomicLong NEXT_FILTER_ID = new AtomicLong();
     private final Limiter<HttpServletRequest> limiter;
     private final int throttleStatus;
+    private final String listenerAttribute = ConcurrencyLimitServletFilter.class.getName()
+            + "." + NEXT_FILTER_ID.getAndIncrement();
 
     public ConcurrencyLimitServletFilter(Limiter<HttpServletRequest> limiter) {
         this(limiter, STATUS_TOO_MANY_REQUESTS);
@@ -55,18 +64,102 @@ public class ConcurrencyLimitServletFilter implements Filter {
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
-        
-        Optional<Limiter.Listener> listener = limiter.acquire((HttpServletRequest)request);
-        if (listener.isPresent()) {
+        Completion existing = (Completion) request.getAttribute(listenerAttribute);
+        if (existing != null) {
             try {
                 chain.doFilter(request, response);
-                listener.get().onSuccess();
-            } catch (Exception e) {
-                listener.get().onIgnore();
+            } catch (IOException | ServletException | RuntimeException | Error e) {
+                existing.failed = true;
                 throw e;
             }
+            return;
+        }
+        Optional<Limiter.Listener> listener = limiter.acquire((HttpServletRequest) request);
+        if (listener.isPresent()) {
+            Completion completion = new Completion((HttpServletRequest) request, listener.get());
+            request.setAttribute(listenerAttribute, completion);
+            try {
+                if (request.isAsyncStarted()) {
+                    completion.observe(request.getAsyncContext());
+                }
+                chain.doFilter(completion, response);
+            } catch (IOException | ServletException | RuntimeException | Error e) {
+                completion.failed = true;
+                throw e;
+            } finally {
+                if (!completion.asyncStarted) {
+                    completion.complete();
+                }
+            }
         } else {
-            outputThrottleError((HttpServletResponse)response);
+            outputThrottleError((HttpServletResponse) response);
+            if (request.isAsyncStarted()) {
+                request.getAsyncContext().complete();
+            }
+        }
+    }
+
+    private static final class Completion extends HttpServletRequestWrapper implements AsyncListener {
+        private final Limiter.Listener listener;
+        private final AtomicBoolean completed = new AtomicBoolean();
+        private boolean asyncStarted;
+        private volatile boolean failed;
+        private volatile boolean timedOut;
+
+        private Completion(HttpServletRequest request, Limiter.Listener listener) {
+            super(request);
+            this.listener = listener;
+        }
+
+        @Override
+        public AsyncContext startAsync() {
+            return observe(super.startAsync());
+        }
+
+        @Override
+        public AsyncContext startAsync(ServletRequest request, ServletResponse response) {
+            return observe(super.startAsync(request, response));
+        }
+
+        private AsyncContext observe(AsyncContext context) {
+            // Attach before the application can complete or dispatch the context.
+            if (!asyncStarted) {
+                context.addListener(this);
+                asyncStarted = true;
+            }
+            return context;
+        }
+
+        @Override
+        public void onStartAsync(AsyncEvent event) {
+            event.getAsyncContext().addListener(this);
+        }
+
+        @Override
+        public void onComplete(AsyncEvent event) {
+            complete();
+        }
+
+        @Override
+        public void onTimeout(AsyncEvent event) {
+            timedOut = true;
+        }
+
+        @Override
+        public void onError(AsyncEvent event) {
+            failed = true;
+        }
+
+        private void complete() {
+            if (completed.compareAndSet(false, true)) {
+                if (timedOut) {
+                    listener.onDropped();
+                } else if (failed) {
+                    listener.onIgnore();
+                } else {
+                    listener.onSuccess();
+                }
+            }
         }
     }
 

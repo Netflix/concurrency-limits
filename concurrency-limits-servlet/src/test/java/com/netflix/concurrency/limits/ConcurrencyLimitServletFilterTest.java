@@ -14,6 +14,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import javax.servlet.ServletException;
+import javax.servlet.ServletRequestWrapper;
 import javax.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -55,7 +56,8 @@ public class ConcurrencyLimitServletFilterTest {
         MockFilterChain filterChain = new MockFilterChain();
 
         filter.doFilter(request, response, filterChain);
-        assertEquals("Request should be passed to the downstream chain", request, filterChain.getRequest());
+        assertEquals("Request should be passed to the downstream chain", request,
+                ((ServletRequestWrapper) filterChain.getRequest()).getRequest());
         assertEquals("Response should be passed to the downstream chain", response, filterChain.getResponse());
 
         verifyCounts(0, 0, 1, 0, 0);
@@ -106,7 +108,8 @@ public class ConcurrencyLimitServletFilterTest {
 
         filter.doFilter(request, response, filterChain);
 
-        assertEquals("Request should be passed to the downstream chain", request, filterChain.getRequest());
+        assertEquals("Request should be passed to the downstream chain", request,
+                ((ServletRequestWrapper) filterChain.getRequest()).getRequest());
         assertEquals("Response should be passed to the downstream chain", response, filterChain.getResponse());
         verifyCounts(0, 0, 0, 0, 1);
 
@@ -125,7 +128,8 @@ public class ConcurrencyLimitServletFilterTest {
 
         filter.doFilter(request, response, filterChain);
 
-        assertEquals("Request should be passed to the downstream chain", request, filterChain.getRequest());
+        assertEquals("Request should be passed to the downstream chain", request,
+                ((ServletRequestWrapper) filterChain.getRequest()).getRequest());
         assertEquals("Response should be passed to the downstream chain", response, filterChain.getResponse());
         verifyCounts(0, 0, 0, 0, 1);
     }
@@ -143,7 +147,8 @@ public class ConcurrencyLimitServletFilterTest {
 
         filter.doFilter(request, response, filterChain);
 
-        assertEquals("Request should be passed to the downstream chain", request, filterChain.getRequest());
+        assertEquals("Request should be passed to the downstream chain", request,
+                ((ServletRequestWrapper) filterChain.getRequest()).getRequest());
         assertEquals("Response should be passed to the downstream chain", response, filterChain.getResponse());
         verifyCounts(0, 0, 1, 0, 0);
     }
