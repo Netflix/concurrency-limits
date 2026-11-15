@@ -245,6 +245,12 @@ public final class Gradient2Limit extends AbstractLimit {
 
     private final int minLimit;
 
+    /**
+     * Limit the pod started at. Used to force a recompute below this value even when
+     * app limited, so the limit doesn't get stuck below a value it already ran at safely.
+     */
+    private final int initialLimit;
+
     private final IntUnaryOperator queueSize;
 
     private final double smoothing;
@@ -261,6 +267,7 @@ public final class Gradient2Limit extends AbstractLimit {
         super(builder.initialLimit);
 
         this.estimatedLimit = builder.initialLimit;
+        this.initialLimit = builder.initialLimit;
         this.maxLimit = builder.maxConcurrency;
         this.minLimit = builder.minLimit;
         this.queueSize = builder.queueSize;
@@ -294,8 +301,12 @@ public final class Gradient2Limit extends AbstractLimit {
             this.longRtt.update(current -> current.doubleValue() * 0.95);
         }
 
-        // Don't grow the limit if we are app limited
-        if (inflight < estimatedLimit / 2) {
+        // Don't grow the limit if we are app limited, unless we're still below the limit
+        // the pod started at. Without this, a limit that shrank during a transient latency
+        // spike can get stuck there indefinitely: once latency recovers, the same throughput
+        // produces lower inflight, which may never cross the (already-lowered) estimatedLimit / 2
+        // again, so the gate never reopens and the limit never climbs back to initialLimit.
+        if (inflight < estimatedLimit / 2 && estimatedLimit >= initialLimit) {
             return (int) estimatedLimit;
         }
 
