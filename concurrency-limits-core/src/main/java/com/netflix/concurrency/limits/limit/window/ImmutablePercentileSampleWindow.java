@@ -78,13 +78,17 @@ class ImmutablePercentileSampleWindow implements SampleWindow {
         if (sampleCount == 0) {
             return 0;
         }
+        int rttIndex = (int) Math.round(sampleCount * percentile);
+        if (rttIndex <= 1) {
+            // Clamp a rounded rank of zero to the minimum, which is already tracked.
+            return minRtt;
+        }
         long[] copyOfObservedRtts = new long[sampleCount];
         for (int i = 0; i < sampleCount; i++) {
             copyOfObservedRtts[i] = observedRtts.get(i);
         }
         Arrays.sort(copyOfObservedRtts);
 
-        int rttIndex = (int) Math.round(sampleCount * percentile);
         int zeroBasedRttIndex = rttIndex - 1;
         return copyOfObservedRtts[zeroBasedRttIndex];
     }
