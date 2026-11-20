@@ -60,4 +60,30 @@ public class ImmutablePercentileSampleWindowTest {
         window = window.addSample(lowRtt, 1, false);
         Assert.assertEquals(bigRtt, window.getTrackedRttNanos());
     }
+
+    @Test
+    public void lowPercentilesReturnMinimumForNonEmptyWindows() {
+        for (double percentile : new double[] {Double.MIN_VALUE, 0.01, 0.1, 0.49}) {
+            SampleWindow window = PercentileSampleWindowFactory.of(percentile, 10).newInstance();
+            Assert.assertEquals(0, window.getTrackedRttNanos());
+            window = window.addSample(bigRtt, 1, false);
+            Assert.assertEquals(bigRtt, window.getTrackedRttNanos());
+        }
+    }
+
+    @Test
+    public void percentileRankIsClampedAtTheFirstSample() {
+        double[] percentiles = {0.01, 0.049, 0.05, 0.1, 0.149, 0.15, 0.5, 0.999};
+        long[] expectedRtts = {10, 10, 10, 10, 10, 20, 50, 100};
+        for (int i = 0; i < percentiles.length; i++) {
+            double percentile = percentiles[i];
+            SampleWindow window = PercentileSampleWindowFactory.of(percentile, 10).newInstance();
+            long[] samples = {90, 30, 70, 10, 100, 50, 20, 80, 40, 60};
+            for (long sample : samples) {
+                window = window.addSample(sample, 1, false);
+            }
+            Assert.assertEquals("percentile " + percentile, expectedRtts[i], window.getTrackedRttNanos());
+            Assert.assertEquals(expectedRtts[i], window.getTrackedRttNanos());
+        }
+    }
 }
